@@ -1,9 +1,12 @@
-import express from 'express'
-import protect from '../middleware/authMiddleware.js'
+// Assigned to: Baanu
+// Module: Route Planning
+// TODO: Implement CRUD for routes (create, read, update, delete)
 
+import express from 'express'
 const router = express.Router()
 
-// Placeholder — implementation pending
-router.get('/', protect, (req, res) => res.json({ message: 'Routes module coming soon' }))
+router.get('/', (req, res) => {
+  res.json({ message: 'Route Planning API — implementation pending (Baanu)' })
+})
 
 export default router

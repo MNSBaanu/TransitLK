@@ -1,9 +1,12 @@
-import express from 'express'
-import protect from '../middleware/authMiddleware.js'
+// Assigned to: Irfa
+// Module: Driver Management
+// TODO: Implement CRUD for drivers
 
+import express from 'express'
 const router = express.Router()
 
-// Placeholder — implementation pending
-router.get('/', protect, (req, res) => res.json({ message: 'Drivers module coming soon' }))
+router.get('/', (req, res) => {
+  res.json({ message: 'Driver Management API — implementation pending (Irfa)' })
+})
 
 export default router

@@ -1,9 +1,12 @@
-import express from 'express'
-import protect from '../middleware/authMiddleware.js'
+// Assigned to: Irfa
+// Module: Vehicle Management
+// TODO: Implement CRUD for buses/vehicles
 
+import express from 'express'
 const router = express.Router()
 
-// Placeholder — implementation pending
-router.get('/', protect, (req, res) => res.json({ message: 'Buses module coming soon' }))
+router.get('/', (req, res) => {
+  res.json({ message: 'Vehicle Management API — implementation pending (Irfa)' })
+})
 
 export default router
