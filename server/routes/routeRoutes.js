@@ -1,12 +1,21 @@
 // Assigned to: Baanu
 // Module: Route Planning
-// TODO: Implement CRUD for routes (create, read, update, delete)
 
 import express from 'express'
+import protect from '../middleware/authMiddleware.js'
+import {
+  getRoutes,
+  getRouteById,
+  createRoute,
+  updateRoute,
+  deleteRoute,
+} from '../controllers/routeController.js'
+
 const router = express.Router()
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Route Planning API — implementation pending (Baanu)' })
-})
+router.use(protect)
+
+router.route('/').get(getRoutes).post(createRoute)
+router.route('/:id').get(getRouteById).put(updateRoute).delete(deleteRoute)
 
 export default router

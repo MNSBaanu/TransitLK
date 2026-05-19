@@ -41,6 +41,7 @@ The system models depot operations: depots employ drivers and manage buses; rout
 | `capacity`  |     | Seating capacity               |
 | `mileage`   |     | Current mileage                |
 | `status`    |     | e.g. available, in service     |
+| `service_type` |  | e.g. express, ordinary, semi-luxury |
 | `depot_id`  | FK  | Depot that manages this bus    |
 
 ### FuelLog
@@ -69,9 +70,15 @@ The system models depot operations: depots employ drivers and manage buses; rout
 |--------------|-----|--------------------------------|
 | `route_id`   | PK  | Unique route identifier        |
 | `route_name` |     | Route name / label             |
-| `distance`   |     | Total route distance           |
-| `start_point`|     | Starting location              |
-| `end_point`  |     | Destination location           |
+| `distance`   |     | Total route distance (km)      |
+| `start_point`|     | Starting location (display name) |
+| `end_point`  |     | Destination location (display name) |
+| `stops`      |     | Intermediary stop names (list) |
+| `start_location` |  | Map coordinates for start (`lat`, `lng`; optional `address`) |
+| `end_location`   |  | Map coordinates for end (`lat`, `lng`; optional `address`) |
+| `stop_locations` |  | Intermediary stops with coordinates (`name`, `lat`, `lng`) |
+| `bus_id`     | FK  | Assigned bus — use **Bus** `capacity`, `status` (availability), `service_type` via reference |
+| `driver_id`  | FK  | Assigned driver — use **Driver** `working_hours` via reference |
 
 ### Schedule
 
@@ -156,6 +163,7 @@ erDiagram
         int capacity
         number mileage
         string status
+        string service_type
         string depot_id FK
     }
 
@@ -181,6 +189,12 @@ erDiagram
         number distance
         string start_point
         string end_point
+        string stops
+        object start_location
+        object end_location
+        object stop_locations
+        string bus_id FK
+        string driver_id FK
     }
 
     SCHEDULE {
@@ -215,10 +229,10 @@ In the MERN stack, primary keys are typically MongoDB `_id` (`ObjectId`). Foreig
 | ER entity   | Mongoose collection | Notes |
 |------------|---------------------|--------|
 | User       | `users`             | Implemented (`User` model) — maps `username`/`email`, `password`, `role` |
-| Route      | `routes`            | `route_name`, `distance`, `start_point`, `end_point` |
+| Route      | `routes`            | `route_name`, `distance`, `start_point`, `end_point`, `stops`, `start_location`, `end_location`, `stop_locations` |
 | Schedule   | `schedules`         | References `route`, `bus`, `driver` |
 | Driver     | `drivers`           | Irfa |
-| Bus        | `buses`             | Irfa — includes `depot_id` |
+| Bus        | `buses`             | Irfa — includes `depot_id`, `service_type` |
 | FuelLog    | `fuellogs`          | Irfa |
 | Maintenance| `maintenances`      | Irfa |
 | Depot      | `depots`            | Optional early phase; `depot_id` on Bus |
@@ -226,23 +240,30 @@ In the MERN stack, primary keys are typically MongoDB `_id` (`ObjectId`). Foreig
 
 ### Route collection (from this ER)
 
-Minimum fields aligned with the diagram:
+| Field | Mongoose type | Required | Notes |
+|-------|---------------|----------|--------|
+| `routeName` | String | Yes | ER: `route_name` |
+| `distance` | Number | Yes | Total distance in km |
+| `startPoint` | String | Yes | ER: `start_point` — label for UI/reports |
+| `endPoint` | String | Yes | ER: `end_point` |
+| `stops` | [String] | No | Intermediary stop names |
+| `startLocation` | `{ lat, lng, address? }` | No* | ER: `start_location` — for Google Maps |
+| `endLocation` | `{ lat, lng, address? }` | No* | ER: `end_location` |
+| `stopLocations` | `[{ name, lat, lng }]` | No | ER: `stop_locations` — map pins per stop |
+| `busId` | ObjectId → `Bus` | No | ER: `bus_id` — populated fields: `capacity`, `status` (availability), `serviceType` |
+| `driverId` | ObjectId → `Driver` | No | ER: `driver_id` — populated field: `workingHours` |
 
-- `route_name` (String, required)
-- `distance` (Number, required)
-- `start_point` (String, required)
-- `end_point` (String, required)
+\*Required when map visualisation is enabled; optional for text-only routes in early development.
 
-Bus and driver assignment appear on **Schedule**, not on **Route**, in this ER model.
+**Bus/driver on Route:** Store only `busId` and `driverId` on the route document. Do **not** duplicate `capacity`, `service_type`, or `working_hours` on Route — the API uses Mongoose `populate()` to return them from **Bus** and **Driver**. **Schedule** can still assign bus/driver per trip for timetables.
 
-### Coursework brief vs ER
+### Bus collection — `service_type`
 
-The coursework text (see `DOCUMENT.md`) also mentions **intermediary stops** and **bus/driver assignment on routes**. If you need those in the UI:
+| Field | Mongoose type | Notes |
+|-------|---------------|--------|
+| `serviceType` | String (enum) | ER: `service_type` — e.g. `express`, `ordinary`, `semi-luxury` |
 
-- Add optional `stops: [String]` on **Route** (extra attribute, not on original ER), or
-- Rely on **Schedule** for `bus_id` and `driver_id` per trip (matches this ER).
-
-Document any extensions in the group report so design matches implementation.
+Aligns with coursework: assignment of buses to routes/schedules based on **service type** and **capacity** (`capacity` on Bus, `status` for availability).
 
 ---
 
