@@ -20,4 +20,5 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-docs
+# Local documentation (not tracked)
+DOCUMENT.md
