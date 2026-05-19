@@ -2,7 +2,6 @@
 // Module: Route Planning
 
 import express from 'express'
-import protect from '../middleware/authMiddleware.js'
 import {
   getRoutes,
   getRouteById,
@@ -13,8 +12,7 @@ import {
 
 const router = express.Router()
 
-router.use(protect)
-
+// Auth disabled for development — re-enable protect before production
 router.route('/').get(getRoutes).post(createRoute)
 router.route('/:id').get(getRouteById).put(updateRoute).delete(deleteRoute)
 
