@@ -1,22 +1,58 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 body {
-  font-family: 'Manrope', 'Segoe UI', Roboto, sans-serif;
-  background-color: #f1f5f9;
-  color: #1e293b;
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  background-color: #f7f9fb;
+  color: #191c1e;
+  margin: 0;
 }
 
-h1, h2, h3, h4 {
-  font-weight: 700;
-  font-family: 'Manrope', 'Segoe UI', Roboto, sans-serif;
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  font-size: 22px;
+  line-height: 1;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.map-tooltip {
+  position: absolute;
+  left: 100%;
+  margin-left: 8px;
+  padding: 4px 8px;
+  background: #191c1e;
+  color: white;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.group:hover .map-tooltip {
+  opacity: 1;
 }
