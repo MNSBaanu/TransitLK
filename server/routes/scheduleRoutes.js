@@ -1,9 +1,12 @@
-import express from 'express'
-import protect from '../middleware/authMiddleware.js'
+// Assigned to: Baanu
+// Module: Schedule Management
+// TODO: Implement CRUD for schedules with conflict detection
 
+import express from 'express'
 const router = express.Router()
 
-// Placeholder — implementation pending
-router.get('/', protect, (req, res) => res.json({ message: 'Schedules module coming soon' }))
+router.get('/', (req, res) => {
+  res.json({ message: 'Schedule Management API — implementation pending (Baanu)' })
+})
 
 export default router
