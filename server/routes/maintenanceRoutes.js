@@ -1,12 +1,9 @@
-// Assigned to: Irfa
-// Module: Fuel & Maintenance Log
-// TODO: Implement CRUD for maintenance and fuel logs
-
 import express from 'express'
+import protect from '../middleware/authMiddleware.js'
+
 const router = express.Router()
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Fuel & Maintenance API — implementation pending (Irfa)' })
-})
+// Placeholder — implementation pending
+router.get('/', protect, (req, res) => res.json({ message: 'Maintenance module coming soon' }))
 
 export default router
