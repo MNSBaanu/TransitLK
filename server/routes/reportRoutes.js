@@ -1,12 +1,9 @@
-// Assigned to: Nisma
-// Module: Reporting & Analytics
-// TODO: Implement report generation and PDF export
-
 import express from 'express'
+import protect from '../middleware/authMiddleware.js'
+
 const router = express.Router()
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Reports & Analytics API — implementation pending (Nisma)' })
-})
+// Placeholder — implementation pending
+router.get('/', protect, (req, res) => res.json({ message: 'Reports module coming soon' }))
 
 export default router
