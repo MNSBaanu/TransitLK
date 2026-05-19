@@ -67,12 +67,15 @@ export const getRouteById = async (req, res) => {
 // @access  Private
 export const createRoute = async (req, res) => {
   try {
-    const { routeName, startPoint, endPoint, busId, driverId } = req.body
+    const { routeName, distance, startPoint, endPoint, busId, driverId } = req.body
 
     if (!routeName?.trim() || !startPoint?.trim() || !endPoint?.trim()) {
       return res.status(400).json({
         message: 'routeName, startPoint, and endPoint are required',
       })
+    }
+    if (distance === undefined || distance === null || Number(distance) < 0) {
+      return res.status(400).json({ message: 'distance (km) is required and must be >= 0' })
     }
 
     await validateBusAssignment(busId)

@@ -69,7 +69,7 @@ const routeSchema = new mongoose.Schema(
       ref: 'User',
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'routes' }
 )
 
 const Route = mongoose.model('Route', routeSchema)
