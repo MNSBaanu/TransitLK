@@ -12,7 +12,6 @@ import {
 
 const router = express.Router()
 
-// Auth disabled for development — re-enable protect before production
 router.route('/').get(getRoutes).post(createRoute)
 router.route('/:id').get(getRouteById).put(updateRoute).delete(deleteRoute)
 

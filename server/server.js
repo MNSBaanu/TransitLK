@@ -5,7 +5,6 @@ import connectDB from './config/db.js'
 import errorHandler from './middleware/errorMiddleware.js'
 
 // Routes
-import authRoutes from './routes/authRoutes.js'
 import routeRoutes from './routes/routeRoutes.js'
 import scheduleRoutes from './routes/scheduleRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
@@ -23,8 +22,7 @@ const app = express()
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
 app.use(express.json())
 
-// API Routes
-app.use('/api/auth', authRoutes)
+// API Routes (auth disabled for development)
 app.use('/api/routes', routeRoutes)
 app.use('/api/schedules', scheduleRoutes)
 app.use('/api/drivers', driverRoutes)

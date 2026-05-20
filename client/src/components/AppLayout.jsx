@@ -3,7 +3,7 @@ import { LayoutProvider } from '../context/LayoutContext'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 
-function ProtectedRoute() {
+function AppLayout() {
   return (
     <LayoutProvider>
       <div className="flex h-screen w-full overflow-hidden bg-surface">
@@ -19,4 +19,4 @@ function ProtectedRoute() {
   )
 }
 
-export default ProtectedRoute
+export default AppLayout

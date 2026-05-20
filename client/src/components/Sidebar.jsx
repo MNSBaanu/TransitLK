@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import Icon from './Icon'
 
 const navItems = [
@@ -11,13 +11,6 @@ const navItems = [
 ]
 
 function Sidebar() {
-  const navigate = useNavigate()
-
-  const handleLogout = () => {
-    localStorage.removeItem('token')
-    navigate('/login')
-  }
-
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-outline-variant bg-white px-2 py-4">
       <div className="mb-6 px-4">
@@ -44,24 +37,13 @@ function Sidebar() {
       </nav>
 
       <div className="mt-auto space-y-3 px-4 pb-2">
-        <button
-          type="button"
-          onClick={() => navigate('/schedules')}
+        <NavLink
+          to="/schedules"
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800"
         >
           <Icon name="add" size={20} />
           Assign New Trip
-        </button>
-        <div className="border-t border-outline-variant pt-3">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-sm text-secondary hover:bg-surface-container"
-          >
-            <Icon name="logout" size={20} />
-            Logout
-          </button>
-        </div>
+        </NavLink>
       </div>
     </aside>
   )
