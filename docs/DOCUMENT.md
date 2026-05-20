@@ -8,6 +8,8 @@ Currently, route assignments, driver allocations, and bus schedules are manually
 
 Thus, the **Smart Route Management and Scheduling System (SRMSS)** is proposed as an integrated platform that digitalizes and streamlines the route planning and scheduling processes across public transport depots.
 
+> **Requirements specification:** See [`REQUIREMENTS.md`](./REQUIREMENTS.md) for Version 1 functional, non-functional, system, and domain requirements.
+
 ---
 
 ## Proposed Solution

@@ -281,6 +281,7 @@ Aligns with coursework: assignment of buses to routes/schedules based on **servi
 
 ## Related documents
 
-- `DOCUMENT.md` — Coursework brief and requirements
+- `DOCUMENT.md` — Coursework brief and marking scheme
+- `REQUIREMENTS.md` — Functional, non-functional, system, and domain requirements (Version 1)
 - UML class diagram, use case diagram, 3-tier architecture — `docs/` (add filenames as created)
 - Wireframes / Stitch — design reference for UI
