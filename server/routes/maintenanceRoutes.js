@@ -1,4 +1,4 @@
-import express from 'express'
+﻿import express from 'express'
 import {
   createMaintenance,
   getAllMaintenance,
@@ -12,15 +12,5 @@ const router = express.Router()
 
 router.route('/').get(protect, getAllMaintenance).post(protect, createMaintenance)
 router.route('/:id').get(protect, getMaintenanceById).put(protect, updateMaintenance).delete(protect, deleteMaintenance)
-// Assigned to: Irfa
-// Module: Fuel & Maintenance Log
-// TODO: Implement CRUD for maintenance and fuel logs
-
-import express from 'express'
-const router = express.Router()
-
-router.get('/', (req, res) => {
-  res.json({ message: 'Fuel & Maintenance API — implementation pending (Irfa)' })
-})
 
 export default router
