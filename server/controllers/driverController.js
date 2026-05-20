@@ -2,7 +2,6 @@ import Driver from '../models/Driver.js'
 
 // @desc    Create a new driver
 // @route   POST /api/drivers
-// @access  Protected
 export const createDriver = async (req, res) => {
   const { name, licenseNo, contactNo, workingHours } = req.body
 
@@ -21,7 +20,6 @@ export const createDriver = async (req, res) => {
 
 // @desc    Get all drivers
 // @route   GET /api/drivers
-// @access  Protected
 export const getAllDrivers = async (req, res) => {
   try {
     const drivers = await Driver.find({}).sort({ createdAt: -1 })
@@ -33,7 +31,6 @@ export const getAllDrivers = async (req, res) => {
 
 // @desc    Get a single driver by ID
 // @route   GET /api/drivers/:id
-// @access  Protected
 export const getDriverById = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id)
@@ -48,7 +45,6 @@ export const getDriverById = async (req, res) => {
 
 // @desc    Update a driver
 // @route   PUT /api/drivers/:id
-// @access  Protected
 export const updateDriver = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id)
@@ -68,7 +64,6 @@ export const updateDriver = async (req, res) => {
 
 // @desc    Delete a driver
 // @route   DELETE /api/drivers/:id
-// @access  Protected
 export const deleteDriver = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id)

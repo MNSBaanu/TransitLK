@@ -6,11 +6,11 @@ import Navbar from './Navbar'
 function AppLayout() {
   return (
     <LayoutProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-surface">
+      <div className="flex h-screen w-full overflow-hidden bg-fleet-canvas font-sans">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <Navbar />
-          <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface [&:not(:has(.routes-workspace))]:overflow-y-auto [&:not(:has(.routes-workspace))]:p-6">
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-fleet-canvas [&:not(:has(.routes-workspace))]:overflow-y-auto [&:not(:has(.routes-workspace))]:p-6">
             <Outlet />
           </main>
         </div>

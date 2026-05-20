@@ -2,7 +2,6 @@ import Bus from '../models/Bus.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
-// @access  Protected
 export const createBus = async (req, res) => {
   const { regNumber, capacity, mileage, status, depotId, serviceType } = req.body
 
@@ -21,7 +20,6 @@ export const createBus = async (req, res) => {
 
 // @desc    Get all buses
 // @route   GET /api/buses
-// @access  Protected
 export const getAllBuses = async (req, res) => {
   try {
     const { status, depotId } = req.query
@@ -38,7 +36,6 @@ export const getAllBuses = async (req, res) => {
 
 // @desc    Get a single bus by ID
 // @route   GET /api/buses/:id
-// @access  Protected
 export const getBusById = async (req, res) => {
   try {
     const bus = await Bus.findById(req.params.id)
@@ -53,7 +50,6 @@ export const getBusById = async (req, res) => {
 
 // @desc    Update a bus
 // @route   PUT /api/buses/:id
-// @access  Protected
 export const updateBus = async (req, res) => {
   try {
     const bus = await Bus.findById(req.params.id)
@@ -73,7 +69,6 @@ export const updateBus = async (req, res) => {
 
 // @desc    Delete a bus
 // @route   DELETE /api/buses/:id
-// @access  Protected
 export const deleteBus = async (req, res) => {
   try {
     const bus = await Bus.findById(req.params.id)

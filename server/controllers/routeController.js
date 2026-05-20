@@ -1,9 +1,18 @@
 import Route from '../models/Route.js'
 import Bus from '../models/Bus.js'
 import Driver from '../models/Driver.js'
+import {
+  sanitizeRouteBody,
+  validateLocation,
+  validateStopLocations,
+  isWithinWorkingHours,
+} from '../utils/routeHelpers.js'
 
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType mileage' }
-const driverPopulate = { path: 'driverId', select: 'name licenseNo contactNo workingHours' }
+const driverPopulate = {
+  path: 'driverId',
+  select: 'name licenseNo contactNo workingHours status',
+}
 
 const populateRoute = (query) =>
   query.populate(busPopulate).populate(driverPopulate).populate('createdBy', 'name email role')
@@ -32,12 +41,35 @@ const validateDriverAssignment = async (driverId) => {
     error.statusCode = 400
     throw error
   }
+  if (driver.status && driver.status !== 'available') {
+    const error = new Error(`Driver is not available (status: ${driver.status})`)
+    error.statusCode = 400
+    throw error
+  }
+  if (!isWithinWorkingHours(driver.workingHours)) {
+    const error = new Error(
+      `Driver is outside working hours (${driver.workingHours || 'not set'})`
+    )
+    error.statusCode = 400
+    throw error
+  }
   return driver
+}
+
+const prepareRouteData = (body) => {
+  const data = sanitizeRouteBody(body)
+
+  if (data.startLocation) data.startLocation = validateLocation(data.startLocation, 'Start')
+  if (data.endLocation) data.endLocation = validateLocation(data.endLocation, 'End')
+  if (data.stopLocations) {
+    data.stopLocations = validateStopLocations(data.stops || [], data.stopLocations)
+  }
+
+  return data
 }
 
 // @desc    Get all routes
 // @route   GET /api/routes
-// @access  Private
 export const getRoutes = async (req, res) => {
   try {
     const routes = await populateRoute(Route.find().sort({ createdAt: -1 }))
@@ -49,7 +81,6 @@ export const getRoutes = async (req, res) => {
 
 // @desc    Get single route
 // @route   GET /api/routes/:id
-// @access  Private
 export const getRouteById = async (req, res) => {
   try {
     const route = await populateRoute(Route.findById(req.params.id))
@@ -64,10 +95,10 @@ export const getRouteById = async (req, res) => {
 
 // @desc    Create route
 // @route   POST /api/routes
-// @access  Private
 export const createRoute = async (req, res) => {
   try {
-    const { routeName, distance, startPoint, endPoint, busId, driverId } = req.body
+    const data = prepareRouteData(req.body)
+    const { routeName, distance, startPoint, endPoint, busId, driverId } = data
 
     if (!routeName?.trim() || !startPoint?.trim() || !endPoint?.trim()) {
       return res.status(400).json({
@@ -82,7 +113,7 @@ export const createRoute = async (req, res) => {
     await validateDriverAssignment(driverId)
 
     const route = await Route.create({
-      ...req.body,
+      ...data,
       createdBy: req.user?.id,
     })
 
@@ -96,7 +127,6 @@ export const createRoute = async (req, res) => {
 
 // @desc    Update route
 // @route   PUT /api/routes/:id
-// @access  Private
 export const updateRoute = async (req, res) => {
   try {
     const existing = await Route.findById(req.params.id)
@@ -104,19 +134,14 @@ export const updateRoute = async (req, res) => {
       return res.status(404).json({ message: 'Route not found' })
     }
 
-    if (req.body.busId !== undefined) {
-      await validateBusAssignment(req.body.busId)
-    }
-    if (req.body.driverId !== undefined) {
-      await validateDriverAssignment(req.body.driverId)
-    }
+    const data = prepareRouteData(req.body)
 
-    const route = await Route.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    })
+    if (data.busId !== undefined) await validateBusAssignment(data.busId)
+    if (data.driverId !== undefined) await validateDriverAssignment(data.driverId)
 
-    const populated = await populateRoute(Route.findById(route._id))
+    await Route.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
+
+    const populated = await populateRoute(Route.findById(req.params.id))
     res.json(populated)
   } catch (error) {
     const status = error.statusCode || 500
@@ -126,7 +151,6 @@ export const updateRoute = async (req, res) => {
 
 // @desc    Delete route
 // @route   DELETE /api/routes/:id
-// @access  Private
 export const deleteRoute = async (req, res) => {
   try {
     const route = await Route.findByIdAndDelete(req.params.id)
