@@ -11,10 +11,7 @@ import scheduleRoutes from './routes/scheduleRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
 import busRoutes from './routes/busRoutes.js'
 import maintenanceRoutes from './routes/maintenanceRoutes.js'
-<<<<<<< HEAD
 import fuelRoutes from './routes/fuelRoutes.js'
-=======
->>>>>>> 27e49edb341a6ecfcfe5e736c5a7177df1f1b971
 import reportRoutes from './routes/reportRoutes.js'
 
 dotenv.config()
@@ -33,10 +30,7 @@ app.use('/api/schedules', scheduleRoutes)
 app.use('/api/drivers', driverRoutes)
 app.use('/api/buses', busRoutes)
 app.use('/api/maintenance', maintenanceRoutes)
-<<<<<<< HEAD
 app.use('/api/fuel', fuelRoutes)
-=======
->>>>>>> 27e49edb341a6ecfcfe5e736c5a7177df1f1b971
 app.use('/api/reports', reportRoutes)
 
 // Health check
