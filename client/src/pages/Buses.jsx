@@ -12,7 +12,7 @@ function Buses() {
     >
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Icon name="directions_bus" className="mb-4 text-outline" size={48} />
-        <p className="text-sm text-on-surface-variant">Implementation pending — Irfa</p>
+        <p className="text-sm text-fleet-ink-muted">Implementation pending — Irfa</p>
       </div>
     </PageShell>
   )

@@ -78,7 +78,7 @@ function RouteMap({
       })
       directionsRenderer.current = new window.google.maps.DirectionsRenderer({
         suppressMarkers: false,
-        polylineOptions: { strokeColor: '#191c1e', strokeWeight: 5 },
+        polylineOptions: { strokeColor: '#000249', strokeWeight: 5 },
       })
       directionsRenderer.current.setMap(mapInstance.current)
     }
@@ -205,8 +205,8 @@ function RouteMap({
 
   if (!MAPS_KEY) {
     return (
-      <div className="relative h-full w-full bg-surface-container-highest">
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-on-surface-variant">
+      <div className="relative h-full w-full bg-fleet-muted">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-fleet-ink-muted">
           <Icon name="map" size={64} className="mb-3 opacity-40" />
           <p className="text-sm font-medium">Map preview</p>
           <p className="mt-1 max-w-xs px-4 text-center text-xs opacity-80">
@@ -233,7 +233,7 @@ function RouteMap({
         <button
           type="button"
           onClick={() => handleZoom(1)}
-          className="rounded border border-outline-variant bg-white p-2 shadow-md hover:bg-surface-container-high"
+          className="rounded border border-fleet-line bg-fleet-surface p-2 shadow-md hover:bg-fleet-muted-low"
           aria-label="Zoom in"
         >
           <Icon name="add" size={20} />
@@ -241,7 +241,7 @@ function RouteMap({
         <button
           type="button"
           onClick={() => handleZoom(-1)}
-          className="rounded border border-outline-variant bg-white p-2 shadow-md hover:bg-surface-container-high"
+          className="rounded border border-fleet-line bg-fleet-surface p-2 shadow-md hover:bg-fleet-muted-low"
           aria-label="Zoom out"
         >
           <Icon name="remove" size={20} />
@@ -249,7 +249,7 @@ function RouteMap({
       </div>
 
       {computing && (
-        <div className="absolute right-4 top-4 z-10 rounded-full border border-outline-variant bg-white px-3 py-1.5 text-[10px] font-bold uppercase shadow-sm">
+        <div className="absolute right-4 top-4 z-10 rounded-full border border-fleet-line bg-fleet-surface px-3 py-1.5 text-[10px] font-bold uppercase shadow-sm">
           Calculating route…
         </div>
       )}
