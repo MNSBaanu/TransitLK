@@ -1,5 +1,4 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import RoutesPage from './pages/Routes'
 import Schedules from './pages/Schedules'
@@ -7,16 +6,12 @@ import Drivers from './pages/Drivers'
 import Buses from './pages/Buses'
 import Maintenance from './pages/Maintenance'
 import Reports from './pages/Reports'
-import ProtectedRoute from './components/ProtectedRoute'
+import AppLayout from './components/AppLayout'
 
 function App() {
   return (
     <Routes>
-      {/* Public */}
-      <Route path="/login" element={<Login />} />
-
-      {/* Protected */}
-      <Route element={<ProtectedRoute />}>
+      <Route element={<AppLayout />}>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/routes" element={<RoutesPage />} />
@@ -27,7 +22,6 @@ function App() {
         <Route path="/reports" element={<Reports />} />
       </Route>
 
-      {/* Fallback */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

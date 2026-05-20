@@ -35,7 +35,7 @@ TransitLK eliminates the dependency on manual scheduling and fragmented spreadsh
 | Frontend | React.js |
 | Backend | Node.js + Express.js |
 | Database | MongoDB + Mongoose |
-| Authentication | JWT (JSON Web Tokens) |
+| Authentication | JWT (disabled during development) |
 | Maps | Google Maps API |
 | Reporting | jsPDF / pdfkit |
 | Version Control | Git + GitHub |
@@ -91,8 +91,8 @@ Create a `.env` file inside `/server`:
 ```env
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+# JWT_SECRET=your_jwt_secret   # optional until auth is re-enabled
 ```
 
 ---
