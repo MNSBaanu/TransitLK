@@ -64,6 +64,11 @@ const routeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Driver',
     },
+    serviceType: {
+      type: String,
+      enum: ['express', 'ordinary', 'semi-luxury'],
+      default: 'ordinary',
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
