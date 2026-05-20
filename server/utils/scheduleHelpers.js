@@ -27,3 +27,46 @@ export function endOfDay(date) {
   d.setHours(23, 59, 59, 999)
   return d
 }
+
+export function startOfMonth(date) {
+  const d = new Date(date)
+  d.setDate(1)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export function endOfMonth(date) {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + 1, 0)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+/** Monday as first day of week */
+export function startOfWeek(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+export function endOfWeek(date) {
+  const d = startOfWeek(date)
+  d.setDate(d.getDate() + 6)
+  d.setHours(23, 59, 59, 999)
+  return d
+}
+
+export function validateTimeRange(departureTime, arrivalTime) {
+  const dep = timeToMinutes(departureTime)
+  const arr = timeToMinutes(arrivalTime)
+  if (dep == null || arr == null) {
+    return 'Departure and arrival must be valid times (HH:mm)'
+  }
+  if (arr <= dep) {
+    return 'Arrival time must be after departure time'
+  }
+  return null
+}

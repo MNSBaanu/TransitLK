@@ -36,6 +36,11 @@ const scheduleSchema = new mongoose.Schema(
       enum: ['scheduled', 'on-time', 'delayed', 'completed', 'cancelled'],
       default: 'scheduled',
     },
+    adjustmentReason: {
+      type: String,
+      enum: ['normal', 'emergency', 'maintenance', 'absence', 'obstruction'],
+      default: 'normal',
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
