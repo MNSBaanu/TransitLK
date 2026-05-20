@@ -9,23 +9,24 @@ function Navbar() {
   const location = useLocation()
   const { routeSearch, setRouteSearch } = useLayout()
   const onRoutesPage = location.pathname === '/routes'
+  const hideSearch = ['/buses', '/maintenance'].includes(location.pathname)
 
   return (
     <header className="z-50 flex h-16 w-full shrink-0 items-center justify-between gap-4 border-b border-outline-variant bg-white px-6">
       <div className="relative min-w-0 flex-1 max-w-xl">
-        <Icon
-          name="search"
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-outline"
-          size={20}
-        />
-        <input
-          type="search"
-          value={onRoutesPage ? routeSearch : ''}
-          onChange={(e) => onRoutesPage && setRouteSearch(e.target.value)}
-          disabled={!onRoutesPage}
-          placeholder="Search routes..."
-          className="w-full rounded-lg border border-outline-variant bg-surface py-2 pl-10 pr-3 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:cursor-default disabled:bg-surface-container-low disabled:opacity-70"
-        />
+        {!hideSearch && (
+          <>
+            <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" size={20} />
+            <input
+              type="search"
+              value={onRoutesPage ? routeSearch : ''}
+              onChange={(e) => onRoutesPage && setRouteSearch(e.target.value)}
+              disabled={!onRoutesPage}
+              placeholder="Search routes..."
+              className="w-full rounded-lg border border-outline-variant bg-surface py-2 pl-10 pr-3 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:cursor-default disabled:bg-surface-container-low disabled:opacity-70"
+            />
+          </>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
