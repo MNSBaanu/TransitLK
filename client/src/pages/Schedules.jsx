@@ -1,15 +1,20 @@
 // Assigned to: Baanu
 // Module: Schedule Management
 
+import PageShell from '../components/PageShell'
+import Icon from '../components/Icon'
+
 function Schedules() {
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-blue-900 mb-2">Schedule Management</h2>
-      <p className="text-slate-500">Build timetables with automatic conflict and overlap detection.</p>
-      <div className="mt-6 bg-white rounded-xl p-6 shadow-sm text-slate-400 text-sm">
-        Implementation pending — Baanu
+    <PageShell
+      title="Schedule Management"
+      subtitle="Build timetables with automatic conflict and overlap detection."
+    >
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Icon name="calendar_month" className="mb-4 text-outline" size={48} />
+        <p className="text-sm text-on-surface-variant">Implementation pending — Baanu</p>
       </div>
-    </div>
+    </PageShell>
   )
 }
 
