@@ -2,31 +2,38 @@ import mongoose from 'mongoose'
 
 const busSchema = new mongoose.Schema(
   {
-    reg_number: {
+    regNumber: {
       type: String,
       required: [true, 'Registration number is required'],
-      unique: true,
       trim: true,
+      unique: true,
     },
     capacity: {
       type: Number,
       required: [true, 'Capacity is required'],
+      min: 1,
     },
     mileage: {
       type: Number,
       default: 0,
+      min: 0,
     },
     status: {
       type: String,
-      enum: ['available', 'in service', 'in maintenance', 'retired'],
+      enum: ['available', 'in-service', 'maintenance'],
       default: 'available',
     },
-    depot_id: {
+    serviceType: {
+      type: String,
+      enum: ['express', 'ordinary', 'semi-luxury'],
+      default: 'ordinary',
+    },
+    depotId: {
       type: String,
       trim: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'buses' }
 )
 
 const Bus = mongoose.model('Bus', busSchema)

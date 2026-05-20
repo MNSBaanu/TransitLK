@@ -7,27 +7,22 @@ const driverSchema = new mongoose.Schema(
       required: [true, 'Driver name is required'],
       trim: true,
     },
-    license_no: {
+    licenseNo: {
       type: String,
       required: [true, 'License number is required'],
+      trim: true,
       unique: true,
-      trim: true,
     },
-    Contact_no: {
-      type: String,
-      required: [true, 'Contact number is required'],
-      trim: true,
-    },
-    working_hours: {
+    contactNo: {
       type: String,
       trim: true,
     },
-    depot_id: {
+    workingHours: {
       type: String,
       trim: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'drivers' }
 )
 
 const Driver = mongoose.model('Driver', driverSchema)
