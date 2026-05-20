@@ -14,6 +14,9 @@ function Dashboard() {
         <p className="text-sm text-on-surface-variant">Implementation pending — group module</p>
       </div>
     </PageShell>
+      <p className="mt-6 bg-white rounded-xl p-6 shadow-sm text-slate-400 text-sm">Implementation pending</p>
+    </div>
+
   )
 }
 
