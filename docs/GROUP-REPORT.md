@@ -54,7 +54,7 @@ Additionally, Agile provides flexibility to accommodate changes during developme
 
 ## Project timeline
 
-See **[`AGILE-TIMELINE.md`](./AGILE-TIMELINE.md) — Section 1** for the sprint-based timeline table (7 May – 11 June 2026).
+See **[`AGILE-TIMELINE.md`](./AGILE-TIMELINE.md) — Section 1** for the sprint-based timeline (discussion **6 May**, development **7 May – 7 June**, submission **8 June 2026**).
 
 ## Work Break-down (Agile Gantt Chart)
 
