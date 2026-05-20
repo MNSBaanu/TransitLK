@@ -6,11 +6,10 @@ import {
   updateMaintenance,
   deleteMaintenance,
 } from '../controllers/maintenanceController.js'
-import protect from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-router.route('/').get(protect, getAllMaintenance).post(protect, createMaintenance)
-router.route('/:id').get(protect, getMaintenanceById).put(protect, updateMaintenance).delete(protect, deleteMaintenance)
+router.route('/').get(getAllMaintenance).post(createMaintenance)
+router.route('/:id').get(getMaintenanceById).put(updateMaintenance).delete(deleteMaintenance)
 
 export default router

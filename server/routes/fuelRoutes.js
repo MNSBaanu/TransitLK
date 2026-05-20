@@ -7,12 +7,11 @@ import {
   deleteFuelLog,
   getFuelSummary,
 } from '../controllers/fuelController.js'
-import protect from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-router.get('/summary', protect, getFuelSummary)
-router.route('/').get(protect, getAllFuelLogs).post(protect, createFuelLog)
-router.route('/:id').get(protect, getFuelLogById).put(protect, updateFuelLog).delete(protect, deleteFuelLog)
+router.get('/summary', getFuelSummary)
+router.route('/').get(getAllFuelLogs).post(createFuelLog)
+router.route('/:id').get(getFuelLogById).put(updateFuelLog).delete(deleteFuelLog)
 
 export default router
