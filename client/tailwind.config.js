@@ -7,6 +7,12 @@ export default {
         sans: ['Inter', 'sans-serif'],
       },
       colors: {
+        surface: '#f7f9fb',
+        outline: '#777681',
+        'outline-variant': '#e2e8f0',
+        'surface-container': '#eceef0',
+        'surface-container-low': '#f2f4f6',
+        'on-surface-variant': '#464650',
         fleet: {
           primary: 'var(--fleet-primary)',
           black: 'var(--fleet-black)',
