@@ -2,17 +2,23 @@ import Driver from '../models/Driver.js'
 
 // @desc    Create a new driver
 // @route   POST /api/drivers
-// @access  Protected
 export const createDriver = async (req, res) => {
-  const { name, license_no, Contact_no, working_hours, depot_id } = req.body
+  const { name, licenseNo, contactNo, workingHours, status, depotId } = req.body
 
   try {
-    const exists = await Driver.findOne({ license_no })
+    const exists = await Driver.findOne({ licenseNo })
     if (exists) {
       return res.status(400).json({ message: 'Driver with this license number already exists' })
     }
 
-    const driver = await Driver.create({ name, license_no, Contact_no, working_hours, depot_id })
+    const driver = await Driver.create({
+      name,
+      licenseNo,
+      contactNo,
+      workingHours,
+      status,
+      depotId,
+    })
     res.status(201).json(driver)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -21,12 +27,13 @@ export const createDriver = async (req, res) => {
 
 // @desc    Get all drivers
 // @route   GET /api/drivers
-// @access  Protected
 export const getAllDrivers = async (req, res) => {
   try {
-    const { depot_id } = req.query
-    const filter = depot_id ? { depot_id } : {}
-    const drivers = await Driver.find(filter).sort({ createdAt: -1 })
+    const { depotId } = req.query
+    const filter = depotId ? { depotId } : {}
+    const drivers = await Driver.find(filter)
+      .populate('depotId', 'depotName location')
+      .sort({ createdAt: -1 })
     res.json(drivers)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -35,7 +42,6 @@ export const getAllDrivers = async (req, res) => {
 
 // @desc    Get a single driver by ID
 // @route   GET /api/drivers/:id
-// @access  Protected
 export const getDriverById = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id)
@@ -50,7 +56,6 @@ export const getDriverById = async (req, res) => {
 
 // @desc    Update a driver
 // @route   PUT /api/drivers/:id
-// @access  Protected
 export const updateDriver = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id)
@@ -70,7 +75,6 @@ export const updateDriver = async (req, res) => {
 
 // @desc    Delete a driver
 // @route   DELETE /api/drivers/:id
-// @access  Protected
 export const deleteDriver = async (req, res) => {
   try {
     const driver = await Driver.findById(req.params.id)
