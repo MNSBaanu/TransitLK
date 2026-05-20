@@ -2,7 +2,16 @@ import Schedule from '../models/Schedule.js'
 import Route from '../models/Route.js'
 import Bus from '../models/Bus.js'
 import Driver from '../models/Driver.js'
-import { timesOverlap, startOfDay, endOfDay } from '../utils/scheduleHelpers.js'
+import {
+  timesOverlap,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  validateTimeRange,
+} from '../utils/scheduleHelpers.js'
 import { isWithinWorkingHours } from '../utils/fleetHelpers.js'
 
 const routePopulate = { path: 'routeId', select: 'routeName startPoint endPoint distance serviceType' }
@@ -94,13 +103,20 @@ async function validateAssignment({ busId, driverId, departureTime }) {
 
 export const getSchedules = async (req, res) => {
   try {
-    const { tripDate, routeId, busId, driverId, status } = req.query
+    const { tripDate, fromDate, toDate, view, routeId, busId, driverId, status } = req.query
     const filter = {}
     if (routeId) filter.routeId = routeId
     if (busId) filter.busId = busId
     if (driverId) filter.driverId = driverId
     if (status) filter.status = status
-    if (tripDate) {
+
+    if (fromDate && toDate) {
+      filter.tripDate = { $gte: startOfDay(fromDate), $lte: endOfDay(toDate) }
+    } else if (view === 'weekly' && tripDate) {
+      filter.tripDate = { $gte: startOfWeek(tripDate), $lte: endOfWeek(tripDate) }
+    } else if (view === 'monthly' && tripDate) {
+      filter.tripDate = { $gte: startOfMonth(tripDate), $lte: endOfMonth(tripDate) }
+    } else if (tripDate) {
       filter.tripDate = { $gte: startOfDay(tripDate), $lte: endOfDay(tripDate) }
     }
 
@@ -125,14 +141,26 @@ export const getScheduleById = async (req, res) => {
 
 export const createSchedule = async (req, res) => {
   try {
-    const { routeId, busId, driverId, departureTime, arrivalTime, tripDate, status, createdBy } =
-      req.body
+    const {
+      routeId,
+      busId,
+      driverId,
+      departureTime,
+      arrivalTime,
+      tripDate,
+      status,
+      adjustmentReason,
+      createdBy,
+    } = req.body
 
     if (!routeId || !busId || !driverId || !departureTime || !arrivalTime || !tripDate) {
       return res.status(400).json({
         message: 'routeId, busId, driverId, departureTime, arrivalTime, and tripDate are required',
       })
     }
+
+    const timeError = validateTimeRange(departureTime, arrivalTime)
+    if (timeError) return res.status(400).json({ message: timeError })
 
     const route = await Route.findById(routeId)
     if (!route) return res.status(400).json({ message: 'Route not found' })
@@ -157,7 +185,8 @@ export const createSchedule = async (req, res) => {
       departureTime,
       arrivalTime,
       tripDate,
-      status,
+      status: status || 'scheduled',
+      adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
     })
 
@@ -181,6 +210,14 @@ export const updateSchedule = async (req, res) => {
     const departureTime = data.departureTime ?? existing.departureTime
     const arrivalTime = data.arrivalTime ?? existing.arrivalTime
     const tripDate = data.tripDate ?? existing.tripDate
+
+    const timeError = validateTimeRange(departureTime, arrivalTime)
+    if (timeError) return res.status(400).json({ message: timeError })
+
+    if (data.reason && !data.adjustmentReason) {
+      data.adjustmentReason = data.reason
+      delete data.reason
+    }
 
     if (data.routeId) {
       const route = await Route.findById(routeId)
