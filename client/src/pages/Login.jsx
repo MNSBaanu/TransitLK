@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import Icon from '../components/Icon'
 
 function Login() {
   const navigate = useNavigate()
@@ -28,50 +29,57 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <div className="bg-white rounded-xl shadow-md p-8 w-full max-w-sm">
-        <h2 className="text-2xl font-bold text-blue-900 mb-1">TransitLK</h2>
-        <p className="text-sm text-slate-500 mb-6">Sign in to your account</p>
+    <div className="flex min-h-screen items-center justify-center bg-surface px-4">
+      <div className="w-full max-w-md rounded-xl border border-outline-variant bg-surface-container-lowest p-8 shadow-lg">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-container">
+            <Icon name="directions_bus" className="text-on-primary-container" size={28} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-primary">TransitLK</h1>
+            <p className="text-sm text-on-surface-variant">SRMSS Depot Portal</p>
+          </div>
+        </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded mb-4">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-error">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
               Email
-            </label>
+            </span>
             <input
               type="email"
               name="email"
               value={form.email}
               onChange={handleChange}
               required
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="you@example.com"
+              className="mt-1 w-full rounded-lg border border-outline px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary"
+              placeholder="you@depot.lk"
             />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
               Password
-            </label>
+            </span>
             <input
               type="password"
               name="password"
               value={form.password}
               onChange={handleChange}
               required
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full rounded-lg border border-outline px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary"
               placeholder="••••••••"
             />
-          </div>
+          </label>
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-800 text-white py-2 rounded-md text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+            className="mt-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-on-primary shadow-md transition hover:bg-primary-container disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
