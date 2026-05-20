@@ -4,6 +4,28 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { depotLabel, depotIdValue } from '../utils/fleetHelpers'
+
+function busFormState(bus) {
+  if (!bus) {
+    return {
+      regNumber: '',
+      capacity: '',
+      mileage: '',
+      status: 'available',
+      depotId: '',
+      serviceType: 'ordinary',
+    }
+  }
+  return {
+    regNumber: bus.regNumber,
+    capacity: bus.capacity,
+    mileage: bus.mileage ?? '',
+    status: bus.status,
+    serviceType: bus.serviceType || 'ordinary',
+    depotId: depotIdValue(bus.depotId),
+  }
+}
 
 const STATUS_STYLES = {
   available:     'bg-green-100 text-green-700',
@@ -15,9 +37,7 @@ const ITEMS_PER_PAGE = 8
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 function BusModal({ bus, onClose, onSave }) {
-  const [form, setForm] = useState(
-    bus || { regNumber: '', capacity: '', mileage: '', status: 'available', depotId: '', serviceType: 'ordinary' }
-  )
+  const [form, setForm] = useState(() => busFormState(bus))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -207,7 +227,7 @@ function FleetTab({ addTrigger, onAddClose }) {
                     {bus.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-neutral-500">{bus.depotId || '—'}</td>
+                <td className="px-4 py-3 text-neutral-500">{depotLabel(bus.depotId)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button onClick={() => setModal(bus)}
