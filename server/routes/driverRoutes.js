@@ -6,11 +6,10 @@ import {
   updateDriver,
   deleteDriver,
 } from '../controllers/driverController.js'
-import protect from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-router.route('/').get(protect, getAllDrivers).post(protect, createDriver)
-router.route('/:id').get(protect, getDriverById).put(protect, updateDriver).delete(protect, deleteDriver)
+router.route('/').get(getAllDrivers).post(createDriver)
+router.route('/:id').get(getDriverById).put(updateDriver).delete(deleteDriver)
 
 export default router

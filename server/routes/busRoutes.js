@@ -6,11 +6,10 @@ import {
   updateBus,
   deleteBus,
 } from '../controllers/busController.js'
-import protect from '../middleware/authMiddleware.js'
 
 const router = express.Router()
 
-router.route('/').get(protect, getAllBuses).post(protect, createBus)
-router.route('/:id').get(protect, getBusById).put(protect, updateBus).delete(protect, deleteBus)
+router.route('/').get(getAllBuses).post(createBus)
+router.route('/:id').get(getBusById).put(updateBus).delete(deleteBus)
 
 export default router
