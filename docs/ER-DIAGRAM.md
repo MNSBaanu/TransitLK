@@ -230,13 +230,13 @@ In the MERN stack, primary keys are typically MongoDB `_id` (`ObjectId`). Foreig
 |------------|---------------------|--------|
 | User       | `users`             | Implemented (`User` model) — maps `username`/`email`, `password`, `role` |
 | Route      | `routes`            | `route_name`, `distance`, `start_point`, `end_point`, `stops`, `start_location`, `end_location`, `stop_locations` |
-| Schedule   | `schedules`         | References `route`, `bus`, `driver` |
-| Driver     | `drivers`           | Irfa |
-| Bus        | `buses`             | Irfa — includes `depot_id`, `service_type` |
-| FuelLog    | `fuellogs`          | Irfa |
-| Maintenance| `maintenances`      | Irfa |
-| Depot      | `depots`            | Optional early phase; `depot_id` on Bus |
-| Admin      | —                   | May be merged with `User` where `role === 'admin'` |
+| Schedule   | `schedules`         | `routeId`, `busId`, `driverId`, times, `tripDate`, `status`; conflict checks on save |
+| Driver     | `drivers`           | `depotId` → `Depot`; working hours, status |
+| Bus        | `buses`             | `depotId` → `Depot`, `serviceType`, capacity, status |
+| FuelLog    | `fuellogs`          | `bus_id` → `Bus` |
+| Maintenance| `maintenances`      | `bus_id` → `Bus` |
+| Depot      | `depots`            | `depotName`, `location`, `contactNo` |
+| Admin      | `admins`            | `userId` → `User` (1:1); optional `depotId` → `Depot` |
 
 ### Route collection (from this ER)
 

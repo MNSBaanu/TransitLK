@@ -20,7 +20,7 @@ const fuelLogSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'fuellogs' }
 )
 
 const FuelLog = mongoose.model('FuelLog', fuelLogSchema)

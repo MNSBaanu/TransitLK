@@ -21,7 +21,7 @@ const maintenanceSchema = new mongoose.Schema(
       required: [true, 'Cost is required'],
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'maintenances' }
 )
 
 const Maintenance = mongoose.model('Maintenance', maintenanceSchema)
