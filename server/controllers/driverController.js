@@ -3,7 +3,7 @@ import Driver from '../models/Driver.js'
 // @desc    Create a new driver
 // @route   POST /api/drivers
 export const createDriver = async (req, res) => {
-  const { name, licenseNo, contactNo, workingHours, status } = req.body
+  const { name, licenseNo, contactNo, workingHours } = req.body
 
   try {
     const exists = await Driver.findOne({ licenseNo })
@@ -11,13 +11,7 @@ export const createDriver = async (req, res) => {
       return res.status(400).json({ message: 'Driver with this license number already exists' })
     }
 
-    const driver = await Driver.create({
-      name,
-      licenseNo,
-      contactNo,
-      workingHours,
-      status,
-    })
+    const driver = await Driver.create({ name, licenseNo, contactNo, workingHours })
     res.status(201).json(driver)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -28,9 +22,7 @@ export const createDriver = async (req, res) => {
 // @route   GET /api/drivers
 export const getAllDrivers = async (req, res) => {
   try {
-    const { status } = req.query
-    const filter = status ? { status } : {}
-    const drivers = await Driver.find(filter).sort({ createdAt: -1 })
+    const drivers = await Driver.find({}).sort({ createdAt: -1 })
     res.json(drivers)
   } catch (error) {
     res.status(500).json({ message: error.message })

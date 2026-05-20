@@ -1,21 +1,13 @@
 // Assigned to: Irfa
-// Module: Driver Management
+// Module: Driver Management — merged into Fleet & Personnel page
 
-import PageShell from '../components/PageShell'
-import Icon from '../components/Icon'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 function Drivers() {
-  return (
-    <PageShell
-      title="Driver Management"
-      subtitle="Manage driver profiles, license validity, and working hours."
-    >
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Icon name="badge" className="mb-4 text-outline" size={48} />
-        <p className="text-sm text-fleet-ink-muted">Implementation pending — Irfa</p>
-      </div>
-    </PageShell>
-  )
+  const navigate = useNavigate()
+  useEffect(() => { navigate('/buses', { replace: true }) }, [navigate])
+  return null
 }
 
 export default Drivers
