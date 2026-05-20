@@ -21,6 +21,15 @@ const driverSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    status: {
+      type: String,
+      enum: ['available', 'on-leave', 'off-duty'],
+      default: 'available',
+    },
+    depotId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Depot',
+    },
   },
   { timestamps: true, collection: 'drivers' }
 )

@@ -2,17 +2,16 @@ import Bus from '../models/Bus.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
-// @access  Protected
 export const createBus = async (req, res) => {
-  const { reg_number, capacity, mileage, status, depot_id } = req.body
+  const { regNumber, capacity, mileage, status, depotId, serviceType } = req.body
 
   try {
-    const exists = await Bus.findOne({ reg_number })
+    const exists = await Bus.findOne({ regNumber })
     if (exists) {
       return res.status(400).json({ message: 'Bus with this registration number already exists' })
     }
 
-    const bus = await Bus.create({ reg_number, capacity, mileage, status, depot_id })
+    const bus = await Bus.create({ regNumber, capacity, mileage, status, depotId, serviceType })
     res.status(201).json(bus)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -21,15 +20,16 @@ export const createBus = async (req, res) => {
 
 // @desc    Get all buses
 // @route   GET /api/buses
-// @access  Protected
 export const getAllBuses = async (req, res) => {
   try {
-    const { status, depot_id } = req.query
+    const { status, depotId } = req.query
     const filter = {}
     if (status) filter.status = status
-    if (depot_id) filter.depot_id = depot_id
+    if (depotId) filter.depotId = depotId
 
-    const buses = await Bus.find(filter).sort({ createdAt: -1 })
+    const buses = await Bus.find(filter)
+      .populate('depotId', 'depotName location')
+      .sort({ createdAt: -1 })
     res.json(buses)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -38,7 +38,6 @@ export const getAllBuses = async (req, res) => {
 
 // @desc    Get a single bus by ID
 // @route   GET /api/buses/:id
-// @access  Protected
 export const getBusById = async (req, res) => {
   try {
     const bus = await Bus.findById(req.params.id)
@@ -53,7 +52,6 @@ export const getBusById = async (req, res) => {
 
 // @desc    Update a bus
 // @route   PUT /api/buses/:id
-// @access  Protected
 export const updateBus = async (req, res) => {
   try {
     const bus = await Bus.findById(req.params.id)
@@ -73,7 +71,6 @@ export const updateBus = async (req, res) => {
 
 // @desc    Delete a bus
 // @route   DELETE /api/buses/:id
-// @access  Protected
 export const deleteBus = async (req, res) => {
   try {
     const bus = await Bus.findById(req.params.id)

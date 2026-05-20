@@ -35,7 +35,7 @@ TransitLK eliminates the dependency on manual scheduling and fragmented spreadsh
 | Frontend | React.js |
 | Backend | Node.js + Express.js |
 | Database | MongoDB + Mongoose |
-| Authentication | JWT (JSON Web Tokens) |
+| Authentication | JWT (disabled during development) |
 | Maps | Google Maps API |
 | Reporting | jsPDF / pdfkit |
 | Version Control | Git + GitHub |
@@ -82,6 +82,13 @@ npm run dev   # from root (if concurrently configured)
 
 > Requires Node.js v18+, MongoDB instance, and a Google Maps API key.
 
+**Route management:** Create routes with start/end points, intermediary stops, and distance. Assign buses (`busId`) and drivers (`driverId`) via foreign keys with populated fleet details. Add `VITE_GOOGLE_MAPS_API_KEY` in `client/.env` for map visualization and auto distance.
+
+```bash
+# Sample fleet data for route assignment (from server/)
+npm run seed:fleet
+```
+
 ---
 
 ## Environment Variables
@@ -91,8 +98,8 @@ Create a `.env` file inside `/server`:
 ```env
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+# JWT_SECRET=your_jwt_secret   # optional until auth is re-enabled
 ```
 
 ---
