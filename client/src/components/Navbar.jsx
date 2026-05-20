@@ -30,28 +30,33 @@ function Navbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {onRoutesPage && (
+          <button type="button" className="btn-outlined hidden md:inline-flex">
+            Support
+          </button>
+        )}
         <button
           type="button"
-          className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container"
+          className="rounded-full p-2 text-fleet-ink-muted transition-colors hover:bg-fleet-muted"
           aria-label="Notifications"
         >
           <Icon name="notifications" />
         </button>
         <button
           type="button"
-          className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container"
+          className="rounded-full p-2 text-fleet-ink-muted transition-colors hover:bg-fleet-muted"
           aria-label="Settings"
         >
           <Icon name="settings" />
         </button>
         <button
           type="button"
-          className="rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container"
+          className="rounded-full p-2 text-fleet-ink-muted transition-colors hover:bg-fleet-muted"
           aria-label="Help"
         >
           <Icon name="help" />
         </button>
-        <div className="ml-1 h-9 w-9 overflow-hidden rounded-full border border-outline-variant bg-surface-container">
+        <div className="ml-1 h-9 w-9 overflow-hidden rounded-full border border-fleet-line bg-fleet-muted">
           <img src={AVATAR_URL} alt="User avatar" className="h-full w-full object-cover" />
         </div>
       </div>

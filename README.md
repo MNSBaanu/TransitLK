@@ -82,6 +82,13 @@ npm run dev   # from root (if concurrently configured)
 
 > Requires Node.js v18+, MongoDB instance, and a Google Maps API key.
 
+**Route management:** Create routes with start/end points, intermediary stops, and distance. Assign buses (`busId`) and drivers (`driverId`) via foreign keys with populated fleet details. Add `VITE_GOOGLE_MAPS_API_KEY` in `client/.env` for map visualization and auto distance.
+
+```bash
+# Sample fleet data for route assignment (from server/)
+npm run seed:fleet
+```
+
 ---
 
 ## Environment Variables
