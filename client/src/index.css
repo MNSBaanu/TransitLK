@@ -16,6 +16,12 @@
   --fleet-ink-muted: #464650;
   --fleet-primary-light: #e8e9f7;
   --fleet-tertiary-light: #f8e8eb;
+  --depot-navy: #000249;
+  --depot-maroon: #7a0016;
+  --depot-maroon-hover: #5c0011;
+  --depot-nav-bg: #141618;
+  --depot-nav-bg-subtle: #1c1f23;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --sidebar-bg: #2d3133;
   --sidebar-text: #f1f5f9;
   --sidebar-text-muted: #94a3b8;
@@ -27,11 +33,11 @@
 }
 
 html {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--fleet-canvas);
   color: var(--fleet-ink);
   margin: 0;
@@ -227,6 +233,39 @@ body {
 
   .sidebar-nav-active {
     background-color: var(--fleet-primary);
+    color: #ffffff;
+  }
+
+  .top-nav {
+    background-color: var(--depot-nav-bg);
+    border-bottom: 1px solid #2a2d31;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+
+  .top-nav-link {
+    color: rgb(255 255 255 / 0.88);
+  }
+
+  .top-nav-link:hover {
+    background-color: rgb(255 255 255 / 0.1);
+    color: #ffffff;
+  }
+
+  .top-nav-link-active {
+    background-color: var(--depot-maroon);
+    color: #ffffff;
+  }
+
+  .top-nav-search {
+    background-color: rgb(255 255 255 / 0.12);
+    border: 1px solid rgb(255 255 255 / 0.18);
+  }
+
+  .top-nav-search input::placeholder {
+    color: rgb(255 255 255 / 0.55);
+  }
+
+  .top-nav-search input {
     color: #ffffff;
   }
 

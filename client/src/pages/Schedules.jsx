@@ -455,7 +455,7 @@ function SchedulesPage() {
       : formatPeriodLabel(viewMode, viewDate)
 
   return (
-    <div className="-m-6 flex h-[calc(100vh-4rem)] flex-col overflow-hidden bg-[#f0f1f3]">
+    <div className="-m-6 flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-[#f0f1f3] max-xl:h-[calc(100vh-72px-44px)]">
       <ModuleToast message={toast} />
 
       {/* Conflict alert bar (mockup) */}
