@@ -1,12 +1,16 @@
-// Assigned to: Irfa
-// Module: Driver Management
-// TODO: Implement CRUD for drivers
-
 import express from 'express'
+import {
+  createDriver,
+  getAllDrivers,
+  getDriverById,
+  updateDriver,
+  deleteDriver,
+} from '../controllers/driverController.js'
+import protect from '../middleware/authMiddleware.js'
+
 const router = express.Router()
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Driver Management API — implementation pending (Irfa)' })
-})
+router.route('/').get(protect, getAllDrivers).post(protect, createDriver)
+router.route('/:id').get(protect, getDriverById).put(protect, updateDriver).delete(protect, deleteDriver)
 
 export default router
