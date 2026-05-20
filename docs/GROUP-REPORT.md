@@ -52,9 +52,18 @@ Since the project must be completed within a limited timeframe of one month, Agi
 
 Additionally, Agile provides flexibility to accommodate changes during development and supports continuous testing, helping to identify and fix issues early. Therefore, Agile is an appropriate choice as it ensures organized development, reduces risks, and improves overall system quality.
 
-## Work Break-down (Gantt Chart)
+## Project timeline
 
-<!-- Insert Gantt Chart figure -->
+See **[`AGILE-TIMELINE.md`](./AGILE-TIMELINE.md) — Section 1** for the sprint-based timeline table (7 May – 11 June 2026).
+
+## Work Break-down (Agile Gantt Chart)
+
+> Waterfall-style charts (all design → all backend → all frontend → documentation) are **not** used because the project follows **Agile**.  
+> Development Gantt excludes documentation tasks (report, diagram finalization).
+
+See **[`AGILE-TIMELINE.md`](./AGILE-TIMELINE.md) — Sections 4–7** for the Agile Gantt (Mermaid + onlinegantt task list). Export the Mermaid chart or rebuild it in onlinegantt.com.
+
+<!-- Insert exported Agile Gantt image here -->
 
 ## Responsibilities
 
