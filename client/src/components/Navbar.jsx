@@ -7,8 +7,9 @@ const AVATAR_URL =
 
 function Navbar() {
   const location = useLocation()
-  const { routeSearch, setRouteSearch } = useLayout()
+  const { routeSearch, setRouteSearch, scheduleSearch, setScheduleSearch } = useLayout()
   const onRoutesPage = location.pathname === '/routes'
+  const onSchedulesPage = location.pathname === '/schedules'
   const hideSearch = ['/buses', '/maintenance'].includes(location.pathname)
 
   return (
@@ -19,10 +20,15 @@ function Navbar() {
             <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" size={20} />
             <input
               type="search"
-              value={onRoutesPage ? routeSearch : ''}
-              onChange={(e) => onRoutesPage && setRouteSearch(e.target.value)}
-              disabled={!onRoutesPage}
-              placeholder="Search routes..."
+              value={onRoutesPage ? routeSearch : onSchedulesPage ? scheduleSearch : ''}
+              onChange={(e) => {
+                if (onRoutesPage) setRouteSearch(e.target.value)
+                if (onSchedulesPage) setScheduleSearch(e.target.value)
+              }}
+              disabled={!onRoutesPage && !onSchedulesPage}
+              placeholder={
+                onSchedulesPage ? 'Search schedules, drivers...' : 'Search routes...'
+              }
               className="w-full rounded-lg border border-outline-variant bg-surface py-2 pl-10 pr-3 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 disabled:cursor-default disabled:bg-surface-container-low disabled:opacity-70"
             />
           </>
