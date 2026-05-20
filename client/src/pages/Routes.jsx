@@ -24,7 +24,6 @@ const emptyForm = {
   stopLocations: [],
   busId: '',
   driverId: '',
-  preferredServiceType: '',
 }
 
 function routeCode(route) {
@@ -44,7 +43,6 @@ function routeFromApi(route) {
     stopLocations: route.stopLocations?.length ? [...route.stopLocations] : [],
     busId: route.busId?._id || route.busId || '',
     driverId: route.driverId?._id || route.driverId || '',
-    preferredServiceType: route.busId?.serviceType || '',
   }
 }
 
@@ -135,15 +133,10 @@ function RoutesPage() {
     return null
   }, [form.driverId, drivers, selectedRoute])
 
-  const availableBuses = useMemo(() => {
-    return buses.filter((b) => {
-      if (!isBusAssignable(b)) return false
-      if (form.preferredServiceType && b.serviceType !== form.preferredServiceType) {
-        return false
-      }
-      return true
-    })
-  }, [buses, form.preferredServiceType])
+  const availableBuses = useMemo(
+    () => buses.filter((b) => isBusAssignable(b)),
+    [buses]
+  )
 
   const availableDrivers = useMemo(
     () => drivers.filter((d) => isDriverAssignable(d)),
@@ -259,9 +252,9 @@ function RoutesPage() {
   const estFuel = form.distance ? `${(Number(form.distance) * 0.1).toFixed(1)} L` : '—'
 
   return (
-    <div className="routes-workspace flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
+    <div className="routes-workspace relative flex h-full min-h-0 flex-1 overflow-hidden bg-fleet-canvas">
       {toast && (
-        <div className="absolute left-1/2 top-20 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white shadow-xl">
+        <div className="absolute left-1/2 top-4 z-[60] flex -translate-x-1/2 items-center gap-2 rounded bg-fleet-primary px-4 py-2 font-sans text-sm font-semibold text-white shadow-lg">
           <Icon name="check_circle" size={20} />
           {toast}
           <button type="button" onClick={() => setToast('')} className="ml-2 hover:opacity-75">
@@ -270,50 +263,40 @@ function RoutesPage() {
         </div>
       )}
 
-      {/* Page header */}
-      <header className="flex shrink-0 items-center justify-between border-b border-outline-variant px-6 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Routes</h1>
-          <p className="mt-0.5 text-sm text-on-surface-variant">
-            Plan routes with stops, map visualization, and bus/driver assignment by FK.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={resetForm}
-          className="flex items-center gap-2 rounded-lg bg-neutral-600 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
-        >
-          <Icon name="add" size={18} />
-          Add New Route
-        </button>
-      </header>
-
       {error && (
-        <div className="shrink-0 border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700">
+        <div className="absolute left-0 right-0 top-0 z-50 border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        {/* Left: existing routes */}
-        <aside className="hidden w-72 shrink-0 flex-col border-r border-outline-variant bg-white lg:flex xl:w-80">
-          <div className="flex items-center justify-between border-b border-outline-variant p-4">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-secondary">
-              Existing Routes
-            </h2>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Left: existing routes (design) */}
+        <aside className="hidden w-72 shrink-0 flex-col border-r border-fleet-line bg-fleet-surface lg:flex xl:w-80">
+          <div className="space-y-3 border-b border-fleet-line p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="label-caps text-fleet-primary">Existing Routes</h2>
+              <button
+                type="button"
+                className="rounded p-1 text-fleet-ink-muted hover:bg-fleet-muted-low"
+                aria-label="Filter routes"
+              >
+                <Icon name="filter_list" size={20} />
+              </button>
+            </div>
             <button
               type="button"
-              className="rounded p-1 text-neutral-700 hover:bg-surface-container"
-              aria-label="Filter routes"
+              onClick={resetForm}
+              className="btn-primary flex w-full items-center justify-center gap-2"
             >
-              <Icon name="filter_list" size={20} />
+              <Icon name="add" size={18} />
+              Add New Route
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? (
-              <p className="p-4 text-sm text-on-surface-variant">Loading routes...</p>
+              <p className="p-4 text-sm text-fleet-ink-muted">Loading routes...</p>
             ) : filteredRoutes.length === 0 ? (
-              <p className="p-4 text-sm text-on-surface-variant">
+              <p className="p-4 text-sm text-fleet-ink-muted">
                 No routes yet. Click Add New Route to create one.
               </p>
             ) : (
@@ -326,42 +309,42 @@ function RoutesPage() {
                     tabIndex={0}
                     onClick={() => selectRoute(route)}
                     onKeyDown={(e) => e.key === 'Enter' && selectRoute(route)}
-                    className={`group cursor-pointer border-b border-outline-variant p-4 transition-colors hover:bg-surface-container-low ${
-                      active ? 'border-l-4 border-l-neutral-900 bg-neutral-50' : ''
+                    className={`group cursor-pointer border-b border-fleet-line p-4 transition-colors hover:bg-fleet-canvas ${
+                      active ? 'border-l-2 border-l-fleet-primary bg-fleet-canvas' : 'border-l-2 border-l-transparent'
                     }`}
                   >
                     <div className="mb-2 flex items-start justify-between">
-                      <span className="font-mono text-xs font-bold text-neutral-800">
+                      <span className="font-mono text-xs font-bold tabular-nums text-fleet-ink">
                         {routeCode(route)}
                       </span>
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-800">
-                          Active
-                        </span>
-                        <button type="button" className="rounded p-1 text-on-surface-variant">
+                        <span className="status-badge status-badge-available">Active</span>
+                        <button type="button" className="rounded p-1 text-fleet-ink-muted">
                           <Icon name="more_vert" size={18} />
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm font-semibold text-neutral-900">{route.routeName}</p>
-                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-on-surface-variant">
+                    <p className="text-sm font-semibold text-fleet-ink">{route.routeName}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-fleet-ink-muted">
                       {route.startPoint}
                       <Icon name="arrow_forward" size={14} />
                       {route.endPoint}
                     </p>
-                    <p className="mt-1 text-xs text-on-surface-variant">{route.distance} km</p>
+                    <p className="mt-1 text-xs text-fleet-ink-muted">{route.distance} km</p>
                     <div className="mt-2 flex justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         type="button"
                         onClick={() => selectRoute(route)}
-                        className="rounded border border-outline-variant bg-white p-1.5 hover:border-neutral-900 hover:text-neutral-900"
+                        className="btn-accent inline-flex items-center p-1.5"
+                        title="Edit route"
                       >
                         <Icon name="edit" size={16} />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(route._id)}
-                        className="rounded border border-outline-variant bg-white p-1.5 hover:border-error hover:text-error"
+                        className="btn-tertiary inline-flex items-center p-1.5"
+                        title="Delete route"
                       >
                         <Icon name="delete" size={16} />
                       </button>
@@ -373,51 +356,14 @@ function RoutesPage() {
           </div>
         </aside>
 
-        {/* Center: map */}
-        <section className="relative hidden min-w-0 flex-1 flex-col border-r border-outline-variant md:flex">
-          <RouteMap
-            startPoint={form.startPoint}
-            endPoint={form.endPoint}
-            stops={form.stops}
-            startLocation={form.startLocation}
-            endLocation={form.endLocation}
-            stopLocations={form.stopLocations}
-            onRouteComputed={handleMapUpdate}
-          />
-          <div className="pointer-events-none absolute bottom-6 left-6 right-6 z-10">
-            <div className="pointer-events-auto flex flex-wrap items-center gap-4 rounded-xl border border-outline-variant bg-white p-4 shadow-lg">
-              <div className="border-r border-outline-variant pr-4">
-                <p className="text-[10px] font-bold uppercase text-on-surface-variant">Route ID</p>
-                <p className="text-sm font-bold text-neutral-900">
-                  {isEditing ? routeCode(selectedRoute) : 'NEW'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-on-surface-variant">Distance</p>
-                <p className="text-sm font-bold">
-                  {form.distance ? `${form.distance} km` : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-on-surface-variant">Stops</p>
-                <p className="text-sm font-bold">{form.stops.length} points</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-on-surface-variant">Est. Fuel</p>
-                <p className="text-sm font-bold text-amber-700">{estFuel}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Right: configuration */}
-        <aside className="flex w-full shrink-0 flex-col bg-white sm:w-[400px]">
-          <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3">
-            <h2 className="text-base font-semibold text-neutral-900">Configuration</h2>
+        {/* Center: route configuration (design) */}
+        <section className="flex min-w-0 flex-1 flex-col border-r border-fleet-line bg-fleet-surface">
+          <div className="flex items-center justify-between border-b border-fleet-line px-4 py-3">
+            <h2 className="text-base font-semibold text-fleet-ink">Route Configuration</h2>
             <button
               type="button"
               onClick={resetForm}
-              className="rounded p-1 text-on-surface-variant hover:bg-surface-container"
+              className="rounded p-1 text-fleet-ink-muted hover:bg-fleet-muted"
               title="Reset form"
             >
               <Icon name="more_vert" size={20} />
@@ -427,23 +373,19 @@ function RoutesPage() {
           <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <div className="space-y-5 p-4">
               <label className="block">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
-                  Route Name
-                </span>
+                <span className="label-caps text-fleet-ink-muted">Route Name</span>
                 <input
                   name="routeName"
                   value={form.routeName}
                   onChange={handleFormChange}
                   required
-                  className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                  className="mt-1 w-full rounded border border-fleet-line px-3 py-2 text-sm outline-none focus:border-fleet-primary focus:ring-2 focus:ring-fleet-primary/20"
                   placeholder="Colombo — Kandy Express"
                 />
               </label>
 
               <label className="block">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
-                  Distance (km)
-                </span>
+                <span className="label-caps text-fleet-ink-muted">Distance (km)</span>
                 <input
                   name="distance"
                   type="number"
@@ -452,39 +394,17 @@ function RoutesPage() {
                   value={form.distance}
                   onChange={handleFormChange}
                   required
-                  className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                  className="mt-1 w-full rounded border border-fleet-line px-3 py-2 text-sm tabular-nums outline-none focus:border-fleet-primary focus:ring-2 focus:ring-fleet-primary/20"
                 />
-                <p className="mt-1 text-[10px] text-on-surface-variant">
-                  Auto-calculated from Google Maps when API key is set; editable manually.
-                </p>
-              </label>
-
-              <label className="block">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
-                  Preferred bus service type
-                </span>
-                <select
-                  name="preferredServiceType"
-                  value={form.preferredServiceType}
-                  onChange={handleFormChange}
-                  className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
-                >
-                  <option value="">Any service type</option>
-                  <option value="express">Express</option>
-                  <option value="ordinary">Ordinary</option>
-                  <option value="semi-luxury">Semi-luxury</option>
-                </select>
               </label>
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
-                    Start Point
-                  </span>
+                  <span className="label-caps text-fleet-ink-muted">Start Point</span>
                   <div className="relative mt-1">
                     <Icon
                       name="location_on"
-                      className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-700"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 text-fleet-primary"
                       size={18}
                     />
                     <input
@@ -492,19 +412,17 @@ function RoutesPage() {
                       value={form.startPoint}
                       onChange={handleFormChange}
                       required
-                      className="w-full rounded-lg border border-outline-variant py-2 pl-8 pr-2 text-sm outline-none focus:border-neutral-900"
+                      className="w-full rounded border border-fleet-line py-2 pl-8 pr-2 text-sm outline-none focus:border-fleet-primary focus:ring-2 focus:ring-fleet-primary/20"
                       placeholder="Colombo Fort"
                     />
                   </div>
                 </label>
                 <label className="block">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
-                    End Point
-                  </span>
+                  <span className="label-caps text-fleet-ink-muted">End Point</span>
                   <div className="relative mt-1">
                     <Icon
                       name="flag"
-                      className="absolute left-2 top-1/2 -translate-y-1/2 text-error"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 text-fleet-tertiary"
                       size={18}
                     />
                     <input
@@ -512,7 +430,7 @@ function RoutesPage() {
                       value={form.endPoint}
                       onChange={handleFormChange}
                       required
-                      className="w-full rounded-lg border border-outline-variant py-2 pl-8 pr-2 text-sm outline-none focus:border-neutral-900"
+                      className="w-full rounded border border-fleet-line py-2 pl-8 pr-2 text-sm outline-none focus:border-fleet-primary focus:ring-2 focus:ring-fleet-primary/20"
                       placeholder="Kandy"
                     />
                   </div>
@@ -521,13 +439,13 @@ function RoutesPage() {
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wide text-secondary">
+                  <h3 className="label-caps text-fleet-primary">
                     Stops Management ({form.stops.length})
                   </h3>
                   <button
                     type="button"
                     onClick={addStop}
-                    className="flex items-center gap-1 text-sm font-bold text-neutral-900 hover:underline"
+                    className="flex items-center gap-1 text-sm font-bold text-fleet-primary hover:underline"
                   >
                     <Icon name="add_circle" size={18} />
                     Add Stop
@@ -537,24 +455,24 @@ function RoutesPage() {
                   value={stopInput}
                   onChange={(e) => setStopInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStop())}
-                  className="mb-2 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+                  className="mb-2 w-full rounded border border-fleet-line px-3 py-2 text-sm outline-none focus:border-fleet-primary focus:ring-2 focus:ring-fleet-primary/20"
                   placeholder="Stop name"
                 />
                 <ul className="space-y-2">
                   {form.stops.map((stop, index) => (
                     <li
                       key={`${stop}-${index}`}
-                      className="flex items-center gap-2 rounded-lg border border-transparent bg-surface-container-low p-2 hover:border-outline-variant"
+                      className="flex items-center gap-2 rounded-lg border border-transparent bg-fleet-muted-low p-2 hover:border-fleet-line"
                     >
-                      <Icon name="drag_indicator" className="cursor-grab text-outline" size={20} />
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-[10px] font-bold text-white">
+                      <Icon name="drag_indicator" className="cursor-grab text-fleet-ink-muted" size={20} />
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-fleet-primary text-[10px] font-bold text-white">
                         {index + 1}
                       </span>
                       <span className="flex-1 text-sm font-medium">{stop}</span>
                       <button
                         type="button"
                         onClick={() => removeStop(index)}
-                        className="text-on-surface-variant hover:text-error"
+                        className="text-fleet-ink-muted hover:text-fleet-tertiary"
                       >
                         <Icon name="delete" size={18} />
                       </button>
@@ -563,27 +481,25 @@ function RoutesPage() {
                 </ul>
               </div>
 
-              <div className="space-y-3 rounded-xl border border-outline-variant bg-surface-container-low p-4">
+              <div className="space-y-3 rounded border border-fleet-line bg-fleet-canvas p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-[11px] font-bold uppercase text-neutral-900">Assignment</h3>
-                  <span className="text-[10px] text-on-surface-variant">Last updated just now</span>
+                  <h3 className="label-caps text-fleet-ink">Assignment</h3>
+                  <span className="text-[10px] text-fleet-ink-muted">Last updated just now</span>
                 </div>
 
                 {/* Bus */}
-                <div className="rounded-lg border border-outline-variant bg-white p-3">
+                <div className="rounded border border-fleet-line bg-fleet-surface p-3">
                   <div className="flex items-start gap-3">
-                    <Icon name="directions_bus" className="text-neutral-800" size={24} />
+                    <Icon name="directions_bus" className="text-fleet-primary" size={24} />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase text-on-surface-variant">
-                        Bus Selection
-                      </p>
-                      <p className="text-sm font-bold text-neutral-900">
+                      <p className="label-caps text-fleet-ink-muted">Bus Selection</p>
+                      <p className="text-sm font-bold text-fleet-ink">
                         {selectedBus
                           ? `${selectedBus.regNumber} (${formatServiceType(selectedBus.serviceType)})`
                           : 'No bus assigned'}
                       </p>
                       {selectedBus && (
-                        <p className="mt-1 text-[11px] font-semibold text-emerald-600">
+                        <p className="mt-1 text-[11px] font-semibold text-fleet-primary">
                           Vehicle status: {formatServiceType(selectedBus.status)}
                         </p>
                       )}
@@ -591,7 +507,7 @@ function RoutesPage() {
                     <button
                       type="button"
                       onClick={() => setShowBusPicker((v) => !v)}
-                      className="shrink-0 rounded bg-neutral-100 px-2 py-1 text-xs font-bold text-neutral-900"
+                      className="shrink-0 rounded border border-fleet-line bg-fleet-canvas px-2 py-1 text-xs font-bold text-fleet-ink"
                     >
                       Change
                     </button>
@@ -604,7 +520,7 @@ function RoutesPage() {
                         handleFormChange(e)
                         setShowBusPicker(false)
                       }}
-                      className="mt-2 w-full rounded border border-outline-variant px-2 py-2 text-sm"
+                      className="mt-2 w-full rounded border border-fleet-line px-2 py-2 text-sm"
                     >
                       <option value="">Select available bus</option>
                       {availableBuses.map((b) => (
@@ -615,14 +531,14 @@ function RoutesPage() {
                     </select>
                   )}
                   {selectedBus && (
-                    <div className="mt-2 grid grid-cols-3 gap-2 border-t border-outline-variant pt-2">
-                      <span className="rounded bg-surface-container px-2 py-1 text-center text-[10px] font-medium">
+                    <div className="mt-2 grid grid-cols-3 gap-2 border-t border-fleet-line pt-2">
+                      <span className="rounded bg-fleet-muted px-2 py-1 text-center text-[10px] font-medium">
                         {selectedBus.capacity} Seater
                       </span>
-                      <span className="rounded bg-surface-container px-2 py-1 text-center text-[10px] font-medium capitalize">
+                      <span className="rounded bg-fleet-muted px-2 py-1 text-center text-[10px] font-medium capitalize">
                         {selectedBus.status}
                       </span>
-                      <span className="rounded bg-surface-container px-2 py-1 text-center text-[10px] font-medium capitalize">
+                      <span className="rounded bg-fleet-muted px-2 py-1 text-center text-[10px] font-medium capitalize">
                         {formatServiceType(selectedBus.serviceType)}
                       </span>
                     </div>
@@ -630,29 +546,29 @@ function RoutesPage() {
                 </div>
 
                 {/* Driver */}
-                <div className="rounded-lg border border-outline-variant bg-white p-3">
+                <div className="rounded border border-fleet-line bg-fleet-surface p-3">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface-container">
-                      <Icon name="person" className="text-neutral-800" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-fleet-line bg-fleet-canvas">
+                      <Icon name="person" className="text-fleet-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-bold uppercase text-on-surface-variant">Driver</p>
-                      <p className="text-sm font-bold text-neutral-900">
+                      <p className="label-caps text-fleet-ink-muted">Driver</p>
+                      <p className="text-sm font-bold text-fleet-ink">
                         {selectedDriver ? selectedDriver.name : 'No driver assigned'}
                       </p>
                       {selectedDriver && (
                         <p
                           className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${
                             isDriverAssignable(selectedDriver)
-                              ? 'text-emerald-600'
-                              : 'text-amber-700'
+                              ? 'text-fleet-primary'
+                              : 'text-fleet-tertiary'
                           }`}
                         >
                           <span
                             className={`h-2 w-2 rounded-full ${
                               isDriverAssignable(selectedDriver)
-                                ? 'bg-emerald-500'
-                                : 'bg-amber-500'
+                                ? 'bg-fleet-primary'
+                                : 'bg-fleet-tertiary'
                             }`}
                           />
                           {driverAvailabilityLabel(selectedDriver)}
@@ -665,7 +581,7 @@ function RoutesPage() {
                     <button
                       type="button"
                       onClick={() => setShowDriverPicker((v) => !v)}
-                      className="shrink-0 rounded bg-neutral-100 px-2 py-1 text-xs font-bold text-neutral-900"
+                      className="shrink-0 rounded border border-fleet-line bg-fleet-canvas px-2 py-1 text-xs font-bold text-fleet-ink"
                     >
                       Change
                     </button>
@@ -678,7 +594,7 @@ function RoutesPage() {
                         handleFormChange(e)
                         setShowDriverPicker(false)
                       }}
-                      className="mt-2 w-full rounded border border-outline-variant px-2 py-2 text-sm"
+                      className="mt-2 w-full rounded border border-fleet-line px-2 py-2 text-sm"
                     >
                       <option value="">Select available driver</option>
                       {availableDrivers.map((d) => (
@@ -695,8 +611,8 @@ function RoutesPage() {
                   <div
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-semibold ${
                       assignmentReady
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                        ? 'border-fleet-primary/20 bg-fleet-primary-light text-fleet-primary'
+                        : 'border-fleet-tertiary/30 bg-fleet-tertiary-light text-fleet-tertiary'
                     }`}
                   >
                     <Icon name={assignmentReady ? 'verified' : 'warning'} size={16} />
@@ -708,23 +624,52 @@ function RoutesPage() {
               </div>
             </div>
 
-            <div className="mt-auto flex gap-2 border-t border-outline-variant p-4">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="flex-1 rounded-lg border border-outline-variant bg-white py-2.5 text-sm font-semibold text-secondary hover:bg-surface-container"
-              >
+            <div className="mt-auto flex gap-2 border-t border-fleet-line p-4">
+              <button type="button" onClick={resetForm} className="btn-outlined flex-1">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-[2] rounded-lg bg-neutral-900 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-              >
+              <button type="submit" disabled={saving} className="btn-primary flex-[2]">
                 {saving ? 'Saving...' : 'Save Route'}
               </button>
             </div>
           </form>
+        </section>
+
+        {/* Right: map preview (design) */}
+        <aside className="relative hidden min-w-0 flex-1 flex-col bg-fleet-muted-low md:flex">
+          <RouteMap
+            startPoint={form.startPoint}
+            endPoint={form.endPoint}
+            stops={form.stops}
+            startLocation={form.startLocation}
+            endLocation={form.endLocation}
+            stopLocations={form.stopLocations}
+            onRouteComputed={handleMapUpdate}
+          />
+          <div className="pointer-events-none absolute bottom-6 left-6 right-6 z-10">
+            <div className="pointer-events-auto flex flex-wrap items-center gap-4 rounded border border-fleet-line bg-fleet-surface p-4 shadow-md">
+              <div className="border-r border-fleet-line pr-4">
+                <p className="label-caps text-fleet-ink-muted">Route ID</p>
+                <p className="text-sm font-bold tabular-nums text-fleet-ink">
+                  {isEditing ? routeCode(selectedRoute) : 'NEW'}
+                </p>
+              </div>
+              <div>
+                <p className="label-caps text-fleet-ink-muted">Distance</p>
+                <p className="text-sm font-bold tabular-nums">
+                  {form.distance ? `${form.distance} km` : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="label-caps text-fleet-ink-muted">Stops</p>
+                <p className="text-sm font-bold tabular-nums">{form.stops.length} points</p>
+              </div>
+              <div>
+                <p className="label-caps text-fleet-ink-muted">Est. Fuel</p>
+                <p className="text-sm font-bold tabular-nums text-fleet-tertiary">{estFuel}</p>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </div>
