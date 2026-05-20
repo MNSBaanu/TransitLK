@@ -6,6 +6,12 @@ import api from '../services/api'
 import Icon from '../components/Icon'
 import RouteMap from '../components/RouteMap'
 import { useLayout } from '../context/LayoutContext'
+import {
+  formatServiceType,
+  driverAvailabilityLabel,
+  isDriverAssignable,
+  isBusAssignable,
+} from '../utils/fleetHelpers'
 
 const emptyForm = {
   routeName: '',
@@ -13,8 +19,12 @@ const emptyForm = {
   startPoint: '',
   endPoint: '',
   stops: [],
+  startLocation: null,
+  endLocation: null,
+  stopLocations: [],
   busId: '',
   driverId: '',
+  preferredServiceType: '',
 }
 
 function routeCode(route) {
@@ -22,9 +32,20 @@ function routeCode(route) {
   return route._id.slice(-6).toUpperCase()
 }
 
-function formatServiceType(type) {
-  if (!type) return '—'
-  return type.replace('-', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+function routeFromApi(route) {
+  return {
+    routeName: route.routeName || '',
+    distance: String(route.distance ?? ''),
+    startPoint: route.startPoint || '',
+    endPoint: route.endPoint || '',
+    stops: route.stops?.length ? [...route.stops] : [],
+    startLocation: route.startLocation || null,
+    endLocation: route.endLocation || null,
+    stopLocations: route.stopLocations?.length ? [...route.stopLocations] : [],
+    busId: route.busId?._id || route.busId || '',
+    driverId: route.driverId?._id || route.driverId || '',
+    preferredServiceType: route.busId?.serviceType || '',
+  }
 }
 
 function RoutesPage() {
@@ -114,10 +135,27 @@ function RoutesPage() {
     return null
   }, [form.driverId, drivers, selectedRoute])
 
-  const availableBuses = useMemo(
-    () => buses.filter((b) => b.status === 'available'),
-    [buses]
+  const availableBuses = useMemo(() => {
+    return buses.filter((b) => {
+      if (!isBusAssignable(b)) return false
+      if (form.preferredServiceType && b.serviceType !== form.preferredServiceType) {
+        return false
+      }
+      return true
+    })
+  }, [buses, form.preferredServiceType])
+
+  const availableDrivers = useMemo(
+    () => drivers.filter((d) => isDriverAssignable(d)),
+    [drivers]
   )
+
+  const assignmentReady = useMemo(() => {
+    if (!form.busId || !form.driverId) return false
+    const bus = buses.find((b) => b._id === form.busId) || selectedBus
+    const driver = drivers.find((d) => d._id === form.driverId) || selectedDriver
+    return isBusAssignable(bus) && isDriverAssignable(driver)
+  }, [form.busId, form.driverId, buses, drivers, selectedBus, selectedDriver])
 
   const resetForm = () => {
     setSelectedId(null)
@@ -130,20 +168,22 @@ function RoutesPage() {
 
   const selectRoute = (route) => {
     setSelectedId(route._id)
-    setForm({
-      routeName: route.routeName || '',
-      distance: String(route.distance ?? ''),
-      startPoint: route.startPoint || '',
-      endPoint: route.endPoint || '',
-      stops: route.stops?.length ? [...route.stops] : [],
-      busId: route.busId?._id || route.busId || '',
-      driverId: route.driverId?._id || route.driverId || '',
-    })
+    setForm(routeFromApi(route))
     setStopInput('')
     setError('')
     setShowBusPicker(false)
     setShowDriverPicker(false)
   }
+
+  const handleMapUpdate = useCallback((data) => {
+    setForm((prev) => ({
+      ...prev,
+      ...(data.distanceKm != null ? { distance: String(data.distanceKm) } : {}),
+      ...(data.startLocation ? { startLocation: data.startLocation } : {}),
+      ...(data.endLocation ? { endLocation: data.endLocation } : {}),
+      ...(data.stopLocations ? { stopLocations: data.stopLocations } : {}),
+    }))
+  }, [])
 
   const handleFormChange = (e) => {
     const { name, value } = e.target
@@ -172,6 +212,9 @@ function RoutesPage() {
       endPoint: form.endPoint.trim(),
       stops: form.stops,
     }
+    if (form.startLocation?.lat != null) payload.startLocation = form.startLocation
+    if (form.endLocation?.lat != null) payload.endLocation = form.endLocation
+    if (form.stopLocations?.length) payload.stopLocations = form.stopLocations
     if (form.busId?.trim()) payload.busId = form.busId.trim()
     if (form.driverId?.trim()) payload.driverId = form.driverId.trim()
     return payload
@@ -213,7 +256,6 @@ function RoutesPage() {
     }
   }
 
-  const hasAssignment = Boolean(form.busId && form.driverId)
   const estFuel = form.distance ? `${(Number(form.distance) * 0.1).toFixed(1)} L` : '—'
 
   return (
@@ -233,7 +275,7 @@ function RoutesPage() {
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">Routes</h1>
           <p className="mt-0.5 text-sm text-on-surface-variant">
-            Manage fleet health and operational expenditures.
+            Plan routes with stops, map visualization, and bus/driver assignment by FK.
           </p>
         </div>
         <button
@@ -337,25 +379,11 @@ function RoutesPage() {
             startPoint={form.startPoint}
             endPoint={form.endPoint}
             stops={form.stops}
-            distance={form.distance}
+            startLocation={form.startLocation}
+            endLocation={form.endLocation}
+            stopLocations={form.stopLocations}
+            onRouteComputed={handleMapUpdate}
           />
-          <div className="absolute left-4 top-4 z-10 flex flex-col gap-1">
-            {[
-              { icon: 'add', label: 'Zoom In' },
-              { icon: 'remove', label: 'Zoom Out' },
-              { icon: 'my_location', label: 'Current Location' },
-            ].map(({ icon, label }, i) => (
-              <button
-                key={icon}
-                type="button"
-                className={`group relative rounded border border-outline-variant bg-white p-2 shadow-md hover:bg-surface-container-high ${i === 2 ? 'mt-2' : ''}`}
-                aria-label={label}
-              >
-                <Icon name={icon} size={20} />
-                <span className="map-tooltip">{label}</span>
-              </button>
-            ))}
-          </div>
           <div className="pointer-events-none absolute bottom-6 left-6 right-6 z-10">
             <div className="pointer-events-auto flex flex-wrap items-center gap-4 rounded-xl border border-outline-variant bg-white p-4 shadow-lg">
               <div className="border-r border-outline-variant pr-4">
@@ -426,6 +454,26 @@ function RoutesPage() {
                   required
                   className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                 />
+                <p className="mt-1 text-[10px] text-on-surface-variant">
+                  Auto-calculated from Google Maps when API key is set; editable manually.
+                </p>
+              </label>
+
+              <label className="block">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">
+                  Preferred bus service type
+                </span>
+                <select
+                  name="preferredServiceType"
+                  value={form.preferredServiceType}
+                  onChange={handleFormChange}
+                  className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+                >
+                  <option value="">Any service type</option>
+                  <option value="express">Express</option>
+                  <option value="ordinary">Ordinary</option>
+                  <option value="semi-luxury">Semi-luxury</option>
+                </select>
               </label>
 
               <div className="grid grid-cols-2 gap-3">
@@ -593,9 +641,24 @@ function RoutesPage() {
                         {selectedDriver ? selectedDriver.name : 'No driver assigned'}
                       </p>
                       {selectedDriver && (
-                        <p className="mt-1 flex items-center gap-1 text-[11px] font-bold uppercase text-emerald-600">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                          Driver status: Available
+                        <p
+                          className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${
+                            isDriverAssignable(selectedDriver)
+                              ? 'text-emerald-600'
+                              : 'text-amber-700'
+                          }`}
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isDriverAssignable(selectedDriver)
+                                ? 'bg-emerald-500'
+                                : 'bg-amber-500'
+                            }`}
+                          />
+                          {driverAvailabilityLabel(selectedDriver)}
+                          {selectedDriver.workingHours
+                            ? ` · ${selectedDriver.workingHours}`
+                            : ''}
                         </p>
                       )}
                     </div>
@@ -617,20 +680,29 @@ function RoutesPage() {
                       }}
                       className="mt-2 w-full rounded border border-outline-variant px-2 py-2 text-sm"
                     >
-                      <option value="">Select driver</option>
-                      {drivers.map((d) => (
+                      <option value="">Select available driver</option>
+                      {availableDrivers.map((d) => (
                         <option key={d._id} value={d._id}>
                           {d.name} · {d.licenseNo}
+                          {d.workingHours ? ` · ${d.workingHours}` : ''}
                         </option>
                       ))}
                     </select>
                   )}
                 </div>
 
-                {hasAssignment && (
-                  <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-800">
-                    <Icon name="verified" size={16} />
-                    No scheduling conflicts detected
+                {form.busId && form.driverId && (
+                  <div
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-semibold ${
+                      assignmentReady
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-amber-200 bg-amber-50 text-amber-800'
+                    }`}
+                  >
+                    <Icon name={assignmentReady ? 'verified' : 'warning'} size={16} />
+                    {assignmentReady
+                      ? 'Bus and driver meet availability, capacity, and working-hour rules'
+                      : 'Selected bus or driver no longer meets assignment criteria'}
                   </div>
                 )}
               </div>
