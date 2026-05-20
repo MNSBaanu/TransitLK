@@ -12,6 +12,8 @@ function Reports() {
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Icon name="assessment" className="mb-4 text-outline" size={48} />
         <p className="text-sm text-on-surface-variant">Implementation pending</p>
+        Implementation pending
+
       </div>
     </PageShell>
   )
