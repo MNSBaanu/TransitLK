@@ -470,7 +470,6 @@ function SchedulesPage() {
       <ModuleToast message={toast} />
 
       <ModuleHeader
-        large
         title="Schedule Management"
         subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
         action={

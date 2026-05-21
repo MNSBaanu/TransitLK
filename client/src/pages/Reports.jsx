@@ -133,7 +133,6 @@ function Reports() {
       <ModuleToast message={toast} />
 
       <ModuleHeader
-        large
         title="Reporting & Analytics"
         subtitle="Enterprise performance oversight and sustainability tracking."
         action={

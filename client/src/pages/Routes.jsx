@@ -341,10 +341,10 @@ function RoutesPage() {
               <Icon name="arrow_back" size={20} />
             </button>
             <div>
-              <h2 className="text-2xl font-bold text-neutral-900">
+              <h2 className="pro-page-title">
                 {isEditing ? `Edit route · ${routeCode(selectedRoute)}` : 'New route'}
               </h2>
-              <p className="text-sm text-on-surface-variant">
+              <p className="pro-page-subtitle">
                 Configure stops, assignment, and map preview
               </p>
             </div>
