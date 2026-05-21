@@ -78,7 +78,7 @@ function RouteMap({
       })
       directionsRenderer.current = new window.google.maps.DirectionsRenderer({
         suppressMarkers: false,
-        polylineOptions: { strokeColor: '#000249', strokeWeight: 5 },
+        polylineOptions: { strokeColor: '#1e3a8a', strokeWeight: 5 },
       })
       directionsRenderer.current.setMap(mapInstance.current)
     }

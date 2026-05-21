@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
 import { depotLabel, depotIdValue } from '../utils/fleetHelpers'
 
 function busFormState(bus) {
@@ -634,25 +635,21 @@ function Buses() {
 
   return (
     <div className="w-full">
-      {/* Page Header */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-neutral-900">Fleet &amp; Drivers</h2>
-          <p className="mt-1 text-sm text-on-surface-variant">Manage your district vehicles and active driver roster.</p>
-        </div>
-        {tab === 'drivers' ? (
-          <button onClick={() => setShowAddDriver(true)}
-            className="flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 transition-colors">
-            <Icon name="person_add" size={18} />
-            Add New Driver
-          </button>
-        ) : (
-          <button onClick={() => setShowAddBus(true)}
-            className="flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 transition-colors">
-            <Icon name="add" size={18} />
-            Add New Vehicle
-          </button>
-        )}      </div>
+      <ModuleHeader
+        title="Fleet & Drivers"
+        subtitle="Manage your district vehicles and active driver roster."
+        action={
+          tab === 'drivers' ? (
+            <ModulePrimaryButton icon="person_add" onClick={() => setShowAddDriver(true)}>
+              Add New Driver
+            </ModulePrimaryButton>
+          ) : (
+            <ModulePrimaryButton icon="add" onClick={() => setShowAddBus(true)}>
+              Add New Vehicle
+            </ModulePrimaryButton>
+          )
+        }
+      />
 
       {/* Tabs */}
       <div className="mb-5 flex gap-1 border-b border-outline-variant">
