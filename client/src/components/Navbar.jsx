@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import Icon from './Icon'
 import { useLayout } from '../context/LayoutContext'
@@ -38,10 +38,13 @@ function Navbar() {
   const hub = useNavHub()
 
   const [openPanel, setOpenPanel] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
   const notifAnchorRef = useRef(null)
   const messagesAnchorRef = useRef(null)
   const profileAnchorRef = useRef(null)
+  const searchAnchorRef = useRef(null)
+  const searchInputRef = useRef(null)
 
   const onRoutesPage = location.pathname === '/routes'
   const onSchedulesPage = location.pathname === '/schedules'
@@ -60,6 +63,7 @@ function Navbar() {
   }
 
   const togglePanel = (panel) => {
+    setSearchOpen(false)
     setOpenPanel((prev) => (prev === panel ? null : panel))
     if (panel !== 'messages') {
       hub.setActiveMessageId(null)
@@ -73,35 +77,44 @@ function Navbar() {
     setReplyText('')
   }
 
+  const toggleSearch = () => {
+    setOpenPanel(null)
+    hub.setActiveMessageId(null)
+    setReplyText('')
+    setSearchOpen((prev) => !prev)
+  }
+
+  useEffect(() => {
+    if (!searchOpen) return
+    searchInputRef.current?.focus()
+    const onDocClick = (e) => {
+      if (searchAnchorRef.current?.contains(e.target)) return
+      setSearchOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setSearchOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [searchOpen])
+
+  useEffect(() => {
+    setSearchOpen(false)
+  }, [location.pathname])
+
   return (
     <header className="top-nav sticky top-0 z-50 shrink-0">
       <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
-        <div className="relative z-10 flex shrink-0 items-center gap-3">
-          <NavLink
-            to="/dashboard"
-            className="font-sans text-xl font-bold tracking-tight text-white hover:opacity-90"
-          >
-            TransitLK
-          </NavLink>
-
-          <div className="top-nav-search flex h-9 w-36 shrink-0 items-center rounded-full py-0.5 pl-3 pr-0.5 sm:w-52 md:w-56">
-            <input
-              type="search"
-              value={searchEnabled ? searchValue : ''}
-              onChange={handleSearchChange}
-              disabled={!searchEnabled}
-              placeholder={searchPlaceholder}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none disabled:cursor-default disabled:opacity-50"
-            />
-            <button
-              type="button"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-depot-maroon text-white transition-colors hover:bg-depot-maroon-hover"
-              aria-label="Search"
-            >
-              <Icon name="search" size={16} className="text-white" />
-            </button>
-          </div>
-        </div>
+        <NavLink
+          to="/dashboard"
+          className="relative z-10 shrink-0 font-sans text-xl font-bold tracking-tight text-white hover:opacity-90"
+        >
+          TransitLK
+        </NavLink>
 
         <nav
           className="absolute left-1/2 top-1/2 z-20 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 lg:flex"
@@ -123,6 +136,38 @@ function Navbar() {
         </nav>
 
         <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          <div ref={searchAnchorRef} className="flex items-center">
+            <div
+              className={`top-nav-search flex h-9 items-center overflow-hidden rounded-full transition-all duration-300 ease-out ${
+                searchOpen
+                  ? 'mr-1 w-44 border pl-3 pr-1 opacity-100 sm:w-56 md:w-64'
+                  : 'mr-0 w-0 border-0 pl-0 pr-0 opacity-0'
+              }`}
+            >
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchEnabled ? searchValue : ''}
+                onChange={handleSearchChange}
+                disabled={!searchEnabled}
+                placeholder={searchPlaceholder}
+                tabIndex={searchOpen ? 0 : -1}
+                className="min-w-0 w-full bg-transparent text-sm outline-none disabled:cursor-default disabled:opacity-50"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={toggleSearch}
+              className={`rounded-full p-2 transition-colors ${
+                searchOpen ? 'bg-white/20 text-white' : 'text-white/85 hover:bg-white/10'
+              }`}
+              aria-label={searchOpen ? 'Close search' : 'Open search'}
+              aria-expanded={searchOpen}
+            >
+              <Icon name="search" size={22} />
+            </button>
+          </div>
+
           <div className="relative" ref={notifAnchorRef}>
             <button
               type="button"
