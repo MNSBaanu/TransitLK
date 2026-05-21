@@ -1,12 +1,20 @@
 // Assigned to: Baanu
 // Module: Schedule Management
-// TODO: Implement CRUD for schedules with conflict detection
 
 import express from 'express'
+import {
+  getSchedules,
+  getScheduleById,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
+  checkScheduleConflicts,
+} from '../controllers/scheduleController.js'
+
 const router = express.Router()
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Schedule Management API — implementation pending (Baanu)' })
-})
+router.get('/conflicts/check', checkScheduleConflicts)
+router.route('/').get(getSchedules).post(createSchedule)
+router.route('/:id').get(getScheduleById).put(updateSchedule).delete(deleteSchedule)
 
 export default router

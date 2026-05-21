@@ -4,10 +4,16 @@ const LayoutContext = createContext(null)
 
 export function LayoutProvider({ children }) {
   const [routeSearch, setRouteSearch] = useState('')
+  const [scheduleSearch, setScheduleSearch] = useState('')
 
   const value = useMemo(
-    () => ({ routeSearch, setRouteSearch }),
-    [routeSearch]
+    () => ({
+      routeSearch,
+      setRouteSearch,
+      scheduleSearch,
+      setScheduleSearch,
+    }),
+    [routeSearch, scheduleSearch]
   )
 
   return <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>

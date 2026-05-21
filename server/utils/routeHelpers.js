@@ -11,6 +11,7 @@ const ALLOWED_FIELDS = [
   'stopLocations',
   'busId',
   'driverId',
+  'serviceType',
 ]
 
 export function sanitizeRouteBody(body) {
