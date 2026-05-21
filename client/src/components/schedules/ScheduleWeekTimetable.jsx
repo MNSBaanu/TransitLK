@@ -27,7 +27,7 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
     )
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-outline-variant">
+    <div className="glass-card overflow-x-auto">
       <table className="w-full min-w-[800px] text-sm">
         <thead className="bg-depot-navy text-xs font-semibold uppercase tracking-wide text-white">
           <tr>

@@ -89,7 +89,7 @@ export function ModuleCard({ children, className = '' }) {
 
 export function ModuleToolbar({ children }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-fleet-line bg-fleet-muted-low/50 px-5 py-4">
+    <div className="glass-subtle flex flex-wrap items-center gap-3 border-b border-white/50 px-5 py-4">
       {children}
     </div>
   )
@@ -116,7 +116,7 @@ export function ModuleSearchInput({ value, onChange, placeholder, className = ''
 
 export function ModuleTable({ children }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-fleet-line bg-fleet-surface shadow-xs">
+    <div className="glass-card overflow-x-auto">
       <table className="w-full text-sm">{children}</table>
     </div>
   )
@@ -125,10 +125,7 @@ export function ModuleTable({ children }) {
 export function ModuleToast({ message }) {
   if (!message) return null
   return (
-    <div
-      className="fixed left-1/2 top-20 z-[70] flex -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-      style={{ backgroundColor: 'var(--fleet-primary)', boxShadow: 'var(--shadow-elevated)' }}
-    >
+    <div className="glass-dark fixed left-1/2 top-20 z-[70] flex -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white">
       <Icon name="check_circle" size={20} />
       {message}
     </div>

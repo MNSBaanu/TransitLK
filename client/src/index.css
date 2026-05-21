@@ -111,7 +111,70 @@ body {
   opacity: 0.15;
 }
 
+/* App shell — soft mesh behind glass panels */
+.app-mesh-bg {
+  background-color: var(--fleet-canvas);
+  background-image:
+    radial-gradient(ellipse 90% 60% at 0% 0%, rgb(74 111 212 / 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgb(30 58 138 / 0.1), transparent 50%),
+    radial-gradient(ellipse 80% 40% at 50% 100%, rgb(147 180 245 / 0.12), transparent 55%);
+}
+
 @layer components {
+  /* Glassmorphism */
+  .glass {
+    background: rgb(255 255 255 / 0.62);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgb(255 255 255 / 0.55);
+    box-shadow:
+      0 4px 24px rgb(30 58 138 / 0.07),
+      inset 0 1px 0 rgb(255 255 255 / 0.75);
+  }
+
+  .glass-card {
+    border-radius: var(--radius-xl);
+    background: rgb(255 255 255 / 0.62);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgb(255 255 255 / 0.55);
+    box-shadow:
+      0 4px 24px rgb(30 58 138 / 0.07),
+      inset 0 1px 0 rgb(255 255 255 / 0.75);
+  }
+
+  .glass-panel {
+    border-radius: var(--radius-lg);
+    background: rgb(255 255 255 / 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgb(255 255 255 / 0.45);
+    box-shadow: 0 2px 12px rgb(30 58 138 / 0.05);
+  }
+
+  .glass-dark {
+    background: rgb(30 58 138 / 0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgb(255 255 255 / 0.18);
+    box-shadow:
+      0 8px 32px rgb(30 58 138 / 0.25),
+      inset 0 1px 0 rgb(255 255 255 / 0.12);
+  }
+
+  .glass-subtle {
+    background: rgb(255 255 255 / 0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgb(255 255 255 / 0.4);
+  }
+
+  .glass-table-head {
+    background: rgb(255 255 255 / 0.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
   .label-caps {
     font-size: 0.6875rem;
     font-weight: 700;
@@ -146,32 +209,40 @@ body {
 
   .pro-card {
     border-radius: var(--radius-xl);
-    border: 1px solid var(--fleet-line);
-    background-color: var(--fleet-surface);
-    box-shadow: var(--shadow-card);
+    background: rgb(255 255 255 / 0.62);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgb(255 255 255 / 0.55);
+    box-shadow:
+      0 4px 24px rgb(30 58 138 / 0.07),
+      inset 0 1px 0 rgb(255 255 255 / 0.75);
   }
 
   .pro-stat-card {
     border-radius: var(--radius-xl);
-    border: 1px solid var(--fleet-line);
-    background-color: var(--fleet-surface);
-    box-shadow: var(--shadow-xs);
+    background: rgb(255 255 255 / 0.58);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgb(255 255 255 / 0.5);
+    box-shadow: 0 2px 16px rgb(30 58 138 / 0.06);
     border-left: 3px solid var(--fleet-primary);
   }
 
   .pro-segmented {
     display: flex;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--fleet-line);
-    background-color: var(--fleet-muted-low);
+    border: 1px solid rgb(255 255 255 / 0.45);
+    background: rgb(255 255 255 / 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     padding: 0.125rem;
   }
 
   .pro-segmented-active {
     border-radius: var(--radius-md);
-    background-color: var(--fleet-surface);
+    background: rgb(255 255 255 / 0.85);
     color: var(--fleet-primary);
-    box-shadow: var(--shadow-xs);
+    box-shadow: 0 1px 4px rgb(30 58 138 / 0.1);
     font-weight: 600;
   }
 
@@ -198,8 +269,10 @@ body {
 
   .btn-secondary {
     border-radius: var(--radius-lg);
-    border: 1px solid var(--fleet-line);
-    background-color: var(--fleet-surface);
+    border: 1px solid rgb(255 255 255 / 0.5);
+    background: rgb(255 255 255 / 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -214,8 +287,10 @@ body {
 
   .btn-outlined {
     border-radius: var(--radius-lg);
-    border: 1px solid var(--fleet-line);
-    background-color: var(--fleet-surface);
+    border: 1px solid rgb(255 255 255 / 0.55);
+    background: rgb(255 255 255 / 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
@@ -322,8 +397,11 @@ body {
   }
 
   .top-nav-search {
-    background-color: rgb(255 255 255 / 0.12);
-    border: 1px solid rgb(255 255 255 / 0.18);
+    background: rgb(255 255 255 / 0.14);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgb(255 255 255 / 0.22);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15);
   }
 
   .top-nav-search input::placeholder {
@@ -345,6 +423,17 @@ body {
     }
     .reports-print {
       padding: 1rem;
+    }
+    .glass,
+    .glass-card,
+    .glass-panel,
+    .glass-dark,
+    .pro-card,
+    .pro-stat-card {
+      background: #ffffff !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      box-shadow: none !important;
     }
   }
 

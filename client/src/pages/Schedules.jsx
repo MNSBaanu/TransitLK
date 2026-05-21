@@ -502,7 +502,7 @@ function SchedulesPage() {
         className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-5 py-3 ${
           conflicts.length > 0
             ? 'border-red-200 bg-red-50'
-            : 'border-fleet-line bg-fleet-surface'
+            : 'glass-panel border-white/50'
         }`}
       >
         <button
@@ -630,7 +630,7 @@ function SchedulesPage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto bg-surface-container/30 p-4">
+          <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
             {loading ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...

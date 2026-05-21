@@ -7,7 +7,7 @@ function PageShell({ title, subtitle, children }) {
           {subtitle && <p className="pro-page-subtitle">{subtitle}</p>}
         </header>
       )}
-      <div className="pro-card p-6 lg:p-8">{children}</div>
+      <div className="glass-card p-6 lg:p-8">{children}</div>
     </div>
   )
 }
