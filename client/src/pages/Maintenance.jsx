@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
 
 const ITEMS_PER_PAGE = 8
 
@@ -285,18 +286,15 @@ function Maintenance() {
 
   return (
     <div className="w-full">
-      {/* Header */}
-      <div className="mb-5 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-neutral-900">Fuel &amp; Maintenance</h2>
-          <p className="mt-1 text-sm text-on-surface-variant">Manage fleet health and operational expenditures.</p>
-        </div>
-        <button onClick={() => setLogModal(true)}
-          className="flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 transition-colors">
-          <Icon name="add_circle" size={18} />
-          Log New Activity
-        </button>
-      </div>
+      <ModuleHeader
+        title="Fuel & Maintenance"
+        subtitle="Manage fleet health and operational expenditures."
+        action={
+          <ModulePrimaryButton icon="add_circle" onClick={() => setLogModal(true)}>
+            Log New Activity
+          </ModulePrimaryButton>
+        }
+      />
 
       {/* Alert Banner */}
       {maintenanceOverdue.length > 0 && (
