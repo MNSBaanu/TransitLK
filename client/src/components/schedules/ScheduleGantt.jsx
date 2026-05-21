@@ -9,9 +9,9 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
   })
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant bg-white shadow-sm">
+    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-outline-variant bg-white">
       <div className="sticky top-0 z-30 flex border-b border-outline-variant">
-        <div className="w-56 shrink-0 border-r border-outline-variant bg-[#eceef1] p-3 text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+        <div className="w-56 shrink-0 border-r border-outline-variant bg-[#000249]/5 p-3 text-xs font-bold uppercase tracking-wide text-[#000249]">
           Resource / route
         </div>
         <div className="min-w-[900px] flex-1 overflow-hidden">
@@ -46,7 +46,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
             >
               <div className="sticky left-0 z-20 w-56 shrink-0 border-r border-outline-variant bg-white p-3 group-hover:bg-surface-container">
                 <div className="flex items-center gap-2">
-                  <Icon name="directions_bus" size={20} className="text-neutral-900" />
+                  <Icon name="directions_bus" size={20} className="text-[#000249]" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-neutral-900">
                       {row.regNumber}
@@ -79,10 +79,10 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                       style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
                       className={`absolute top-2 bottom-2 z-10 rounded p-2 text-left text-white shadow-sm transition-all ${
                         isConflict
-                          ? 'border-2 border-dashed border-red-600 bg-neutral-900 schedule-conflict-hatch'
+                          ? 'border-2 border-dashed border-red-600 bg-[#000249] schedule-conflict-hatch'
                           : isSelected
-                            ? 'bg-neutral-900 ring-2 ring-amber-500 ring-offset-1'
-                            : 'bg-neutral-900 hover:bg-neutral-700'
+                            ? 'bg-depot-maroon ring-2 ring-[#000249] ring-offset-1'
+                            : 'bg-[#000249] hover:bg-[#000249]/85'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-1">

@@ -29,13 +29,13 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
   return (
     <div className="overflow-x-auto rounded-xl border border-outline-variant">
       <table className="w-full min-w-[800px] text-sm">
-        <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+        <thead className="bg-[#000249] text-xs font-semibold uppercase tracking-wide text-white">
           <tr>
-            <th className="sticky left-0 z-10 bg-surface-container px-4 py-3 text-left">Route</th>
+            <th className="sticky left-0 z-10 bg-[#000249] px-4 py-3 text-left">Route</th>
             {weekDays.map((day, i) => (
               <th key={day} className="min-w-[110px] px-2 py-3 text-left">
                 <span className="block">{DAY_LABELS[i]}</span>
-                <span className="font-normal normal-case text-on-surface-variant">
+                <span className="font-normal normal-case text-white/70">
                   {new Date(day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                 </span>
               </th>
@@ -72,8 +72,8 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                                   onClick={() => onSelectTrip(trip)}
                                   className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs transition-colors ${
                                     selected
-                                      ? 'border-neutral-900 bg-neutral-900 text-white'
-                                      : 'border-outline-variant bg-surface-container/50 hover:border-neutral-900'
+                                      ? 'border-depot-maroon bg-depot-maroon text-white'
+                                      : 'border-outline-variant bg-surface-container/50 hover:border-[#000249]'
                                   }`}
                                 >
                                   <span className="block font-bold tabular-nums">
