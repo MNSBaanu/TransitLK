@@ -1,14 +1,12 @@
-// Module: Reporting & Analytics (pending — group)
-// Assigned to: Nisma
+// Assigned to: Baanu
 // Module: Reporting & Analytics
-// TODO: Implement report generation and PDF export
 
 import express from 'express'
+import { getReportsDashboard, exportReportsCsv } from '../controllers/reportController.js'
+
 const router = express.Router()
 
-router.get('/', (req, res) => {
-  res.json({ message: 'Reports & Analytics API — implementation pending' })
-  res.json({ message: 'Reports & Analytics API — implementation pending (Nisma)' })
-})
+router.get('/dashboard', getReportsDashboard)
+router.get('/export/csv', exportReportsCsv)
 
 export default router
