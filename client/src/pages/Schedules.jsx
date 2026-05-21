@@ -21,7 +21,12 @@ import {
   tripDateKey,
   validateTimeRange,
 } from '../utils/scheduleHelpers'
-import { ModuleToast } from '../components/layout/ModuleLayout'
+import {
+  ModuleHeader,
+  ModulePrimaryButton,
+  ModuleStats,
+  ModuleToast,
+} from '../components/layout/ModuleLayout'
 import { useLayout } from '../context/LayoutContext'
 
 const inputClass =
@@ -130,6 +135,12 @@ function SchedulesPage() {
     () => detectPeriodConflicts(filteredSchedules),
     [filteredSchedules]
   )
+
+  const scheduleStats = useMemo(() => {
+    const active = filteredSchedules.filter((s) => s.status !== 'cancelled').length
+    const delayed = filteredSchedules.filter((s) => s.status === 'delayed').length
+    return { trips: filteredSchedules.length, active, delayed, conflicts: conflicts.length }
+  }, [filteredSchedules, conflicts])
 
   const eventLog = useMemo(() => {
     const entries = []
@@ -455,61 +466,101 @@ function SchedulesPage() {
       : formatPeriodLabel(viewMode, viewDate)
 
   return (
-    <div className="-m-6 flex h-[calc(100vh-72px)] flex-col overflow-hidden bg-[#f0f1f3] max-xl:h-[calc(100vh-72px-44px)]">
+    <div className="w-full">
       <ModuleToast message={toast} />
 
-      {/* Conflict alert bar (mockup) */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-[#e8eaed] px-6 py-3">
+      <ModuleHeader
+        title="Schedule Management"
+        subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
+        action={
+          <ModulePrimaryButton icon="add" onClick={() => setShowAdd(true)}>
+            Add schedule
+          </ModulePrimaryButton>
+        }
+      />
+
+      <ModuleStats
+        items={[
+          {
+            label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
+            value: scheduleStats.trips,
+            icon: 'event',
+          },
+          { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
+          {
+            label: 'Conflicts',
+            value: scheduleStats.conflicts,
+            hint: scheduleStats.conflicts ? 'Resolve in panel' : 'No overlaps',
+            icon: 'warning',
+          },
+          { label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' },
+        ]}
+      />
+
+      {/* Conflict & emergency bar */}
+      <div
+        className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-5 py-3 ${
+          conflicts.length > 0
+            ? 'border-red-200 bg-red-50'
+            : 'glass-panel border-white/50'
+        }`}
+      >
         <button
           type="button"
           onClick={() => {
             setShowConflictPanel(true)
             setShowQuickPanel(true)
           }}
-          className="flex items-center gap-2 text-left text-sm font-semibold text-neutral-800 hover:opacity-80"
+          className="flex items-center gap-2 text-left text-sm font-semibold text-fleet-ink hover:opacity-80"
         >
           <Icon
             name="warning"
             size={20}
-            className={conflicts.length > 0 ? 'text-red-600' : 'text-on-surface-variant'}
+            className={conflicts.length > 0 ? 'text-red-600' : 'text-emerald-600'}
           />
           {conflicts.length > 0
-            ? `${conflicts.length} Active Scheduling Conflict${conflicts.length > 1 ? 's' : ''} Detected`
-            : 'No active scheduling conflicts'}
+            ? `${conflicts.length} active scheduling conflict${conflicts.length > 1 ? 's' : ''}`
+            : 'No scheduling conflicts in this period'}
         </button>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {conflicts.length > 0 && (
-            <span className="text-xs font-bold uppercase tracking-wide text-red-700">
-              Click to resolve
-            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowConflictPanel(true)
+                setShowQuickPanel(true)
+              }}
+              className="text-xs font-bold uppercase tracking-wide text-red-700 hover:underline"
+            >
+              Resolve conflicts
+            </button>
           )}
           <button
             type="button"
             onClick={() => handleEmergencyToggle(!emergencyMode)}
-            className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
               emergencyMode
-                ? 'border-amber-400 bg-amber-100 text-amber-900'
-                : 'border-outline-variant bg-white text-neutral-800 hover:bg-[#f5f5f5]'
+                ? 'border-depot-blue-light bg-depot-blue-light/10 text-depot-blue-light'
+                : 'border-outline-variant bg-surface-container text-neutral-800 hover:bg-white'
             }`}
           >
             <Icon name="bolt" size={18} />
-            Emergency Adjustment Mode
+            Emergency mode
           </button>
         </div>
       </div>
 
       {error && !showAdd && (
-        <div className="shrink-0 border-b border-red-200 bg-red-50 px-6 py-2 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Main workspace: grid + Quick Adjust panel */}
-      <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col bg-white">
-          {/* Toolbar */}
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-5 py-3">
-            <div className="flex rounded-lg border border-outline-variant bg-[#f0f1f3] p-0.5">
+      {/* Workspace card */}
+      <div className="pro-card flex min-h-[560px] flex-col overflow-hidden lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-5 py-4">
+            <div className="pro-segmented">
               {['daily', 'weekly', 'monthly'].map((mode) => (
                 <button
                   key={mode}
@@ -518,10 +569,10 @@ function SchedulesPage() {
                     setViewMode(mode)
                     setSelected(null)
                   }}
-                  className={`rounded-md px-5 py-2 text-sm font-semibold capitalize transition-colors ${
+                  className={`rounded-md px-4 py-2 text-sm capitalize transition-colors ${
                     viewMode === mode
-                      ? 'bg-white text-neutral-900 shadow-sm'
-                      : 'text-on-surface-variant hover:text-neutral-900'
+                      ? 'pro-segmented-active'
+                      : 'text-fleet-ink-muted hover:text-fleet-ink'
                   }`}
                 >
                   {mode}
@@ -529,15 +580,15 @@ function SchedulesPage() {
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-                Filter:
+              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Filter
               </span>
               <select
                 value={routeFilter}
                 onChange={(e) => setRouteFilter(e.target.value)}
-                className={`${inputClass} w-auto min-w-[130px] py-1.5 text-sm`}
+                className={`${inputClass} w-auto min-w-[120px] py-1.5`}
               >
-                <option value="">All Routes</option>
+                <option value="">All routes</option>
                 {routes.map((r) => (
                   <option key={r._id} value={r._id}>
                     {r.routeName}
@@ -547,9 +598,9 @@ function SchedulesPage() {
               <select
                 value={driverFilter}
                 onChange={(e) => setDriverFilter(e.target.value)}
-                className={`${inputClass} w-auto min-w-[130px] py-1.5 text-sm`}
+                className={`${inputClass} w-auto min-w-[120px] py-1.5`}
               >
-                <option value="">All Drivers</option>
+                <option value="">All drivers</option>
                 {drivers.map((d) => (
                   <option key={d._id} value={d._id}>
                     {d.name}
@@ -560,27 +611,28 @@ function SchedulesPage() {
               <button
                 type="button"
                 onClick={() => shiftDate(-1)}
-                className="rounded border border-outline-variant p-1.5 hover:bg-[#f0f1f3]"
+                className="rounded-lg border border-outline-variant p-1.5 hover:bg-surface-container"
+                aria-label="Previous period"
               >
                 <Icon name="chevron_left" size={18} />
               </button>
-              <span className="min-w-[140px] text-center text-sm font-semibold text-neutral-900">
+              <span className="min-w-[120px] text-center text-sm font-semibold text-neutral-900">
                 {dateLabel}
               </span>
               <button
                 type="button"
                 onClick={() => shiftDate(1)}
-                className="rounded border border-outline-variant p-1.5 hover:bg-[#f0f1f3]"
+                className="rounded-lg border border-outline-variant p-1.5 hover:bg-surface-container"
+                aria-label="Next period"
               >
                 <Icon name="chevron_right" size={18} />
               </button>
             </div>
           </div>
 
-          {/* Schedule grid */}
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
             {loading ? (
-              <div className="flex h-full min-h-[320px] items-center justify-center text-on-surface-variant">
+              <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
               </div>
             ) : viewMode === 'weekly' ? (
@@ -610,9 +662,8 @@ function SchedulesPage() {
           </div>
         </div>
 
-        {/* Quick Adjust — fixed right column */}
         {showQuickPanel ? (
-          <aside className="flex w-[320px] shrink-0 flex-col border-l border-outline-variant bg-white shadow-lg">
+          <aside className="flex w-full shrink-0 flex-col border-t border-outline-variant lg:w-[300px] lg:border-l lg:border-t-0">
             <ScheduleQuickAdjust
               selected={selected}
               emergencyMode={emergencyMode}
@@ -637,7 +688,7 @@ function SchedulesPage() {
           <button
             type="button"
             onClick={() => setShowQuickPanel(true)}
-            className="flex w-10 shrink-0 flex-col items-center justify-center gap-1 border-l border-outline-variant bg-[#e8eaed] text-xs font-bold uppercase tracking-wide text-neutral-700 hover:bg-white"
+            className="flex w-12 shrink-0 flex-col items-center justify-center gap-1 border-t border-outline-variant bg-depot-navy text-xs font-bold uppercase tracking-wide text-white hover:bg-depot-navy/90 lg:border-l lg:border-t-0"
             title="Open Quick Adjust"
           >
             <Icon name="tune" size={20} />
