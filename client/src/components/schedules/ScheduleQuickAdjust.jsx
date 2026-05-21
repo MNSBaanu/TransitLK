@@ -16,11 +16,11 @@ const defaultAdjust = {
 }
 
 const primaryBtn =
-  'w-full rounded-lg bg-depot-maroon px-4 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-depot-maroon-hover disabled:opacity-50'
+  'w-full rounded-lg bg-depot-blue-light px-4 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-depot-blue-light-hover disabled:opacity-50'
 const secondaryBtn =
   'flex w-full items-center justify-center gap-2 rounded-lg border border-outline-variant bg-surface-container px-4 py-3 text-sm font-semibold text-neutral-800 transition-colors hover:bg-white disabled:opacity-50'
 const tertiaryBtn =
-  'flex w-full items-center justify-center gap-2 rounded-lg bg-[#000249] px-4 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#000249]/90 disabled:opacity-50'
+  'flex w-full items-center justify-center gap-2 rounded-lg bg-depot-navy px-4 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-depot-navy/90 disabled:opacity-50'
 
 function ScheduleQuickAdjust({
   selected,
@@ -94,10 +94,10 @@ function ScheduleQuickAdjust({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-5">
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-depot-maroon/30 bg-depot-maroon/5 px-3 py-2.5">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-depot-blue-light/30 bg-depot-blue-light/5 px-3 py-2.5">
           <div className="flex items-center gap-2">
-            <Icon name="emergency_home" size={20} className="text-depot-maroon" />
-            <span className={`${labelClass} text-depot-maroon`}>Emergency priority</span>
+            <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
+            <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
           </div>
           <label className="relative inline-flex cursor-pointer items-center">
             <input
@@ -106,11 +106,11 @@ function ScheduleQuickAdjust({
               onChange={(e) => onEmergencyToggle(e.target.checked)}
               className="peer sr-only"
             />
-            <span className="h-6 w-11 rounded-full bg-[#d1d5db] peer-checked:bg-depot-maroon after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:after:translate-x-full" />
+            <span className="h-6 w-11 rounded-full bg-[#d1d5db] peer-checked:bg-depot-blue-light after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:after:translate-x-full" />
           </label>
         </div>
 
-        <div className="mb-4 rounded-lg border border-[#000249]/10 bg-[#000249]/5 p-4">
+        <div className="mb-4 rounded-lg border border-depot-navy/10 bg-depot-navy/5 p-4">
           <p className={`${labelClass} mb-2`}>Selected trip</p>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between gap-2">

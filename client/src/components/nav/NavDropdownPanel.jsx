@@ -32,7 +32,7 @@ function NavDropdownPanel({ open, onClose, title, width = 'w-80', children, foot
       role="dialog"
       aria-label={title}
     >
-      <div className="flex items-center justify-between border-b border-outline-variant bg-[#000249] px-4 py-3">
+      <div className="flex items-center justify-between border-b border-outline-variant bg-depot-navy px-4 py-3">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <button
           type="button"

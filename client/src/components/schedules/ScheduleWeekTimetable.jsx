@@ -29,9 +29,9 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
   return (
     <div className="overflow-x-auto rounded-xl border border-outline-variant">
       <table className="w-full min-w-[800px] text-sm">
-        <thead className="bg-[#000249] text-xs font-semibold uppercase tracking-wide text-white">
+        <thead className="bg-depot-navy text-xs font-semibold uppercase tracking-wide text-white">
           <tr>
-            <th className="sticky left-0 z-10 bg-[#000249] px-4 py-3 text-left">Route</th>
+            <th className="sticky left-0 z-10 bg-depot-navy px-4 py-3 text-left">Route</th>
             {weekDays.map((day, i) => (
               <th key={day} className="min-w-[110px] px-2 py-3 text-left">
                 <span className="block">{DAY_LABELS[i]}</span>
@@ -72,8 +72,8 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                                   onClick={() => onSelectTrip(trip)}
                                   className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs transition-colors ${
                                     selected
-                                      ? 'border-depot-maroon bg-depot-maroon text-white'
-                                      : 'border-outline-variant bg-surface-container/50 hover:border-[#000249]'
+                                      ? 'border-depot-blue-light bg-depot-blue-light text-white'
+                                      : 'border-outline-variant bg-surface-container/50 hover:border-depot-navy'
                                   }`}
                                 >
                                   <span className="block font-bold tabular-nums">

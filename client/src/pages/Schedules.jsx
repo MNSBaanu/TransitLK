@@ -540,7 +540,7 @@ function SchedulesPage() {
             onClick={() => handleEmergencyToggle(!emergencyMode)}
             className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
               emergencyMode
-                ? 'border-depot-maroon bg-depot-maroon/10 text-depot-maroon'
+                ? 'border-depot-blue-light bg-depot-blue-light/10 text-depot-blue-light'
                 : 'border-outline-variant bg-surface-container text-neutral-800 hover:bg-white'
             }`}
           >
@@ -688,7 +688,7 @@ function SchedulesPage() {
           <button
             type="button"
             onClick={() => setShowQuickPanel(true)}
-            className="flex w-12 shrink-0 flex-col items-center justify-center gap-1 border-t border-outline-variant bg-[#000249] text-xs font-bold uppercase tracking-wide text-white hover:bg-[#000249]/90 lg:border-l lg:border-t-0"
+            className="flex w-12 shrink-0 flex-col items-center justify-center gap-1 border-t border-outline-variant bg-depot-navy text-xs font-bold uppercase tracking-wide text-white hover:bg-depot-navy/90 lg:border-l lg:border-t-0"
             title="Open Quick Adjust"
           >
             <Icon name="tune" size={20} />
