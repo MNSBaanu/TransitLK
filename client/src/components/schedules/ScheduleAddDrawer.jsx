@@ -198,7 +198,7 @@ function ScheduleAddDrawer({
             <button
               type="submit"
               disabled={saving || hasConflict}
-              className="w-full rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-neutral-700 disabled:opacity-60"
+              className="w-full rounded-xl bg-depot-maroon px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-depot-maroon-hover disabled:opacity-60"
             >
               {saving
                 ? 'Creating...'

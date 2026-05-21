@@ -19,8 +19,8 @@
   --depot-navy: #000249;
   --depot-maroon: #7a0016;
   --depot-maroon-hover: #5c0011;
-  --depot-nav-bg: #141618;
-  --depot-nav-bg-subtle: #1c1f23;
+  --depot-nav-bg: #000249;
+  --depot-nav-bg-subtle: #00033d;
   --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --sidebar-bg: #2d3133;
   --sidebar-text: #f1f5f9;
@@ -238,7 +238,7 @@ body {
 
   .top-nav {
     background-color: var(--depot-nav-bg);
-    border-bottom: 1px solid #2a2d31;
+    border-bottom: 1px solid rgb(255 255 255 / 0.12);
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
   }
 
@@ -267,6 +267,20 @@ body {
 
   .top-nav-search input {
     color: #ffffff;
+  }
+
+  @media print {
+    .top-nav,
+    nav[class*='xl:hidden'] {
+      display: none !important;
+    }
+    main {
+      padding: 0 !important;
+      overflow: visible !important;
+    }
+    .reports-print {
+      padding: 1rem;
+    }
   }
 
   .status-badge {

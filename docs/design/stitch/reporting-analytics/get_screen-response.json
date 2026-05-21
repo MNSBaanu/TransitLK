@@ -1,0 +1,28 @@
+﻿{
+    "id":  1,
+    "jsonrpc":  "2.0",
+    "result":  {
+                   "content":  [
+                                   {
+                                       "text":  "{\"name\":\"projects/1696573123630363766/screens/49e0f08cefbc45ddb1161a7cd2d48cae\",\"title\":\"Comprehensive Reporting \u0026 Analytics - SRMSS\",\"screenshot\":{\"name\":\"projects/1696573123630363766/files/f25735582d9b46a9823217a5b937d4e3\",\"downloadUrl\":\"https://lh3.googleusercontent.com/aida/ADBb0ugQOlDQfJnNfwrORkA70yS8rRzhmN-OBzm2ztSPfjykYbcpZ7U-WHeAh2iSW53kL-W-RJ0S9CXO9SStm2I7-y8cNmLcAGYcBTO0RAlvvPzrfTCrmgmHsuPQFCzCgzFVJyFQB8XEuGLhqtzexGED-C-JLvrflDa_JcoUIc-DA-rSteuNiWsITGoUWNqllKpMHIJho-s5rm2foV_eUsNf-AYpcEQxo3XaeSNiVsSQL0YdvLNyFEA_KLhkxUA\"},\"htmlCode\":{\"name\":\"projects/1696573123630363766/files/f689d351a69643bcbaeac8594820d6c2\",\"downloadUrl\":\"https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwYzAzYTBlZjk0ZDQ0MWQ5MDM3YmRlMzQxNWM2NTBkEgsSBxDk5J3DoR4YAZIBIwoKcHJvamVjdF9pZBIVQhMxNjk2NTczMTIzNjMwMzYzNzY2\u0026filename=\u0026opi=89354086\",\"mimeType\":\"text/html\"},\"width\":\"2560\",\"height\":\"2048\",\"deviceType\":\"DESKTOP\"}",
+                                       "type":  "text"
+                                   }
+                               ],
+                   "structuredContent":  {
+                                             "deviceType":  "DESKTOP",
+                                             "height":  "2048",
+                                             "htmlCode":  {
+                                                              "downloadUrl":  "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwYzAzYTBlZjk0ZDQ0MWQ5MDM3YmRlMzQxNWM2NTBkEgsSBxDk5J3DoR4YAZIBIwoKcHJvamVjdF9pZBIVQhMxNjk2NTczMTIzNjMwMzYzNzY2\u0026filename=\u0026opi=89354086",
+                                                              "mimeType":  "text/html",
+                                                              "name":  "projects/1696573123630363766/files/f689d351a69643bcbaeac8594820d6c2"
+                                                          },
+                                             "name":  "projects/1696573123630363766/screens/49e0f08cefbc45ddb1161a7cd2d48cae",
+                                             "screenshot":  {
+                                                                "downloadUrl":  "https://lh3.googleusercontent.com/aida/ADBb0ugQOlDQfJnNfwrORkA70yS8rRzhmN-OBzm2ztSPfjykYbcpZ7U-WHeAh2iSW53kL-W-RJ0S9CXO9SStm2I7-y8cNmLcAGYcBTO0RAlvvPzrfTCrmgmHsuPQFCzCgzFVJyFQB8XEuGLhqtzexGED-C-JLvrflDa_JcoUIc-DA-rSteuNiWsITGoUWNqllKpMHIJho-s5rm2foV_eUsNf-AYpcEQxo3XaeSNiVsSQL0YdvLNyFEA_KLhkxUA",
+                                                                "name":  "projects/1696573123630363766/files/f25735582d9b46a9823217a5b937d4e3"
+                                                            },
+                                             "title":  "Comprehensive Reporting \u0026 Analytics - SRMSS",
+                                             "width":  "2560"
+                                         }
+               }
+}
