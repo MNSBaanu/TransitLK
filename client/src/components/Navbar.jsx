@@ -111,7 +111,7 @@ function Navbar() {
       <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         <NavLink
           to="/dashboard"
-          className="relative z-10 shrink-0 font-sans text-xl font-bold tracking-tight text-white hover:opacity-90"
+          className="relative z-10 shrink-0 font-sans text-lg font-bold tracking-tight text-white hover:opacity-90 sm:text-xl"
         >
           TransitLK
         </NavLink>

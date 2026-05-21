@@ -17,8 +17,8 @@ export default {
           navy: '#000249',
           maroon: '#7a0016',
           'maroon-hover': '#5c0011',
-          'nav-bg': '#141618',
-          'nav-bg-subtle': '#1c1f23',
+          'nav-bg': '#000249',
+          'nav-bg-subtle': '#00033d',
         },
         fleet: {
           primary: 'var(--fleet-primary)',
@@ -36,7 +36,14 @@ export default {
         },
       },
       borderRadius: {
-        DEFAULT: '0.25rem',
+        DEFAULT: '0.5rem',
+        lg: '0.75rem',
+        xl: '1rem',
+      },
+      boxShadow: {
+        xs: '0 1px 2px rgb(15 23 42 / 0.04)',
+        card: '0 1px 2px rgb(0 2 73 / 0.04), 0 4px 16px rgb(0 2 73 / 0.06)',
+        elevated: '0 8px 24px rgb(0 2 73 / 0.1)',
       },
     },
   },

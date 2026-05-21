@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
 import Icon from '../components/Icon'
-import { ModuleToast } from '../components/layout/ModuleLayout'
+import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
 
 const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-on-surface-variant'
 
@@ -132,34 +132,27 @@ function Reports() {
     <div ref={printRef} className="reports-print w-full">
       <ModuleToast message={toast} />
 
-      {/* Page header — Stitch */}
-      <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-neutral-900">
-            Reporting &amp; Analytics
-          </h2>
-          <p className="mt-1 text-base text-on-surface-variant">
-            Enterprise performance oversight and sustainability tracking.
-          </p>
-        </div>
+      <ModuleHeader
+        large
+        title="Reporting & Analytics"
+        subtitle="Enterprise performance oversight and sustainability tracking."
+        action={
         <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-2 flex rounded-lg border border-outline-variant bg-surface-container p-0.5">
+          <div className="pro-segmented mr-1">
             {['monthly', 'weekly'].map((p) => (
               <button
                 key={p}
                 type="button"
                 onClick={() => setPeriod(p)}
-                className={`rounded-md px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
-                  period === p
-                    ? 'bg-white text-neutral-900 shadow-sm'
-                    : 'text-on-surface-variant hover:bg-white/60'
+                className={`rounded-md px-4 py-1.5 text-sm capitalize transition-colors ${
+                  period === p ? 'pro-segmented-active' : 'text-fleet-ink-muted hover:text-fleet-ink'
                 }`}
               >
                 {p}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-outline-variant bg-white px-3 py-2">
+          <div className="flex items-center gap-2 rounded-lg border border-fleet-line bg-fleet-surface px-3 py-2 shadow-xs">
             <Icon name="calendar_today" size={18} className="text-outline" />
             <input
               type="date"
@@ -178,21 +171,18 @@ function Reports() {
           <button
             type="button"
             onClick={handleCsv}
-            className="flex items-center gap-1.5 rounded-lg border border-outline-variant bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-surface-container"
+            className="btn-outlined flex items-center gap-1.5"
           >
             <Icon name="download" size={18} />
             Download CSV
           </button>
-          <button
-            type="button"
-            onClick={handlePdf}
-            className="flex items-center gap-1.5 rounded-lg bg-depot-maroon px-4 py-2 text-sm font-semibold text-white shadow-md hover:bg-depot-maroon-hover"
-          >
+          <button type="button" onClick={handlePdf} className="btn-primary flex items-center gap-1.5">
             <Icon name="picture_as_pdf" size={18} />
             Export PDF Report
           </button>
         </div>
-      </div>
+        }
+      />
 
       {error && (
         <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

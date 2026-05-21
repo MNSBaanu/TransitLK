@@ -21,7 +21,12 @@ import {
   tripDateKey,
   validateTimeRange,
 } from '../utils/scheduleHelpers'
-import { ModuleStats, ModuleToast } from '../components/layout/ModuleLayout'
+import {
+  ModuleHeader,
+  ModulePrimaryButton,
+  ModuleStats,
+  ModuleToast,
+} from '../components/layout/ModuleLayout'
 import { useLayout } from '../context/LayoutContext'
 
 const inputClass =
@@ -464,23 +469,16 @@ function SchedulesPage() {
     <div className="w-full">
       <ModuleToast message={toast} />
 
-      {/* Page header */}
-      <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-neutral-900">Schedule Management</h2>
-          <p className="mt-1 text-base text-on-surface-variant">
-            Daily, weekly, and monthly timetables with conflict detection and emergency adjustments.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 self-start rounded-lg bg-depot-maroon px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-depot-maroon-hover lg:self-auto"
-        >
-          <Icon name="add" size={18} />
-          Add schedule
-        </button>
-      </div>
+      <ModuleHeader
+        large
+        title="Schedule Management"
+        subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
+        action={
+          <ModulePrimaryButton icon="add" onClick={() => setShowAdd(true)}>
+            Add schedule
+          </ModulePrimaryButton>
+        }
+      />
 
       <ModuleStats
         items={[
@@ -505,7 +503,7 @@ function SchedulesPage() {
         className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-5 py-3 ${
           conflicts.length > 0
             ? 'border-red-200 bg-red-50'
-            : 'border-outline-variant bg-white'
+            : 'border-fleet-line bg-fleet-surface'
         }`}
       >
         <button
@@ -514,7 +512,7 @@ function SchedulesPage() {
             setShowConflictPanel(true)
             setShowQuickPanel(true)
           }}
-          className="flex items-center gap-2 text-left text-sm font-semibold text-neutral-900 hover:opacity-80"
+          className="flex items-center gap-2 text-left text-sm font-semibold text-fleet-ink hover:opacity-80"
         >
           <Icon
             name="warning"
@@ -560,10 +558,10 @@ function SchedulesPage() {
       )}
 
       {/* Workspace card */}
-      <div className="flex min-h-[560px] flex-col overflow-hidden rounded-xl border border-outline-variant bg-white shadow-sm lg:flex-row">
+      <div className="pro-card flex min-h-[560px] flex-col overflow-hidden lg:flex-row">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-5 py-4">
-            <div className="flex rounded-lg border border-outline-variant bg-surface-container p-0.5">
+            <div className="pro-segmented">
               {['daily', 'weekly', 'monthly'].map((mode) => (
                 <button
                   key={mode}
@@ -572,10 +570,10 @@ function SchedulesPage() {
                     setViewMode(mode)
                     setSelected(null)
                   }}
-                  className={`rounded-md px-4 py-2 text-sm font-semibold capitalize transition-colors ${
+                  className={`rounded-md px-4 py-2 text-sm capitalize transition-colors ${
                     viewMode === mode
-                      ? 'bg-[#000249] text-white shadow-sm'
-                      : 'text-on-surface-variant hover:text-neutral-900'
+                      ? 'pro-segmented-active'
+                      : 'text-fleet-ink-muted hover:text-fleet-ink'
                   }`}
                 >
                   {mode}
