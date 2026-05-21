@@ -4,6 +4,11 @@ import Icon from './Icon'
 import { useLayout } from '../context/LayoutContext'
 import { useNavHub } from '../hooks/useNavHub'
 import NavDropdownPanel from './nav/NavDropdownPanel'
+import {
+  NavMessagesPanel,
+  NavNotificationsPanel,
+  NavProfilePanel,
+} from './nav/NavHubPanels'
 
 const AVATAR_URL =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuDMfCMQyea5MKzlWGY1ZKUohvHWFhuFZFG1KyqV0zerTOD3Wpr34zT6cnK1HPQNynynyJbjSLHH5gt24H3wrzkiko1Ets1cHJIbZTanpfT6-iNv2uwRr4aA5Blcq2LrJkPmCX0ZTShfLnsIiEOsmCP5mzv9iUoxDwWd5Cq5bNdrxWxZeEnrsWuRgbJM4itb6nn_eJaQ26eAeVeMhUqTZwmdnsL94pH0qi77pZd_Rw1smHa9KR6tLO213AQznW8jKk15jhtuY2Cbbp4'
@@ -16,12 +21,6 @@ const navItems = [
   { path: '/maintenance', label: 'Maintenance' },
   { path: '/reports', label: 'Analytics' },
 ]
-
-const notifIcon = {
-  error: 'error',
-  warning: 'warning',
-  info: 'info',
-}
 
 function NavBadge({ count }) {
   if (!count) return null
@@ -188,56 +187,19 @@ function Navbar() {
               onClose={closePanel}
               anchorRef={notifAnchorRef}
               title="Notifications"
+              subtitle="Depot alerts & conflicts"
+              width="w-[360px]"
               footer={
                 <button
                   type="button"
                   onClick={hub.markAllNotificationsRead}
-                  className="w-full rounded-lg py-1.5 text-xs font-semibold text-depot-navy hover:bg-white"
+                  className="btn-outlined w-full py-2 text-xs"
                 >
                   Mark all as read
                 </button>
               }
             >
-              {hub.loadingAlerts ? (
-                <p className="px-4 py-6 text-center text-sm text-on-surface-variant">Loading alerts...</p>
-              ) : (
-                <ul className="divide-y divide-outline-variant">
-                  {hub.notifications.map((n) => (
-                    <li key={n.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          hub.openNotification(n)
-                          closePanel()
-                        }}
-                        className={`flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-container/60 ${
-                          n.read ? 'opacity-70' : 'bg-surface-container/30'
-                        }`}
-                      >
-                        <Icon
-                          name={notifIcon[n.type] || 'notifications'}
-                          size={20}
-                          className={
-                            n.type === 'error'
-                              ? 'shrink-0 text-red-600'
-                              : n.type === 'warning'
-                                ? 'shrink-0 text-amber-600'
-                                : 'shrink-0 text-depot-navy'
-                          }
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold text-neutral-900">{n.title}</span>
-                          <span className="block text-xs text-on-surface-variant">{n.body}</span>
-                          <span className="mt-1 block text-[10px] text-on-surface-variant">{n.timeLabel}</span>
-                        </span>
-                        {!n.read && n.id !== 'all-clear' ? (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-depot-blue-light" />
-                        ) : null}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <NavNotificationsPanel hub={hub} onClose={closePanel} />
             </NavDropdownPanel>
           </div>
 
@@ -258,88 +220,27 @@ function Navbar() {
               open={openPanel === 'messages'}
               onClose={closePanel}
               anchorRef={messagesAnchorRef}
-              title={hub.activeMessage ? 'Message' : 'Messages'}
-              width="w-[340px]"
-            >
-              {hub.activeMessage ? (
-                <div className="p-4">
+              title={hub.activeMessage ? 'Conversation' : 'Messages'}
+              subtitle={hub.activeMessage ? hub.activeMessage.subject : 'Depot team inbox'}
+              width="w-[380px]"
+              footer={
+                !hub.activeMessage ? (
                   <button
                     type="button"
-                    onClick={() => hub.setActiveMessageId(null)}
-                    className="mb-3 flex items-center gap-1 text-xs font-semibold text-depot-navy hover:underline"
+                    onClick={hub.markAllMessagesRead}
+                    className="btn-outlined w-full py-2 text-xs"
                   >
-                    <Icon name="arrow_back" size={16} />
-                    Back to inbox
+                    Mark all as read
                   </button>
-                  <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">From</p>
-                  <p className="text-sm font-semibold text-neutral-900">{hub.activeMessage.from}</p>
-                  <p className="mt-2 text-sm font-bold text-neutral-900">{hub.activeMessage.subject}</p>
-                  <p className="mt-2 text-sm text-on-surface-variant">{hub.activeMessage.preview}</p>
-                  {(hub.activeMessage.replies || []).map((r, i) => (
-                    <p key={i} className="mt-2 rounded-lg bg-surface-container px-3 py-2 text-sm text-neutral-800">
-                      <span className="font-semibold">{r.from}: </span>
-                      {r.text}
-                    </p>
-                  ))}
-                  <div className="mt-4 flex gap-2">
-                    <input
-                      type="text"
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Quick reply..."
-                      className="min-w-0 flex-1 rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-depot-navy"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          hub.sendQuickReply(hub.activeMessage.id, replyText)
-                          setReplyText('')
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        hub.sendQuickReply(hub.activeMessage.id, replyText)
-                        setReplyText('')
-                      }}
-                      className="rounded-lg bg-depot-blue-light px-3 py-2 text-sm font-semibold text-white hover:bg-depot-blue-light-hover"
-                    >
-                      Send
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <ul className="divide-y divide-outline-variant">
-                    {hub.messages.map((m) => (
-                      <li key={m.id}>
-                        <button
-                          type="button"
-                          onClick={() => hub.selectMessage(m.id)}
-                          className={`flex w-full flex-col px-4 py-3 text-left hover:bg-surface-container/60 ${
-                            m.read ? 'opacity-75' : 'bg-surface-container/30'
-                          }`}
-                        >
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-neutral-900">{m.from}</span>
-                            <span className="text-[10px] text-on-surface-variant">{m.timeLabel}</span>
-                          </span>
-                          <span className="text-xs font-semibold text-neutral-800">{m.subject}</span>
-                          <span className="truncate text-xs text-on-surface-variant">{m.preview}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="border-t border-outline-variant px-3 py-2">
-                    <button
-                      type="button"
-                      onClick={hub.markAllMessagesRead}
-                      className="w-full rounded-lg py-1.5 text-xs font-semibold text-depot-navy hover:bg-white"
-                    >
-                      Mark all as read
-                    </button>
-                  </div>
-                </>
-              )}
+                ) : null
+              }
+            >
+              <NavMessagesPanel
+                hub={hub}
+                replyText={replyText}
+                setReplyText={setReplyText}
+                onClose={closePanel}
+              />
             </NavDropdownPanel>
           </div>
 
@@ -359,82 +260,11 @@ function Navbar() {
               open={openPanel === 'profile'}
               onClose={closePanel}
               anchorRef={profileAnchorRef}
-              title="Profile"
-              width="w-72"
+              title="My account"
+              subtitle="Workspace & preferences"
+              width="w-[320px]"
             >
-              <div className="border-b border-outline-variant px-4 py-4">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={AVATAR_URL}
-                    alt=""
-                    className="h-12 w-12 rounded-full border-2 border-depot-blue-light object-cover"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-neutral-900">{hub.profile.name}</p>
-                    <p className="truncate text-xs text-on-surface-variant">{hub.profile.role}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-3 px-4 py-3">
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
-                    Display name
-                  </span>
-                  <input
-                    type="text"
-                    value={hub.profile.name}
-                    onChange={(e) => hub.updateProfileField('name', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-depot-navy"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
-                    Email
-                  </span>
-                  <input
-                    type="email"
-                    value={hub.profile.email}
-                    onChange={(e) => hub.updateProfileField('email', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-depot-navy"
-                  />
-                </label>
-                <p className="text-xs text-on-surface-variant">
-                  <span className="font-semibold text-neutral-800">Depot: </span>
-                  {hub.profile.depot}
-                </p>
-              </div>
-              <ul className="border-t border-outline-variant py-1">
-                {[
-                  { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-                  { path: '/routes', label: 'My routes', icon: 'route' },
-                  { path: '/schedules', label: 'Schedules', icon: 'event' },
-                  { path: '/reports', label: 'Analytics', icon: 'analytics' },
-                ].map((link) => (
-                  <li key={link.path}>
-                    <NavLink
-                      to={link.path}
-                      onClick={closePanel}
-                      className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-surface-container/60"
-                    >
-                      <Icon name={link.icon} size={18} className="text-depot-navy" />
-                      {link.label}
-                    </NavLink>
-                  </li>
-                ))}
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      hub.signOut()
-                      closePanel()
-                    }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
-                  >
-                    <Icon name="logout" size={18} />
-                    Sign out
-                  </button>
-                </li>
-              </ul>
+              <NavProfilePanel hub={hub} onClose={closePanel} />
             </NavDropdownPanel>
           </div>
         </div>
