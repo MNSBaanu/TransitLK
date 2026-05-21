@@ -27,7 +27,8 @@ function NavDropdownPanel({ open, onClose, title, width = 'w-80', children, foot
   return (
     <div
       ref={panelRef}
-      className={`absolute right-0 top-full z-[60] mt-2 ${width} overflow-hidden rounded-xl border border-outline-variant bg-white shadow-xl`}
+      className={`absolute right-0 top-full z-[60] mt-2 ${width} overflow-hidden rounded-xl border border-fleet-line bg-fleet-surface`}
+      style={{ boxShadow: 'var(--shadow-elevated)' }}
       role="dialog"
       aria-label={title}
     >
