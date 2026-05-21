@@ -9,7 +9,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
   })
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-outline-variant bg-white">
+    <div className="glass-subtle flex flex-1 flex-col overflow-hidden rounded-lg">
       <div className="sticky top-0 z-30 flex border-b border-outline-variant">
         <div className="w-56 shrink-0 border-r border-outline-variant bg-depot-navy/5 p-3 text-xs font-bold uppercase tracking-wide text-depot-navy">
           Resource / route

@@ -27,12 +27,11 @@ function NavDropdownPanel({ open, onClose, title, width = 'w-80', children, foot
   return (
     <div
       ref={panelRef}
-      className={`absolute right-0 top-full z-[60] mt-2 ${width} overflow-hidden rounded-xl border border-fleet-line bg-fleet-surface`}
-      style={{ boxShadow: 'var(--shadow-elevated)' }}
+      className={`glass-card absolute right-0 top-full z-[60] mt-2 ${width} overflow-hidden`}
       role="dialog"
       aria-label={title}
     >
-      <div className="flex items-center justify-between border-b border-outline-variant bg-depot-navy px-4 py-3">
+      <div className="flex items-center justify-between border-b border-white/15 bg-depot-navy/95 px-4 py-3 backdrop-blur-md">
         <h3 className="text-sm font-bold text-white">{title}</h3>
         <button
           type="button"
