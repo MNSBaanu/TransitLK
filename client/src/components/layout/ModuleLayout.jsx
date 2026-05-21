@@ -1,16 +1,12 @@
 import Icon from '../Icon'
 
 /** Shared page chrome — TransitLK professional module layout */
-export function ModuleHeader({ title, subtitle, action, large = false }) {
+export function ModuleHeader({ title, subtitle, action }) {
   return (
     <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
       <div>
-        <h2 className={large ? 'pro-page-title' : 'text-xl font-bold tracking-tight text-fleet-ink'}>
-          {title}
-        </h2>
-        {subtitle && (
-          <p className={large ? 'pro-page-subtitle' : 'mt-1 text-sm text-fleet-ink-muted'}>{subtitle}</p>
-        )}
+        <h2 className="pro-page-title">{title}</h2>
+        {subtitle && <p className="pro-page-subtitle">{subtitle}</p>}
       </div>
       {action}
     </div>
