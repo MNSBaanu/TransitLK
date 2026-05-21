@@ -1,10 +1,12 @@
-import express from 'express'
+﻿import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import connectDB from './config/db.js'
 import errorHandler from './middleware/errorMiddleware.js'
 
 // Routes
+import authRoutes from './routes/authRoutes.js'
+import dashboardRoutes from './routes/dashboardRoutes.js'
 import routeRoutes from './routes/routeRoutes.js'
 import scheduleRoutes from './routes/scheduleRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
@@ -24,7 +26,9 @@ const app = express()
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
 app.use(express.json())
 
-// API Routes (auth disabled for development)
+// API Routes
+app.use('/api/auth', authRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/routes', routeRoutes)
 app.use('/api/schedules', scheduleRoutes)
 app.use('/api/drivers', driverRoutes)
