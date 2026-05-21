@@ -40,7 +40,7 @@ export const getAllMaintenance = async (req, res) => {
     }
 
     const records = await Maintenance.find(filter)
-      .populate('bus_id', 'reg_number status')
+      .populate('bus_id', 'regNumber status')
       .sort({ service_date: -1 })
     res.json(records)
   } catch (error) {
@@ -53,7 +53,7 @@ export const getAllMaintenance = async (req, res) => {
 // @access  Protected
 export const getMaintenanceById = async (req, res) => {
   try {
-    const record = await Maintenance.findById(req.params.id).populate('bus_id', 'reg_number status')
+    const record = await Maintenance.findById(req.params.id).populate('bus_id', 'regNumber status')
     if (!record) {
       return res.status(404).json({ message: 'Maintenance record not found' })
     }

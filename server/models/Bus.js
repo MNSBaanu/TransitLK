@@ -29,8 +29,8 @@ const busSchema = new mongoose.Schema(
       default: 'ordinary',
     },
     depotId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Depot',
+      type: String,
+      trim: true,
     },
   },
   { timestamps: true, collection: 'buses' }
