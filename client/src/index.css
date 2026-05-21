@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 :root {
-  /* TransitLK — professional depot theme */
-  --fleet-primary: #000249;
-  --fleet-tertiary: #7a0016;
+  /* TransitLK — navy #1E3A8A + lighter blue accents */
+  --fleet-primary: #1e3a8a;
+  --fleet-tertiary: #4a6fd4;
   --fleet-black: #0f1419;
   --fleet-canvas: #f4f6f9;
   --fleet-surface: #ffffff;
@@ -14,16 +14,20 @@
   --fleet-line: #dde3eb;
   --fleet-ink: #0f172a;
   --fleet-ink-muted: #5c6578;
-  --fleet-primary-light: #e8eaf5;
-  --fleet-tertiary-light: #f5e8eb;
-  --depot-navy: #000249;
-  --depot-maroon: #7a0016;
-  --depot-maroon-hover: #5c0011;
-  --depot-nav-bg: #000249;
-  --depot-nav-bg-subtle: #00033d;
+  --fleet-primary-light: #dbeafe;
+  --fleet-tertiary-light: #eff6ff;
+  --depot-navy: #1e3a8a;
+  --depot-blue-light: #4a6fd4;
+  --depot-blue-light-hover: #3b5fc4;
+  --depot-blue-muted: #93b4f5;
+  --depot-accent: #4a6fd4;
+  --depot-maroon: #4a6fd4;
+  --depot-maroon-hover: #3b5fc4;
+  --depot-nav-bg: #1e3a8a;
+  --depot-nav-bg-subtle: #172554;
   --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
-  --shadow-card: 0 1px 2px rgb(0 2 73 / 0.04), 0 4px 16px rgb(0 2 73 / 0.06);
-  --shadow-elevated: 0 8px 24px rgb(0 2 73 / 0.1);
+  --shadow-card: 0 1px 2px rgb(30 58 138 / 0.06), 0 4px 16px rgb(30 58 138 / 0.08);
+  --shadow-elevated: 0 8px 24px rgb(30 58 138 / 0.12);
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
@@ -171,20 +175,20 @@ body {
     font-weight: 600;
   }
 
-  /* Primary CTA — maroon */
+  /* Primary CTA — lighter blue */
   .btn-primary {
     border-radius: var(--radius-lg);
-    background-color: var(--depot-maroon);
+    background-color: var(--depot-blue-light);
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 600;
     color: #ffffff;
-    box-shadow: 0 1px 2px rgb(122 0 22 / 0.2);
+    box-shadow: 0 1px 2px rgb(74 111 212 / 0.35);
     transition: background-color 0.15s, box-shadow 0.15s;
   }
 
   .btn-primary:hover {
-    background-color: var(--depot-maroon-hover);
+    background-color: var(--depot-blue-light-hover);
   }
 
   .btn-primary:disabled {
@@ -234,7 +238,7 @@ body {
   }
 
   .btn-accent:hover {
-    background-color: #00013a;
+    background-color: #172554;
   }
 
   .btn-tertiary {
@@ -248,7 +252,7 @@ body {
   }
 
   .btn-tertiary:hover {
-    background-color: var(--depot-maroon-hover);
+    background-color: var(--depot-blue-light-hover);
   }
 
   .input-field {
@@ -265,7 +269,7 @@ body {
 
   .input-field:focus {
     border-color: var(--fleet-primary);
-    box-shadow: 0 0 0 3px rgb(0 2 73 / 0.12);
+    box-shadow: 0 0 0 3px rgb(30 58 138 / 0.15);
   }
 
   .search-field {
@@ -281,14 +285,14 @@ body {
 
   .search-field:focus {
     border-color: var(--fleet-primary);
-    box-shadow: 0 0 0 3px rgb(0 2 73 / 0.12);
+    box-shadow: 0 0 0 3px rgb(30 58 138 / 0.15);
     background-color: var(--fleet-surface);
   }
 
   .nav-active {
     background-color: var(--fleet-primary);
     color: #ffffff;
-    box-shadow: 0 1px 2px rgb(0 2 73 / 0.15);
+    box-shadow: 0 1px 2px rgb(30 58 138 / 0.2);
   }
 
   .sidebar-nav-active {
@@ -299,7 +303,7 @@ body {
   .top-nav {
     background-color: var(--depot-nav-bg);
     border-bottom: 1px solid rgb(255 255 255 / 0.1);
-    box-shadow: 0 2px 8px rgb(0 2 73 / 0.25);
+    box-shadow: 0 2px 8px rgb(30 58 138 / 0.3);
   }
 
   .top-nav-link {
@@ -312,7 +316,7 @@ body {
   }
 
   .top-nav-link-active {
-    background-color: var(--depot-maroon);
+    background-color: var(--depot-blue-light);
     color: #ffffff;
     box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
   }

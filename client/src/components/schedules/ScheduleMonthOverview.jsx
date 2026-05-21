@@ -41,7 +41,7 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
             <div
               key={dayKey}
               className={`flex min-h-[100px] flex-col rounded-lg border p-2 ${
-                isToday ? 'border-[#000249] bg-[#000249]/5' : 'border-outline-variant bg-white'
+                isToday ? 'border-depot-navy bg-depot-navy/5' : 'border-outline-variant bg-white'
               }`}
             >
               <button
@@ -51,7 +51,7 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
               >
                 {new Date(dayKey).getDate()}
                 {trips.length > 0 && (
-                  <span className="rounded-full bg-[#000249] px-1.5 py-0.5 text-[10px] text-white">
+                  <span className="rounded-full bg-depot-navy px-1.5 py-0.5 text-[10px] text-white">
                     {trips.length}
                   </span>
                 )}
@@ -64,8 +64,8 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
                       onClick={() => onSelectTrip(trip)}
                       className={`w-full rounded px-1 py-0.5 text-left text-[10px] leading-tight ${
                         selectedId === trip._id
-                          ? 'bg-depot-maroon text-white'
-                          : 'bg-surface-container hover:bg-[#000249]/10'
+                          ? 'bg-depot-blue-light text-white'
+                          : 'bg-surface-container hover:bg-depot-navy/10'
                       }`}
                     >
                       <span className="block font-semibold tabular-nums">

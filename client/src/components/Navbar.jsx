@@ -26,7 +26,7 @@ const notifIcon = {
 function NavBadge({ count }) {
   if (!count) return null
   return (
-    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-depot-maroon px-1 text-[10px] font-bold text-white">
+    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-depot-blue-light px-1 text-[10px] font-bold text-white">
       {count > 9 ? '9+' : count}
     </span>
   )
@@ -192,7 +192,7 @@ function Navbar() {
                 <button
                   type="button"
                   onClick={hub.markAllNotificationsRead}
-                  className="w-full rounded-lg py-1.5 text-xs font-semibold text-[#000249] hover:bg-white"
+                  className="w-full rounded-lg py-1.5 text-xs font-semibold text-depot-navy hover:bg-white"
                 >
                   Mark all as read
                 </button>
@@ -222,7 +222,7 @@ function Navbar() {
                               ? 'shrink-0 text-red-600'
                               : n.type === 'warning'
                                 ? 'shrink-0 text-amber-600'
-                                : 'shrink-0 text-[#000249]'
+                                : 'shrink-0 text-depot-navy'
                           }
                         />
                         <span className="min-w-0 flex-1">
@@ -231,7 +231,7 @@ function Navbar() {
                           <span className="mt-1 block text-[10px] text-on-surface-variant">{n.timeLabel}</span>
                         </span>
                         {!n.read && n.id !== 'all-clear' ? (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-depot-maroon" />
+                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-depot-blue-light" />
                         ) : null}
                       </button>
                     </li>
@@ -266,7 +266,7 @@ function Navbar() {
                   <button
                     type="button"
                     onClick={() => hub.setActiveMessageId(null)}
-                    className="mb-3 flex items-center gap-1 text-xs font-semibold text-[#000249] hover:underline"
+                    className="mb-3 flex items-center gap-1 text-xs font-semibold text-depot-navy hover:underline"
                   >
                     <Icon name="arrow_back" size={16} />
                     Back to inbox
@@ -287,7 +287,7 @@ function Navbar() {
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder="Quick reply..."
-                      className="min-w-0 flex-1 rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-[#000249]"
+                      className="min-w-0 flex-1 rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-depot-navy"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           hub.sendQuickReply(hub.activeMessage.id, replyText)
@@ -301,7 +301,7 @@ function Navbar() {
                         hub.sendQuickReply(hub.activeMessage.id, replyText)
                         setReplyText('')
                       }}
-                      className="rounded-lg bg-depot-maroon px-3 py-2 text-sm font-semibold text-white hover:bg-depot-maroon-hover"
+                      className="rounded-lg bg-depot-blue-light px-3 py-2 text-sm font-semibold text-white hover:bg-depot-blue-light-hover"
                     >
                       Send
                     </button>
@@ -333,7 +333,7 @@ function Navbar() {
                     <button
                       type="button"
                       onClick={hub.markAllMessagesRead}
-                      className="w-full rounded-lg py-1.5 text-xs font-semibold text-[#000249] hover:bg-white"
+                      className="w-full rounded-lg py-1.5 text-xs font-semibold text-depot-navy hover:bg-white"
                     >
                       Mark all as read
                     </button>
@@ -348,7 +348,7 @@ function Navbar() {
               type="button"
               onClick={() => togglePanel('profile')}
               className={`h-10 w-10 overflow-hidden rounded-full border-2 transition-colors ${
-                openPanel === 'profile' ? 'border-white' : 'border-depot-maroon'
+                openPanel === 'profile' ? 'border-white' : 'border-depot-blue-light'
               }`}
               aria-label="Profile menu"
               aria-expanded={openPanel === 'profile'}
@@ -367,7 +367,7 @@ function Navbar() {
                   <img
                     src={AVATAR_URL}
                     alt=""
-                    className="h-12 w-12 rounded-full border-2 border-depot-maroon object-cover"
+                    className="h-12 w-12 rounded-full border-2 border-depot-blue-light object-cover"
                   />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-neutral-900">{hub.profile.name}</p>
@@ -384,7 +384,7 @@ function Navbar() {
                     type="text"
                     value={hub.profile.name}
                     onChange={(e) => hub.updateProfileField('name', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-[#000249]"
+                    className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-depot-navy"
                   />
                 </label>
                 <label className="block">
@@ -395,7 +395,7 @@ function Navbar() {
                     type="email"
                     value={hub.profile.email}
                     onChange={(e) => hub.updateProfileField('email', e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-[#000249]"
+                    className="mt-1 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-depot-navy"
                   />
                 </label>
                 <p className="text-xs text-on-surface-variant">
@@ -416,7 +416,7 @@ function Navbar() {
                       onClick={closePanel}
                       className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-neutral-800 hover:bg-surface-container/60"
                     >
-                      <Icon name={link.icon} size={18} className="text-[#000249]" />
+                      <Icon name={link.icon} size={18} className="text-depot-navy" />
                       {link.label}
                     </NavLink>
                   </li>
@@ -428,7 +428,7 @@ function Navbar() {
                       hub.signOut()
                       closePanel()
                     }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-semibold text-depot-maroon hover:bg-red-50"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50"
                   >
                     <Icon name="logout" size={18} />
                     Sign out
@@ -448,7 +448,7 @@ function Navbar() {
             className={({ isActive }) =>
               `shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                 isActive
-                  ? 'bg-depot-maroon text-white'
+                  ? 'bg-depot-blue-light text-white'
                   : 'bg-white/10 text-white/90 hover:bg-white/15'
               }`
             }

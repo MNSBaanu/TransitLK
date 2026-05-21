@@ -108,7 +108,7 @@ function Reports() {
   const fuelSegments = useMemo(() => {
     if (!data?.fuel?.byRoute?.length) return []
     const total = data.fuel.byRoute.reduce((s, r) => s + r.liters, 0) || 1
-    const colors = ['#000249', '#464650', '#7a0016', '#777681', '#94a3b8']
+    const colors = ['#1e3a8a', '#4a6fd4', '#93b4f5', '#777681', '#94a3b8']
     let offset = 0
     const circumference = 2 * Math.PI * 40
     return data.fuel.byRoute.map((r, i) => {
@@ -199,7 +199,7 @@ function Reports() {
           {/* Bento grid */}
           <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {/* Sustainability — depot navy */}
-            <div className="relative col-span-1 flex flex-col justify-between overflow-hidden rounded-xl bg-[#000249] p-6 text-white lg:col-span-2">
+            <div className="relative col-span-1 flex flex-col justify-between overflow-hidden rounded-xl bg-depot-navy p-6 text-white lg:col-span-2">
               <div className="relative z-10">
                 <div className="mb-6 flex items-center justify-between">
                   <span className={`${labelClass} text-white/70`}>Sustainability insights</span>
@@ -245,8 +245,8 @@ function Reports() {
                     key={i}
                     className={`flex-1 rounded-t-sm ${
                       i === (data.tripCompletion.miniBars?.length || 6) - 1
-                        ? 'bg-[#000249]'
-                        : 'bg-[#000249]/20'
+                        ? 'bg-depot-navy'
+                        : 'bg-depot-navy/20'
                     }`}
                     style={{ height: `${Math.max(12, h)}%` }}
                   />
@@ -288,7 +288,7 @@ function Reports() {
                 <h4 className="text-base font-semibold text-neutral-900">Trip completion rates</h4>
                 <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-3 w-3 rounded-full bg-[#000249]" />
+                    <span className="inline-block h-3 w-3 rounded-full bg-depot-navy" />
                     Actual
                   </span>
                   <span className="flex items-center gap-1.5">
@@ -305,7 +305,7 @@ function Reports() {
                       style={{ height: `${w.planned}%` }}
                     />
                     <div
-                      className="w-full rounded-t-sm bg-[#000249] transition-colors group-hover:bg-[#000249]/80"
+                      className="w-full rounded-t-sm bg-depot-navy transition-colors group-hover:bg-depot-navy/80"
                       style={{ height: `${w.actual}%` }}
                     />
                     <span className="mt-1 text-center text-[10px] font-bold uppercase text-on-surface-variant">
@@ -363,7 +363,7 @@ function Reports() {
                             className="h-3 w-3 rounded-full"
                             style={{
                               backgroundColor:
-                                fuelSegments[i]?.color || '#000249',
+                                fuelSegments[i]?.color || '#1e3a8a',
                             }}
                           />
                           <span className="text-sm">{r.routeName}</span>
@@ -393,7 +393,7 @@ function Reports() {
                 <button
                   type="button"
                   onClick={loadReports}
-                  className="flex items-center gap-1 text-sm font-semibold text-[#000249] hover:underline"
+                  className="flex items-center gap-1 text-sm font-semibold text-depot-navy hover:underline"
                 >
                   Refresh data
                   <Icon name="arrow_forward" size={16} />
