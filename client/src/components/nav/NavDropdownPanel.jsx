@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Icon from '../Icon'
 
-function NavDropdownPanel({ open, onClose, title, width = 'w-80', children, footer, anchorRef }) {
+function NavDropdownPanel({ open, onClose, title, subtitle, width = 'w-80', children, footer, anchorRef }) {
   const panelRef = useRef(null)
 
   useEffect(() => {
@@ -32,7 +32,10 @@ function NavDropdownPanel({ open, onClose, title, width = 'w-80', children, foot
       aria-label={title}
     >
       <div className="flex items-center justify-between border-b border-white/15 bg-depot-navy/95 px-4 py-3 backdrop-blur-md">
-        <h3 className="text-sm font-bold text-white">{title}</h3>
+        <div>
+          <h3 className="text-sm font-bold text-white">{title}</h3>
+          {subtitle ? <p className="text-[11px] text-white/65">{subtitle}</p> : null}
+        </div>
         <button
           type="button"
           onClick={onClose}
@@ -44,7 +47,7 @@ function NavDropdownPanel({ open, onClose, title, width = 'w-80', children, foot
       </div>
       <div className="max-h-[min(420px,70vh)] overflow-y-auto">{children}</div>
       {footer ? (
-        <div className="border-t border-outline-variant bg-surface-container/40 px-3 py-2">{footer}</div>
+        <div className="glass-subtle border-t border-white/40 px-3 py-2.5">{footer}</div>
       ) : null}
     </div>
   )
