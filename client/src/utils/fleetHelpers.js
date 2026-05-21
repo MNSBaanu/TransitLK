@@ -1,3 +1,16 @@
+/** Populated depot object or legacy string id */
+export function depotLabel(depot) {
+  if (!depot) return '—'
+  if (typeof depot === 'string') return depot
+  return depot.depotName || depot.location || '—'
+}
+
+export function depotIdValue(depot) {
+  if (!depot) return ''
+  if (typeof depot === 'string') return depot
+  return depot._id || ''
+}
+
 export function formatServiceType(type) {
   if (!type) return '—'
   return type.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())

@@ -27,7 +27,9 @@ export const getAllBuses = async (req, res) => {
     if (status) filter.status = status
     if (depotId) filter.depotId = depotId
 
-    const buses = await Bus.find(filter).sort({ createdAt: -1 })
+    const buses = await Bus.find(filter)
+      .populate('depotId', 'depotName location')
+      .sort({ createdAt: -1 })
     res.json(buses)
   } catch (error) {
     res.status(500).json({ message: error.message })
