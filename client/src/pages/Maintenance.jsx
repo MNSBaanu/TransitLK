@@ -256,7 +256,7 @@ function Maintenance() {
   const activeList = tab === 'maintenance' ? maintenance : fuelLogs
 
   const filtered = activeList.filter((r) => {
-    const busReg = r.bus_id?.reg_number || ''
+    const busReg = r.bus_id?.regNumber || ''
     const desc = r.description || ''
     return busReg.toLowerCase().includes(search.toLowerCase()) ||
       desc.toLowerCase().includes(search.toLowerCase())
@@ -308,7 +308,7 @@ function Maintenance() {
                 Maintenance Alert: {maintenanceOverdue.length} Vehicle{maintenanceOverdue.length > 1 ? 's' : ''} Overdue
               </p>
               <p className="text-xs text-red-500">
-                Immediate attention required for: {maintenanceOverdue.slice(0, 4).map((r) => r.bus_id?.reg_number || '—').join(', ')}
+                Immediate attention required for: {maintenanceOverdue.slice(0, 4).map((r) => r.bus_id?.regNumber || '—').join(', ')}
               </p>
             </div>
           </div>
@@ -407,7 +407,7 @@ function Maintenance() {
                     return (
                       <tr key={r._id} className="hover:bg-surface-container-low transition-colors">
                         <td className="px-4 py-3 text-neutral-600">{formatDate(r.service_date)}</td>
-                        <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.reg_number || '—'}</td>
+                        <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${style.text}`}>
                             <span className={`h-2 w-2 rounded-full ${style.dot}`} />
@@ -464,7 +464,7 @@ function Maintenance() {
                   ) : paginated.map((r) => (
                     <tr key={r._id} className="hover:bg-surface-container-low transition-colors">
                       <td className="px-4 py-3 text-neutral-600">{formatDate(r.fuel_date)}</td>
-                      <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.reg_number || '—'}</td>
+                      <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-yellow-700">
                           <span className="h-2 w-2 rounded-full bg-yellow-500" />

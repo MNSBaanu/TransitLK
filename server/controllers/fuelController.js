@@ -35,7 +35,7 @@ export const getAllFuelLogs = async (req, res) => {
       if (to) filter.fuel_date.$lte = new Date(to)
     }
 
-    const logs = await FuelLog.find(filter).populate('bus_id', 'reg_number').sort({ fuel_date: -1 })
+    const logs = await FuelLog.find(filter).populate('bus_id', 'regNumber').sort({ fuel_date: -1 })
     res.json(logs)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -47,7 +47,7 @@ export const getAllFuelLogs = async (req, res) => {
 // @access  Protected
 export const getFuelLogById = async (req, res) => {
   try {
-    const log = await FuelLog.findById(req.params.id).populate('bus_id', 'reg_number')
+    const log = await FuelLog.findById(req.params.id).populate('bus_id', 'regNumber')
     if (!log) {
       return res.status(404).json({ message: 'Fuel log not found' })
     }
