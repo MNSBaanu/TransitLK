@@ -6,7 +6,6 @@ import errorHandler from './middleware/errorMiddleware.js'
 
 // Routes
 import authRoutes from './routes/authRoutes.js'
-import dashboardRoutes from './routes/dashboardRoutes.js'
 import routeRoutes from './routes/routeRoutes.js'
 import scheduleRoutes from './routes/scheduleRoutes.js'
 import driverRoutes from './routes/driverRoutes.js'
@@ -28,7 +27,6 @@ app.use(express.json())
 
 // API Routes
 app.use('/api/auth', authRoutes)
-app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/routes', routeRoutes)
 app.use('/api/schedules', scheduleRoutes)
 app.use('/api/drivers', driverRoutes)
@@ -51,3 +49,4 @@ const PORT = process.env.PORT || 5000
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
 })
+
