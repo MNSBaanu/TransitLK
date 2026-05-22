@@ -226,8 +226,11 @@ function loadPrefs() {
   }
 }
 
-export function NavProfilePanel({ hub, onClose }) {
+export function NavProfilePanel({ hub, onClose, user, roleLabel, onLogout }) {
   const navigate = useNavigate()
+  const displayName = user?.name || hub.profile.name
+  const displayEmail = user?.email || hub.profile.email
+  const displayRole = roleLabel || hub.profile.role
   const [section, setSection] = useState('menu')
   const [prefs, setPrefs] = useState(loadPrefs)
   const [savedHint, setSavedHint] = useState('')
@@ -372,10 +375,10 @@ export function NavProfilePanel({ hub, onClose }) {
             className="h-14 w-14 rounded-full border-2 border-white/80 object-cover shadow-md"
           />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-bold text-fleet-ink">{hub.profile.name}</p>
-            <p className="truncate text-xs text-fleet-ink-muted">{hub.profile.email}</p>
+            <p className="truncate text-base font-bold text-fleet-ink">{displayName}</p>
+            <p className="truncate text-xs text-fleet-ink-muted">{displayEmail}</p>
             <span className="mt-1.5 inline-block rounded-full bg-depot-navy/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-depot-navy">
-              {hub.profile.role}
+              {displayRole}
             </span>
           </div>
         </div>
@@ -406,7 +409,8 @@ export function NavProfilePanel({ hub, onClose }) {
         <button
           type="button"
           onClick={() => {
-            hub.signOut()
+            if (onLogout) onLogout()
+            else hub.signOut()
             onClose()
           }}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50/80"

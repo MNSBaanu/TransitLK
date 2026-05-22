@@ -23,13 +23,15 @@ function weekLabel(date, index) {
 
 export const getReportsDashboard = async (req, res) => {
   try {
-    const { from, to, period = 'monthly' } = req.query
+    const { from, to, period = 'monthly', routeId, busId } = req.query
     const { start, end } = parseRange(from, to)
 
+    const scheduleFilter = { tripDate: { $gte: start, $lte: end } }
+    if (routeId) scheduleFilter.routeId = routeId
+    if (busId) scheduleFilter.busId = busId
+
     const [schedules, routes, drivers, fuelLogs] = await Promise.all([
-      Schedule.find({
-        tripDate: { $gte: start, $lte: end },
-      })
+      Schedule.find(scheduleFilter)
         .populate('routeId', 'routeName distance')
         .populate('busId', 'regNumber')
         .populate('driverId', 'name status'),
@@ -69,7 +71,12 @@ export const getReportsDashboard = async (req, res) => {
       })
       const done = inBucket.filter((s) => s.status === 'completed' || s.status === 'on-time')
       const actualPct = inBucket.length ? Math.round((done.length / inBucket.length) * 100) : 0
-      const plannedPct = 95 + (i % 3)
+      const plannedCount = inBucket.filter(
+        (s) => s.status !== 'cancelled' && s.status !== 'draft'
+      ).length
+      const plannedPct = plannedCount
+        ? Math.min(100, Math.round((plannedCount / Math.max(inBucket.length, 1)) * 100))
+        : actualPct
       weeklyCompletion.push({
         label: weekLabel(bStart, i),
         actual: actualPct,
@@ -197,6 +204,50 @@ export const getReportsDashboard = async (req, res) => {
         routes: routes.length,
       },
     })
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+export const exportReportsPdf = async (req, res) => {
+  try {
+    const PDFDocument = (await import('pdfkit')).default
+    const { from, to } = req.query
+    const { start, end } = parseRange(from, to)
+
+    const schedules = await Schedule.find({ tripDate: { $gte: start, $lte: end } })
+      .populate('routeId', 'routeName')
+      .populate('busId', 'regNumber')
+      .populate('driverId', 'name')
+      .sort({ tripDate: 1 })
+
+    const active = schedules.filter((s) => s.status !== 'cancelled')
+    const completed = active.filter((s) => s.status === 'completed' || s.status === 'on-time')
+    const rate = active.length ? Math.round((completed.length / active.length) * 100) : 0
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'attachment; filename="transitlk-report.pdf"')
+
+    const doc = new PDFDocument({ margin: 50 })
+    doc.pipe(res)
+    doc.fontSize(18).text('TransitLK — Operations Report', { underline: true })
+    doc.moveDown()
+    doc.fontSize(11).text(`Period: ${start.toISOString().slice(0, 10)} to ${end.toISOString().slice(0, 10)}`)
+    doc.text(`Trips: ${schedules.length} · Completion rate: ${rate}%`)
+    doc.moveDown()
+    doc.fontSize(12).text('Trip summary', { underline: true })
+    doc.moveDown(0.5)
+    schedules.slice(0, 40).forEach((s) => {
+      doc
+        .fontSize(9)
+        .text(
+          `${new Date(s.tripDate).toISOString().slice(0, 10)} | ${s.routeId?.routeName || '—'} | ${s.busId?.regNumber || '—'} | ${s.driverId?.name || '—'} | ${s.status}`
+        )
+    })
+    if (schedules.length > 40) {
+      doc.text(`… and ${schedules.length - 40} more trips`)
+    }
+    doc.end()
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

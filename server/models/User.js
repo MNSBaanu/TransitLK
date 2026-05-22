@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import bcrypt from 'bcryptjs'
+import { STAFF_ROLES } from '../utils/roles.js'
 
 const userSchema = new mongoose.Schema(
   {
@@ -22,14 +23,21 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'supervisor', 'staff'],
-      default: 'staff',
+      enum: STAFF_ROLES,
+      required: [true, 'Staff role is required'],
+    },
+    depotId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Depot',
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   { timestamps: true, collection: 'users' }
 )
 
-// Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next()
   const salt = await bcrypt.genSalt(10)
@@ -37,9 +45,8 @@ userSchema.pre('save', async function (next) {
   next()
 })
 
-// Compare entered password with hashed password
 userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password)
+  return bcrypt.compare(enteredPassword, this.password)
 }
 
 const User = mongoose.model('User', userSchema)

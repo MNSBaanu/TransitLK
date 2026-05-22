@@ -9,6 +9,9 @@ import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleQuickAdjust from '../components/schedules/ScheduleQuickAdjust'
 import ScheduleAddDrawer from '../components/schedules/ScheduleAddDrawer'
+import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
+import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../config/roles'
 import {
   detectPeriodConflicts,
   formatPeriodLabel,
@@ -42,6 +45,7 @@ const emptyAddForm = {
 }
 
 function SchedulesPage() {
+  const { user } = useAuth()
   const [schedules, setSchedules] = useState([])
   const [routes, setRoutes] = useState([])
   const [buses, setBuses] = useState([])
@@ -218,6 +222,7 @@ function SchedulesPage() {
         const { data } = await api.get('/schedules/conflicts/check', {
           params: {
             tripDate: addForm.tripDate,
+            routeId: addForm.routeId,
             busId: addForm.busId,
             driverId: addForm.driverId,
             departureTime: addForm.departureTime,
@@ -231,7 +236,48 @@ function SchedulesPage() {
     }, 350)
 
     return () => clearTimeout(timer)
-  }, [showAdd, addForm.busId, addForm.driverId, addForm.tripDate, addForm.departureTime, addForm.arrivalTime])
+  }, [
+    showAdd,
+    addForm.routeId,
+    addForm.busId,
+    addForm.driverId,
+    addForm.tripDate,
+    addForm.departureTime,
+    addForm.arrivalTime,
+  ])
+
+  const [adjustConflict, setAdjustConflict] = useState(null)
+
+  useEffect(() => {
+    if (!selected || !adjustForm.busId || !adjustForm.driverId) {
+      setAdjustConflict(null)
+      return
+    }
+    const timeErr = validateTimeRange(adjustForm.departureTime, adjustForm.arrivalTime)
+    if (timeErr) {
+      setAdjustConflict({ hasConflict: true, conflicts: [{ message: timeErr }] })
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await api.get('/schedules/conflicts/check', {
+          params: {
+            tripDate: tripDateKey(selected),
+            routeId: selected.routeId?._id || selected.routeId,
+            busId: adjustForm.busId,
+            driverId: adjustForm.driverId,
+            departureTime: adjustForm.departureTime,
+            arrivalTime: adjustForm.arrivalTime,
+            excludeId: selected._id,
+          },
+        })
+        setAdjustConflict(data)
+      } catch {
+        setAdjustConflict(null)
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [selected, adjustForm])
 
   const shiftDate = (delta) => {
     const d = new Date(viewDate)
@@ -366,7 +412,7 @@ function SchedulesPage() {
       driverId: addForm.driverId,
       departureTime: addForm.departureTime,
       arrivalTime: addForm.arrivalTime,
-      status: emergencyMode ? 'delayed' : 'scheduled',
+      status: 'draft',
       adjustmentReason: emergencyMode ? 'emergency' : 'normal',
     }
 
@@ -417,11 +463,89 @@ function SchedulesPage() {
     }
   }
 
+  const pendingSchedules = useMemo(
+    () => schedules.filter((s) => s.status === 'pending'),
+    [schedules]
+  )
+
+  const handleSubmitDraft = async () => {
+    if (!selected || selected.status !== 'draft') return
+    setSaving(true)
+    try {
+      await api.post(`/schedules/${selected._id}/submit`)
+      showToast('Submitted for approval')
+      loadData()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Submit failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleApprove = async (id) => {
+    setSaving(true)
+    try {
+      await api.post(`/schedules/${id}/approve`)
+      showToast('Schedule approved')
+      loadData()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Approve failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleReject = async (id) => {
+    const reason = window.prompt('Rejection reason:', 'Incomplete allocation')
+    if (!reason?.trim()) return
+    setSaving(true)
+    try {
+      await api.post(`/schedules/${id}/reject`, { reason })
+      showToast('Returned to scheduler')
+      loadData()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Reject failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelTrip = async () => {
+    if (!selected) return
+    const reason = window.prompt('Cancellation reason (required):', 'operational')
+    if (!reason?.trim()) return
+    setSaving(true)
+    setError('')
+    try {
+      await api.put(`/schedules/${selected._id}`, {
+        status: 'cancelled',
+        adjustmentReason: 'obstruction',
+        tripDate: selected.tripDate,
+        routeId: selected.routeId?._id || selected.routeId,
+        busId: selected.busId?._id || selected.busId,
+        driverId: selected.driverId?._id || selected.driverId,
+        departureTime: selected.departureTime,
+        arrivalTime: selected.arrivalTime,
+      })
+      showToast('Trip cancelled')
+      setSelected(null)
+      loadData()
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to cancel trip')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleApply = async () => {
     if (!selected || !adjustForm) return
     const timeErr = validateTimeRange(adjustForm.departureTime, adjustForm.arrivalTime)
     if (timeErr) {
       setError(timeErr)
+      return
+    }
+    if (adjustConflict?.hasConflict) {
+      setError('Resolve scheduling conflicts before saving')
       return
     }
     setSaving(true)
@@ -549,6 +673,17 @@ function SchedulesPage() {
           </button>
         </div>
       </div>
+
+      <ScheduleApprovalBar
+        pending={pendingSchedules}
+        saving={saving}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        canApprove={
+          user?.role === ROLES.DEPOT_MANAGER || user?.role === ROLES.ADMINISTRATOR
+        }
+        canSubmit={user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR}
+      />
 
       {error && !showAdd && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -680,6 +815,12 @@ function SchedulesPage() {
               saving={saving}
               error={error}
               onApply={handleApply}
+              onCancelTrip={handleCancelTrip}
+              onSubmitDraft={handleSubmitDraft}
+              canSubmitDraft={
+                user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR
+              }
+              adjustConflict={adjustConflict}
               onMaintenanceSwap={handleMaintenanceSwap}
               onMaintenanceOffline={handleMaintenanceOffline}
             />
@@ -707,7 +848,13 @@ function SchedulesPage() {
         form={{ ...addForm, tripDate: addForm.tripDate || viewDate }}
         onChange={handleAddChange}
         routes={routes}
-        buses={buses.filter((b) => b.status === 'available' || b.status === 'in-service')}
+        buses={buses.filter(
+          (b) =>
+            (b.status === 'available' || b.status === 'in-service') &&
+            (!selectedRoute?.serviceType ||
+              !b.serviceType ||
+              b.serviceType === selectedRoute.serviceType)
+        )}
         drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
         saving={saving}
         error={error}

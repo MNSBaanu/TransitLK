@@ -9,18 +9,11 @@ import {
   NavNotificationsPanel,
   NavProfilePanel,
 } from './nav/NavHubPanels'
+import { useAuth } from '../context/AuthContext'
+import { NAV_ITEMS, ROLE_LABELS, homePathForRole } from '../config/roles'
 
 const AVATAR_URL =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuDMfCMQyea5MKzlWGY1ZKUohvHWFhuFZFG1KyqV0zerTOD3Wpr34zT6cnK1HPQNynynyJbjSLHH5gt24H3wrzkiko1Ets1cHJIbZTanpfT6-iNv2uwRr4aA5Blcq2LrJkPmCX0ZTShfLnsIiEOsmCP5mzv9iUoxDwWd5Cq5bNdrxWxZeEnrsWuRgbJM4itb6nn_eJaQ26eAeVeMhUqTZwmdnsL94pH0qi77pZd_Rw1smHa9KR6tLO213AQznW8jKk15jhtuY2Cbbp4'
-
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/routes', label: 'Routes' },
-  { path: '/schedules', label: 'Schedules' },
-  { path: '/buses', label: 'Fleet' },
-  { path: '/maintenance', label: 'Maintenance' },
-  { path: '/reports', label: 'Analytics' },
-]
 
 function NavBadge({ count }) {
   if (!count) return null
@@ -33,7 +26,10 @@ function NavBadge({ count }) {
 
 function Navbar() {
   const location = useLocation()
+  const { user, logout } = useAuth()
   const { routeSearch, setRouteSearch, scheduleSearch, setScheduleSearch } = useLayout()
+
+  const navItems = NAV_ITEMS.filter((item) => user && item.roles.includes(user.role))
   const hub = useNavHub()
 
   const [openPanel, setOpenPanel] = useState(null)
@@ -109,7 +105,7 @@ function Navbar() {
     <header className="top-nav sticky top-0 z-50 shrink-0">
       <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         <NavLink
-          to="/dashboard"
+          to={user ? homePathForRole(user.role) : '/login'}
           className="relative z-10 shrink-0 font-sans text-lg font-bold tracking-tight text-white hover:opacity-90 sm:text-xl"
         >
           TransitLK
@@ -264,7 +260,17 @@ function Navbar() {
               subtitle="Workspace & preferences"
               width="w-[320px]"
             >
-              <NavProfilePanel hub={hub} onClose={closePanel} />
+              <NavProfilePanel
+                hub={hub}
+                onClose={closePanel}
+                user={user}
+                roleLabel={user ? ROLE_LABELS[user.role] : ''}
+                onLogout={() => {
+                  logout()
+                  closePanel()
+                  window.location.href = '/login'
+                }}
+              />
             </NavDropdownPanel>
           </div>
         </div>
