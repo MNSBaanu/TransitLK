@@ -53,6 +53,38 @@ export function isDriverAssignable(driver) {
   return isWithinWorkingHours(driver.workingHours)
 }
 
-export function isBusAssignable(bus) {
-  return bus?.status === 'available'
+/** Default minimum seat requirement by route service type */
+export const SERVICE_MIN_CAPACITY = {
+  ordinary: 40,
+  express: 35,
+  'semi-luxury': 28,
+}
+
+export function defaultMinCapacityForService(serviceType) {
+  return SERVICE_MIN_CAPACITY[serviceType] ?? 30
+}
+
+export function isBusAssignable(bus, routeServiceType, minCapacity = 0) {
+  if (!bus || bus.status !== 'available') return false
+  if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) {
+    return false
+  }
+  const required = Number(minCapacity) || 0
+  if (required > 0 && Number(bus.capacity) < required) return false
+  return true
+}
+
+export function busUnassignableReason(bus, routeServiceType, minCapacity = 0) {
+  if (!bus) return 'Not found'
+  if (bus.status !== 'available') {
+    return `Not available (${formatServiceType(bus.status)})`
+  }
+  if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) {
+    return `Needs ${formatServiceType(routeServiceType)} service (has ${formatServiceType(bus.serviceType)})`
+  }
+  const required = Number(minCapacity) || 0
+  if (required > 0 && Number(bus.capacity) < required) {
+    return `Capacity ${bus.capacity} seats — requires ≥${required}`
+  }
+  return null
 }
