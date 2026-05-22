@@ -11,6 +11,8 @@ import {
   startOfMonth,
   endOfMonth,
   validateTimeRange,
+  requiresAdjustmentNotes,
+  reasonToStatus,
 } from '../utils/scheduleHelpers.js'
 import { isWithinWorkingHoursAtTime } from '../utils/fleetHelpers.js'
 
@@ -18,8 +20,52 @@ const routePopulate = { path: 'routeId', select: 'routeName startPoint endPoint 
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
 const driverPopulate = { path: 'driverId', select: 'name licenseNo contactNo workingHours status' }
 
+const historyPopulate = {
+  path: 'adjustmentHistory.by',
+  select: 'name email role',
+}
+
 const populateSchedule = (query) =>
-  query.populate(routePopulate).populate(busPopulate).populate(driverPopulate)
+  query
+    .populate(routePopulate)
+    .populate(busPopulate)
+    .populate(driverPopulate)
+    .populate(historyPopulate)
+
+function buildHistoryChanges(existing, data) {
+  const tracked = [
+    'departureTime',
+    'arrivalTime',
+    'busId',
+    'driverId',
+    'status',
+    'adjustmentReason',
+  ]
+  const changes = []
+  for (const field of tracked) {
+    if (data[field] === undefined) continue
+    const from = existing[field] != null ? String(existing[field]) : ''
+    const to = String(data[field])
+    if (from !== to) changes.push({ field, from, to })
+  }
+  return changes
+}
+
+function appendAdjustmentHistory(existing, data, userId) {
+  const changes = buildHistoryChanges(existing, data)
+  const reason = data.adjustmentReason ?? existing.adjustmentReason
+  const notes = data.adjustmentNotes ?? existing.adjustmentNotes ?? ''
+  if (!changes.length && !notes.trim()) return
+
+  if (!existing.adjustmentHistory) existing.adjustmentHistory = []
+  existing.adjustmentHistory.push({
+    at: new Date(),
+    by: userId,
+    reason,
+    notes: notes.trim(),
+    changes,
+  })
+}
 
 async function findConflicts({
   tripDate,
@@ -370,6 +416,19 @@ export const updateSchedule = async (req, res) => {
       delete data.reason
     }
 
+    const nextReason = data.adjustmentReason ?? existing.adjustmentReason
+    const nextNotes = data.adjustmentNotes !== undefined ? data.adjustmentNotes : existing.adjustmentNotes
+
+    if (requiresAdjustmentNotes(nextReason) && !String(nextNotes || '').trim()) {
+      return res.status(400).json({
+        message: 'A written note is required for emergency, maintenance, absence, or obstruction adjustments',
+      })
+    }
+
+    if (data.adjustmentReason && data.status === undefined) {
+      data.status = reasonToStatus(data.adjustmentReason, existing.status)
+    }
+
     if (data.routeId) {
       const route = await Route.findById(routeId)
       if (!route) return res.status(400).json({ message: 'Route not found' })
@@ -390,7 +449,9 @@ export const updateSchedule = async (req, res) => {
       return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
     }
 
-    await Schedule.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
+    appendAdjustmentHistory(existing, data, req.user?.id)
+    Object.assign(existing, data)
+    await existing.save()
     const populated = await populateSchedule(Schedule.findById(req.params.id))
     res.json(populated)
   } catch (error) {

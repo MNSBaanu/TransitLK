@@ -59,6 +59,20 @@ export function endOfWeek(date) {
   return d
 }
 
+export const DISRUPTION_REASONS = ['emergency', 'maintenance', 'absence', 'obstruction']
+
+export function requiresAdjustmentNotes(reason) {
+  return DISRUPTION_REASONS.includes(reason)
+}
+
+export function reasonToStatus(reason, currentStatus = 'scheduled') {
+  if (reason === 'emergency') return 'delayed'
+  if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'
+  if (reason === 'absence' || reason === 'obstruction') return 'delayed'
+  if (reason === 'normal' && currentStatus === 'cancelled') return currentStatus
+  return currentStatus || 'scheduled'
+}
+
 export function validateTimeRange(departureTime, arrivalTime) {
   const dep = timeToMinutes(departureTime)
   const arr = timeToMinutes(arrivalTime)

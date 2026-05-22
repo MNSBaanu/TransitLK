@@ -210,11 +210,36 @@ export function detectPeriodConflicts(schedules) {
   return conflicts
 }
 
+export const ADJUSTMENT_REASON_LABELS = {
+  normal: 'Normal adjustment',
+  emergency: 'Emergency / unexpected event',
+  maintenance: 'Vehicle maintenance',
+  absence: 'Driver absence',
+  obstruction: 'Route obstruction',
+}
+
+export function requiresAdjustmentNotes(reason) {
+  return ['emergency', 'maintenance', 'absence', 'obstruction'].includes(reason)
+}
+
 export function reasonToStatus(reason, currentStatus) {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'
   if (reason === 'absence' || reason === 'obstruction') return 'delayed'
   return currentStatus || 'scheduled'
+}
+
+export function formatAdjustmentChange(change) {
+  if (!change?.field) return ''
+  const labels = {
+    departureTime: 'Departure',
+    arrivalTime: 'Arrival',
+    busId: 'Bus',
+    driverId: 'Driver',
+    status: 'Status',
+    adjustmentReason: 'Reason',
+  }
+  return `${labels[change.field] || change.field}: ${change.from || '—'} → ${change.to || '—'}`
 }
 
 export function scheduleCode(schedule) {
