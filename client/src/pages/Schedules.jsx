@@ -8,8 +8,10 @@ import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
-import ScheduleAddDrawer from '../components/schedules/ScheduleAddDrawer'
+import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
 import {
@@ -17,8 +19,12 @@ import {
   formatPeriodLabel,
   formatTripDate,
   getViewDateRange,
-  getWeekDayDates,
+  buildTimetableRows,
+  getTimetableDates,
+  groupTimetableConflictsByRoute,
   reasonToStatus,
+  requiresAdjustmentNotes,
+  validateTimetableRows,
   scheduleCode,
   toDateInputValue,
   tripDateKey,
@@ -36,15 +42,6 @@ import { useLayout } from '../context/LayoutContext'
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
-const emptyAddForm = {
-  routeId: '',
-  busId: '',
-  driverId: '',
-  tripDate: toDateInputValue(new Date()),
-  departureTime: '08:00',
-  arrivalTime: '12:00',
-}
-
 function SchedulesPage() {
   const { user } = useAuth()
   const [schedules, setSchedules] = useState([])
@@ -59,12 +56,14 @@ function SchedulesPage() {
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
   const [viewMode, setViewMode] = useState('daily')
   const [selected, setSelected] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [repeatWeek, setRepeatWeek] = useState(false)
-  const [addConflict, setAddConflict] = useState(null)
+  const [showTimetable, setShowTimetable] = useState(false)
+  const [timetablePeriod, setTimetablePeriod] = useState('daily')
+  const [timetableAnchor, setTimetableAnchor] = useState(() => toDateInputValue(new Date()))
+  const [timetableRows, setTimetableRows] = useState([])
+  const [timetableConflicts, setTimetableConflicts] = useState(null)
+  const [checkingTimetableConflicts, setCheckingTimetableConflicts] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
-  const [addForm, setAddForm] = useState(emptyAddForm)
   const [adjustForm, setAdjustForm] = useState({
     departureTime: '08:00',
     arrivalTime: '12:00',
@@ -77,6 +76,7 @@ function SchedulesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -159,7 +159,7 @@ function SchedulesPage() {
     conflicts.forEach((c) => {
       entries.push({
         type: 'error',
-        title: `${c.type === 'bus' ? 'Vehicle' : 'Driver'} conflict`,
+        title: `${c.type === 'bus' ? 'Vehicle' : c.type === 'route' ? 'Route' : 'Driver'} conflict`,
         body: c.message,
       })
     })
@@ -184,6 +184,20 @@ function SchedulesPage() {
     return entries
   }, [conflicts, filteredSchedules, buses, emergencyMode])
 
+  const adjustBuses = useMemo(() => {
+    const serviceType = selected?.routeId?.serviceType
+    const minCap = defaultMinCapacityForService(serviceType)
+    const currentBusId = String(adjustForm.busId || selected?.busId?._id || selected?.busId || '')
+    return buses.filter((b) => {
+      const id = String(b._id)
+      if (id === currentBusId) return true
+      return (
+        (b.status === 'available' || b.status === 'in-service') &&
+        isBusAssignable(b, serviceType, minCap)
+      )
+    })
+  }, [buses, selected, adjustForm.busId])
+
   const ganttRows = useMemo(() => {
     const dayTrips = filteredSchedules.filter((s) => tripDateKey(s) === viewDate)
     const byBus = new Map()
@@ -202,50 +216,57 @@ function SchedulesPage() {
     return [...byBus.values()].sort((a, b) => a.regNumber.localeCompare(b.regNumber))
   }, [filteredSchedules, viewDate])
 
-  const selectedRoute = useMemo(
-    () => routes.find((r) => r._id === addForm.routeId),
-    [routes, addForm.routeId]
+  const timetableTripCount = useMemo(() => {
+    const included = timetableRows.filter((r) => r.included).length
+    return included * getTimetableDates(timetablePeriod, timetableAnchor).length
+  }, [timetableRows, timetablePeriod, timetableAnchor])
+
+  const timetableRowConflicts = useMemo(
+    () => groupTimetableConflictsByRoute(timetableConflicts?.issues),
+    [timetableConflicts]
   )
 
   useEffect(() => {
-    if (!showAdd || !addForm.busId || !addForm.driverId || !addForm.tripDate) {
-      setAddConflict(null)
-      return
-    }
-    const timeErr = validateTimeRange(addForm.departureTime, addForm.arrivalTime)
-    if (timeErr) {
-      setAddConflict({ hasConflict: true, conflicts: [{ message: timeErr }] })
+    if (!showTimetable) {
+      setTimetableConflicts(null)
+      setCheckingTimetableConflicts(false)
       return
     }
 
+    const included = timetableRows.filter((r) => r.included)
+    if (!included.length) {
+      setTimetableConflicts({ hasConflict: false, issues: [], conflictCount: 0 })
+      return
+    }
+
+    const rowErrors = validateTimetableRows(timetableRows)
+    if (rowErrors.length) {
+      setTimetableConflicts({
+        hasConflict: true,
+        issues: [{ routeId: '', routeName: 'Validation', tripDate: '', conflicts: rowErrors.map((message) => ({ type: 'validation', message })) }],
+        conflictCount: rowErrors.length,
+      })
+      return
+    }
+
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
     const timer = setTimeout(async () => {
+      setCheckingTimetableConflicts(true)
       try {
-        const { data } = await api.get('/schedules/conflicts/check', {
-          params: {
-            tripDate: addForm.tripDate,
-            routeId: addForm.routeId,
-            busId: addForm.busId,
-            driverId: addForm.driverId,
-            departureTime: addForm.departureTime,
-            arrivalTime: addForm.arrivalTime,
-          },
+        const { data } = await api.post('/schedules/conflicts/timetable', {
+          dates,
+          rows: included,
         })
-        setAddConflict(data)
+        setTimetableConflicts(data)
       } catch {
-        setAddConflict(null)
+        setTimetableConflicts(null)
+      } finally {
+        setCheckingTimetableConflicts(false)
       }
-    }, 350)
+    }, 400)
 
     return () => clearTimeout(timer)
-  }, [
-    showAdd,
-    addForm.routeId,
-    addForm.busId,
-    addForm.driverId,
-    addForm.tripDate,
-    addForm.departureTime,
-    addForm.arrivalTime,
-  ])
+  }, [showTimetable, timetableRows, timetablePeriod, timetableAnchor])
 
   const [adjustConflict, setAdjustConflict] = useState(null)
 
@@ -300,13 +321,38 @@ function SchedulesPage() {
       driverId: trip.driverId?._id || trip.driverId || '',
       status: trip.status || 'scheduled',
       reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
-      notes: '',
+      notes: trip.adjustmentNotes || '',
     })
     setShowAdjustDrawer(true)
   }
 
-  const handleAddChange = (e) => {
-    setAddForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  const openTimetableDrawer = () => {
+    setTimetablePeriod(viewMode)
+    setTimetableAnchor(viewDate)
+    setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
+    setTimetableConflicts(null)
+    setError('')
+    setShowTimetable(true)
+  }
+
+  const handleTimetableRowChange = (routeId, field, value) => {
+    setTimetableRows((rows) =>
+      rows.map((r) => (String(r.routeId) === String(routeId) ? { ...r, [field]: value } : r))
+    )
+  }
+
+  const handleTimetableToggleAll = (checked) => {
+    setTimetableRows((rows) => rows.map((r) => ({ ...r, included: checked })))
+  }
+
+  const handleTimetablePeriodChange = (period) => {
+    setTimetablePeriod(period)
+    setTimetableRows(buildTimetableRows(routes, schedules, timetableAnchor))
+  }
+
+  const handleTimetableAnchorChange = (date) => {
+    setTimetableAnchor(date)
+    setTimetableRows(buildTimetableRows(routes, schedules, date))
   }
 
   const handleAdjustChange = (e) => {
@@ -332,36 +378,74 @@ function SchedulesPage() {
   const handleMaintenanceSwap = () => {
     if (!selected) return
     const currentBusId = String(selected.busId?._id || selected.busId)
+    const serviceType = selected.routeId?.serviceType
+    const minCap = defaultMinCapacityForService(serviceType)
     const alternate = buses.find(
-      (b) => b.status === 'available' && String(b._id) !== currentBusId
+      (b) =>
+        String(b._id) !== currentBusId &&
+        isBusAssignable(b, serviceType, minCap)
     )
     if (!alternate) {
-      setError('No alternate available bus for swap')
+      setError('No alternate bus matches route service type and capacity')
       return
     }
     setAdjustForm((prev) => ({
       ...prev,
       busId: alternate._id,
       reason: 'maintenance',
-      status: 'delayed',
+      status: reasonToStatus('maintenance', prev.status),
+      notes: prev.notes || `Maintenance swap from ${selected.busId?.regNumber || 'vehicle'} to ${alternate.regNumber}`,
     }))
     setError('')
-    showToast(`Suggested swap: ${alternate.regNumber}`)
+    showToast(`Suggested swap: ${alternate.regNumber} — apply to save`)
+  }
+
+  const handleDriverAbsenceSwap = () => {
+    if (!selected) return
+    const currentDriverId = String(selected.driverId?._id || selected.driverId)
+    const alternate = drivers.find(
+      (d) =>
+        (d.status === 'available' || !d.status) &&
+        String(d._id) !== currentDriverId
+    )
+    if (!alternate) {
+      setError('No alternate available driver for reassignment')
+      return
+    }
+    setAdjustForm((prev) => ({
+      ...prev,
+      driverId: alternate._id,
+      reason: 'absence',
+      status: reasonToStatus('absence', prev.status),
+      notes: prev.notes || `Cover driver for ${selected.driverId?.name || 'assigned driver'}: ${alternate.name}`,
+    }))
+    setError('')
+    showToast(`Suggested driver: ${alternate.name} — apply to save`)
   }
 
   const handleMaintenanceOffline = async () => {
     if (!selected) return
     const busId = selected.busId?._id || selected.busId
-    if (!busId || !window.confirm('Take vehicle offline for maintenance and cancel this trip?')) {
-      return
-    }
+    if (!busId) return
+
     setSaving(true)
     setError('')
+    const notes =
+      adjustForm.notes?.trim() ||
+      `Emergency maintenance offline — trip ${scheduleCode(selected)} cancelled`
+
     try {
+      await api.post('/maintenance', {
+        bus_id: busId,
+        service_date: selected.tripDate || new Date().toISOString(),
+        description: notes,
+        cost: 0,
+      })
       await api.put(`/buses/${busId}`, { status: 'maintenance' })
       await api.put(`/schedules/${selected._id}`, {
         status: 'cancelled',
         adjustmentReason: 'maintenance',
+        adjustmentNotes: notes,
         routeId: selected.routeId?._id || selected.routeId,
         busId,
         driverId: selected.driverId?._id || selected.driverId,
@@ -369,6 +453,7 @@ function SchedulesPage() {
         arrivalTime: selected.arrivalTime,
         tripDate: selected.tripDate,
       })
+      setMaintenanceConfirm(false)
       setSelected(null)
       setAdjustForm({
         departureTime: '08:00',
@@ -379,7 +464,7 @@ function SchedulesPage() {
         reason: 'maintenance',
         notes: '',
       })
-      showToast('Vehicle set to maintenance; trip cancelled')
+      showToast('Maintenance logged; vehicle offline; trip cancelled')
       loadData()
     } catch (err) {
       setError(err.response?.data?.message || 'Maintenance offline action failed')
@@ -392,73 +477,86 @@ function SchedulesPage() {
     await api.post('/schedules', { ...payload, tripDate })
   }
 
-  const handleCreate = async (e) => {
+  const handleCreateTimetable = async (e) => {
     e.preventDefault()
-    const timeErr = validateTimeRange(addForm.departureTime, addForm.arrivalTime)
-    if (timeErr) {
-      setError(timeErr)
+    const validationErrors = validateTimetableRows(timetableRows)
+    if (validationErrors.length) {
+      setError(validationErrors.join('. '))
       return
     }
-    if (addConflict?.hasConflict) {
-      setError('Resolve scheduling conflicts before creating this trip')
+
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+    const included = timetableRows.filter((r) => r.included)
+
+    try {
+      const { data: precheck } = await api.post('/schedules/conflicts/timetable', {
+        dates,
+        rows: included,
+      })
+      setTimetableConflicts(precheck)
+      if (precheck.hasConflict) {
+        setError(
+          `Cannot create timetable: ${precheck.conflictCount || precheck.issues?.length} conflict(s) detected. Resolve overlaps before saving.`
+        )
+        return
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Conflict check failed')
+      return
+    }
+
+    if (timetableConflicts?.hasConflict) {
+      setError('Resolve all scheduling conflicts before creating the timetable')
       return
     }
 
     setSaving(true)
     setError('')
-    const dates = repeatWeek ? getWeekDayDates(addForm.tripDate) : [addForm.tripDate]
-    const payload = {
-      routeId: addForm.routeId,
-      busId: addForm.busId,
-      driverId: addForm.driverId,
-      departureTime: addForm.departureTime,
-      arrivalTime: addForm.arrivalTime,
-      status: 'draft',
-      adjustmentReason: emergencyMode ? 'emergency' : 'normal',
-    }
-
     let created = 0
     const skipped = []
 
     try {
-      for (const day of dates) {
-        try {
-          await createOneSchedule(day, payload)
-          created += 1
-        } catch (err) {
-          const msg = err.response?.data?.message || 'Conflict'
-          const detail = err.response?.data?.conflicts?.map((c) => c.message).join('; ')
-          skipped.push(`${day}: ${detail || msg}`)
+      for (const row of included) {
+        const payload = {
+          routeId: row.routeId,
+          busId: row.busId,
+          driverId: row.driverId,
+          departureTime: row.departureTime,
+          arrivalTime: row.arrivalTime,
+          status: 'draft',
+          adjustmentReason: emergencyMode ? 'emergency' : 'normal',
+        }
+        for (const day of dates) {
+          try {
+            await createOneSchedule(day, payload)
+            created += 1
+          } catch (err) {
+            const msg = err.response?.data?.message || 'Conflict'
+            const detail = err.response?.data?.conflicts?.map((c) => c.message).join('; ')
+            skipped.push(`${row.routeName} ${day}: ${detail || msg}`)
+          }
         }
       }
 
-      setShowAdd(false)
-      setAddForm({ ...emptyAddForm, tripDate: viewDate })
-      setRepeatWeek(false)
-      setAddConflict(null)
-
       if (created > 0) {
+        setShowTimetable(false)
+        setViewMode(timetablePeriod)
+        setViewDate(timetableAnchor)
         showToast(
-          repeatWeek
-            ? `Weekly timetable: ${created} trip(s) created${skipped.length ? `, ${skipped.length} skipped` : ''}`
-            : 'Schedule created'
+          `${timetablePeriod.charAt(0).toUpperCase() + timetablePeriod.slice(1)} timetable: ${created} trip(s) created${
+            skipped.length ? `, ${skipped.length} skipped` : ''
+          }`
         )
         loadData()
       }
       if (skipped.length) {
-        setError(`Some days could not be scheduled: ${skipped.join(' | ')}`)
+        setError(`Some trips could not be scheduled: ${skipped.slice(0, 5).join(' | ')}${skipped.length > 5 ? ` (+${skipped.length - 5} more)` : ''}`)
       }
       if (created === 0) {
-        setError(skipped[0] || 'Failed to create schedule')
+        setError(skipped[0] || 'Failed to create timetable')
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to create schedule'
-      const conflictsData = err.response?.data?.conflicts
-      setError(
-        conflictsData?.length
-          ? `${msg}: ${conflictsData.map((c) => c.message).join('; ')}`
-          : msg
-      )
+      setError(err.response?.data?.message || 'Failed to create timetable')
     } finally {
       setSaving(false)
     }
@@ -490,7 +588,13 @@ function SchedulesPage() {
       showToast('Schedule approved')
       loadData()
     } catch (err) {
-      setError(err.response?.data?.message || 'Approve failed')
+      const msg = err.response?.data?.message || 'Approve failed'
+      const conflictsData = err.response?.data?.conflicts
+      setError(
+        conflictsData?.length
+          ? `${msg}: ${conflictsData.map((c) => c.message).join('; ')}`
+          : msg
+      )
     } finally {
       setSaving(false)
     }
@@ -513,14 +617,20 @@ function SchedulesPage() {
 
   const handleCancelTrip = async () => {
     if (!selected) return
-    const reason = window.prompt('Cancellation reason (required):', 'operational')
-    if (!reason?.trim()) return
+    const cancelReason = adjustForm.reason === 'normal' ? 'obstruction' : adjustForm.reason
+    if (requiresAdjustmentNotes(cancelReason) && !adjustForm.notes?.trim()) {
+      setError('Add a cancellation note in the reason/notes section before cancelling')
+      return
+    }
     setSaving(true)
     setError('')
     try {
       await api.put(`/schedules/${selected._id}`, {
         status: 'cancelled',
-        adjustmentReason: 'obstruction',
+        adjustmentReason: cancelReason,
+        adjustmentNotes:
+          adjustForm.notes?.trim() ||
+          `Trip cancelled — ${cancelReason}`,
         tripDate: selected.tripDate,
         routeId: selected.routeId?._id || selected.routeId,
         busId: selected.busId?._id || selected.busId,
@@ -545,6 +655,10 @@ function SchedulesPage() {
       setError(timeErr)
       return
     }
+    if (requiresAdjustmentNotes(adjustForm.reason) && !adjustForm.notes?.trim()) {
+      setError('Notes are required for emergency, maintenance, absence, or obstruction adjustments')
+      return
+    }
     if (adjustConflict?.hasConflict) {
       setError('Resolve scheduling conflicts before saving')
       return
@@ -557,8 +671,9 @@ function SchedulesPage() {
         arrivalTime: adjustForm.arrivalTime,
         busId: adjustForm.busId,
         driverId: adjustForm.driverId,
-        status: adjustForm.status,
+        status: reasonToStatus(adjustForm.reason, adjustForm.status),
         adjustmentReason: adjustForm.reason,
+        adjustmentNotes: adjustForm.notes?.trim() || '',
         tripDate: selected.tripDate,
         routeId: selected.routeId?._id || selected.routeId,
       })
@@ -596,11 +711,11 @@ function SchedulesPage() {
 
       <ModuleHeader
         title="Schedule Management"
-        subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
+        subtitle="Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <ModulePrimaryButton icon="add" onClick={() => setShowAdd(true)}>
-              Add Schedule
+            <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
+              Create Timetable
             </ModulePrimaryButton>
             <ModuleSecondaryButton
               icon="tune"
@@ -694,7 +809,7 @@ function SchedulesPage() {
         canSubmit={user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR}
       />
 
-      {error && !showAdd && (
+      {error && !showTimetable && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
@@ -819,7 +934,7 @@ function SchedulesPage() {
         adjustForm={adjustForm}
         onAdjustChange={handleAdjustChange}
         drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
-        buses={buses}
+        buses={adjustBuses}
         conflicts={conflicts}
         eventLog={eventLog}
         showConflictPanel={showConflictPanel}
@@ -834,34 +949,44 @@ function SchedulesPage() {
         }
         adjustConflict={adjustConflict}
         onMaintenanceSwap={handleMaintenanceSwap}
-        onMaintenanceOffline={handleMaintenanceOffline}
+        onMaintenanceOffline={() => setMaintenanceConfirm(true)}
+        onDriverAbsenceSwap={handleDriverAbsenceSwap}
       />
 
-      <ScheduleAddDrawer
-        open={showAdd}
+      <ConfirmDialog
+        open={maintenanceConfirm}
+        title="Maintenance offline"
+        message="Log maintenance, mark the vehicle offline, and cancel this trip? Add details in the notes field first if needed."
+        confirmLabel="Confirm offline"
+        variant="danger"
+        loading={saving}
+        onConfirm={handleMaintenanceOffline}
+        onCancel={() => setMaintenanceConfirm(false)}
+      />
+
+      <ScheduleTimetableDrawer
+        open={showTimetable}
         onClose={() => {
-          setShowAdd(false)
+          setShowTimetable(false)
+          setTimetableConflicts(null)
           setError('')
-          setAddConflict(null)
         }}
-        form={{ ...addForm, tripDate: addForm.tripDate || viewDate }}
-        onChange={handleAddChange}
-        routes={routes}
-        buses={buses.filter(
-          (b) =>
-            (b.status === 'available' || b.status === 'in-service') &&
-            (!selectedRoute?.serviceType ||
-              !b.serviceType ||
-              b.serviceType === selectedRoute.serviceType)
-        )}
-        drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
+        period={timetablePeriod}
+        onPeriodChange={handleTimetablePeriodChange}
+        anchorDate={timetableAnchor}
+        onAnchorDateChange={handleTimetableAnchorChange}
+        rows={timetableRows}
+        onRowChange={handleTimetableRowChange}
+        onToggleAll={handleTimetableToggleAll}
+        buses={buses}
+        drivers={drivers}
         saving={saving}
         error={error}
-        onSubmit={handleCreate}
-        repeatWeek={repeatWeek}
-        onRepeatWeekChange={setRepeatWeek}
-        conflictPreview={addConflict}
-        selectedRoute={selectedRoute}
+        onSubmit={handleCreateTimetable}
+        tripCount={timetableTripCount}
+        conflictPreview={timetableConflicts}
+        checkingConflicts={checkingTimetableConflicts}
+        rowConflictHints={timetableRowConflicts}
       />
     </div>
   )
