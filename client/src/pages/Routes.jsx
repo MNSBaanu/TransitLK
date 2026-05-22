@@ -14,13 +14,6 @@ import {
   ModuleStats,
   ModuleToast,
 } from '../components/layout/ModuleLayout'
-import {
-  formatServiceType,
-  driverAvailabilityLabel,
-  isDriverAssignable,
-  isBusAssignable,
-} from '../utils/fleetHelpers'
-
 const emptyForm = {
   routeName: '',
   distance: '',
@@ -30,9 +23,8 @@ const emptyForm = {
   startLocation: null,
   endLocation: null,
   stopLocations: [],
-  busId: '',
-  driverId: '',
   serviceType: 'ordinary',
+  status: 'draft',
 }
 
 function routeCode(route) {
@@ -50,9 +42,8 @@ function routeFromApi(route) {
     startLocation: route.startLocation || null,
     endLocation: route.endLocation || null,
     stopLocations: route.stopLocations?.length ? [...route.stopLocations] : [],
-    busId: route.busId?._id || route.busId || '',
-    driverId: route.driverId?._id || route.driverId || '',
     serviceType: route.serviceType || 'ordinary',
+    status: route.status || 'active',
   }
 }
 
@@ -60,8 +51,6 @@ function RoutesPage() {
   const [pageView, setPageView] = useState('list')
   const [search, setSearch] = useState('')
   const [routes, setRoutes] = useState([])
-  const [buses, setBuses] = useState([])
-  const [drivers, setDrivers] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -69,8 +58,6 @@ function RoutesPage() {
   const [selectedId, setSelectedId] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [stopInput, setStopInput] = useState('')
-  const [showBusPicker, setShowBusPicker] = useState(false)
-  const [showDriverPicker, setShowDriverPicker] = useState(false)
 
   const isEditing = Boolean(selectedId)
 
@@ -92,24 +79,9 @@ function RoutesPage() {
     }
   }, [])
 
-  const loadFleet = useCallback(async () => {
-    try {
-      const [busRes, driverRes] = await Promise.all([
-        api.get('/buses'),
-        api.get('/drivers'),
-      ])
-      setBuses(Array.isArray(busRes.data) ? busRes.data : [])
-      setDrivers(Array.isArray(driverRes.data) ? driverRes.data : [])
-    } catch {
-      setBuses([])
-      setDrivers([])
-    }
-  }, [])
-
   useEffect(() => {
     loadRoutes()
-    loadFleet()
-  }, [loadRoutes, loadFleet])
+  }, [loadRoutes])
 
   const filteredRoutes = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -123,59 +95,21 @@ function RoutesPage() {
   }, [routes, search])
 
   const routeStats = useMemo(() => {
-    const assigned = routes.filter((r) => r.busId && r.driverId).length
+    const active = routes.filter((r) => r.status === 'active').length
     const avgDist = routes.length
       ? (routes.reduce((s, r) => s + (r.distance || 0), 0) / routes.length).toFixed(1)
       : '—'
-    return { total: routes.length, assigned, avgDist }
+    return { total: routes.length, active, avgDist }
   }, [routes])
 
   const selectedRoute = routes.find((r) => r._id === selectedId)
-
-  const selectedBus = useMemo(() => {
-    if (!form.busId) return null
-    const fromList = buses.find((b) => b._id === form.busId)
-    if (fromList) return fromList
-    if (selectedRoute?.busId && typeof selectedRoute.busId === 'object') {
-      return selectedRoute.busId
-    }
-    return null
-  }, [form.busId, buses, selectedRoute])
-
-  const selectedDriver = useMemo(() => {
-    if (!form.driverId) return null
-    const fromList = drivers.find((d) => d._id === form.driverId)
-    if (fromList) return fromList
-    if (selectedRoute?.driverId && typeof selectedRoute.driverId === 'object') {
-      return selectedRoute.driverId
-    }
-    return null
-  }, [form.driverId, drivers, selectedRoute])
-
-  const availableBuses = useMemo(
-    () => buses.filter((b) => isBusAssignable(b, form.serviceType)),
-    [buses, form.serviceType]
-  )
-
-  const availableDrivers = useMemo(
-    () => drivers.filter((d) => isDriverAssignable(d)),
-    [drivers]
-  )
-
-  const assignmentReady = useMemo(() => {
-    if (!form.busId || !form.driverId) return false
-    const bus = buses.find((b) => b._id === form.busId) || selectedBus
-    const driver = drivers.find((d) => d._id === form.driverId) || selectedDriver
-    return isBusAssignable(bus, form.serviceType) && isDriverAssignable(driver)
-  }, [form.busId, form.driverId, form.serviceType, buses, drivers, selectedBus, selectedDriver])
+  const displayRouteCode = isEditing ? routeCode(selectedRoute) : 'NEW'
 
   const resetForm = () => {
     setSelectedId(null)
     setForm(emptyForm)
     setStopInput('')
     setError('')
-    setShowBusPicker(false)
-    setShowDriverPicker(false)
   }
 
   const openList = () => {
@@ -217,17 +151,43 @@ function RoutesPage() {
     })
   }
 
-  const addStop = () => {
-    const name = stopInput.trim()
+  const handleStartPlaceSelect = useCallback((place) => {
+    setForm((prev) => ({
+      ...prev,
+      startPoint: place.label,
+      startLocation: place.location,
+    }))
+  }, [])
+
+  const handleEndPlaceSelect = useCallback((place) => {
+    setForm((prev) => ({
+      ...prev,
+      endPoint: place.label,
+      endLocation: place.location,
+    }))
+  }, [])
+
+  const handleStopPlaceSelect = useCallback((place) => {
+    const name = place.label?.trim()
     if (!name) return
-    setForm((prev) => ({ ...prev, stops: [...prev.stops, name] }))
+    setForm((prev) => {
+      const next = { ...prev, stops: [...prev.stops, name] }
+      if (place.location?.lat != null) {
+        next.stopLocations = [
+          ...(prev.stopLocations || []),
+          { name, lat: place.location.lat, lng: place.location.lng },
+        ]
+      }
+      return next
+    })
     setStopInput('')
-  }
+  }, [])
 
   const removeStop = (index) => {
     setForm((prev) => ({
       ...prev,
       stops: prev.stops.filter((_, i) => i !== index),
+      stopLocations: (prev.stopLocations || []).filter((_, i) => i !== index),
     }))
   }
 
@@ -243,27 +203,25 @@ function RoutesPage() {
     if (form.endLocation?.lat != null) payload.endLocation = form.endLocation
     if (form.stopLocations?.length) payload.stopLocations = form.stopLocations
     if (form.serviceType) payload.serviceType = form.serviceType
-    if (form.busId?.trim()) payload.busId = form.busId.trim()
-    if (form.driverId?.trim()) payload.driverId = form.driverId.trim()
+    if (form.status) payload.status = form.status
     return payload
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
-    setSaving(true)
     setError('')
+    setSaving(true)
     try {
       const payload = buildPayload()
       if (isEditing) {
         const { data } = await api.put(`/routes/${selectedId}`, payload)
         setRoutes((prev) => prev.map((r) => (r._id === selectedId ? data : r)))
-        showToast('Route saved successfully')
       } else {
         const { data } = await api.post('/routes', payload)
         setRoutes((prev) => [data, ...prev])
-        setSelectedId(data._id)
-        showToast('Route saved successfully')
       }
+      showToast('Route saved successfully')
+      openList()
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save route')
     } finally {
@@ -292,7 +250,7 @@ function RoutesPage() {
         <>
           <ModuleHeader
             title="Route Management"
-            subtitle="Plan routes with stops, distance, and fleet assignment."
+            subtitle="Plan routes with stops, distance, and operational status."
             action={
               <ModulePrimaryButton icon="add" onClick={() => openEditor(null)}>
                 Add route
@@ -303,9 +261,9 @@ function RoutesPage() {
             items={[
               { label: 'Total routes', value: routeStats.total, icon: 'map' },
               {
-                label: 'Fully assigned',
-                value: routeStats.assigned,
-                hint: 'Bus and driver linked',
+                label: 'Active routes',
+                value: routeStats.active,
+                hint: 'Operational status',
                 icon: 'check_circle',
               },
               {
@@ -313,7 +271,6 @@ function RoutesPage() {
                 value: `${routeStats.avgDist} km`,
                 icon: 'straighten',
               },
-              { label: 'Fleet buses', value: buses.length, icon: 'directions_bus' },
             ]}
           />
           {error && (
@@ -345,33 +302,25 @@ function RoutesPage() {
                 {isEditing ? `Edit route · ${routeCode(selectedRoute)}` : 'New route'}
               </h2>
               <p className="pro-page-subtitle">
-                Configure stops, assignment, and map preview
+                Configure route ID, status, stops, and map preview
               </p>
             </div>
           </div>
           {error && <ModuleAlert variant="error" title={error} />}
           <RouteEditView
             form={form}
-            isEditing={isEditing}
-            routeCode={routeCode(selectedRoute)}
+            routeCode={displayRouteCode}
             stopInput={stopInput}
             onStopInputChange={setStopInput}
             onFormChange={handleFormChange}
-            onAddStop={addStop}
+            onStartPlaceSelect={handleStartPlaceSelect}
+            onEndPlaceSelect={handleEndPlaceSelect}
+            onStopPlaceSelect={handleStopPlaceSelect}
             onRemoveStop={removeStop}
             onMapUpdate={handleMapUpdate}
             onSave={handleSave}
             onCancel={openList}
             saving={saving}
-            selectedBus={selectedBus}
-            selectedDriver={selectedDriver}
-            availableBuses={availableBuses}
-            availableDrivers={availableDrivers}
-            assignmentReady={assignmentReady}
-            showBusPicker={showBusPicker}
-            setShowBusPicker={setShowBusPicker}
-            showDriverPicker={showDriverPicker}
-            setShowDriverPicker={setShowDriverPicker}
           />
         </>
       )}

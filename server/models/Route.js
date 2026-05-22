@@ -69,6 +69,11 @@ const routeSchema = new mongoose.Schema(
       enum: ['express', 'ordinary', 'semi-luxury'],
       default: 'ordinary',
     },
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'draft'],
+      default: 'active',
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

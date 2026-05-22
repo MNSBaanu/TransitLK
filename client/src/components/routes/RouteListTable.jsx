@@ -1,5 +1,6 @@
 import Icon from '../Icon'
 import { formatServiceType } from '../../utils/fleetHelpers'
+import { formatRouteStatus, routeStatusClass } from '../../utils/routeHelpers'
 import { ModuleSearchInput, ModuleTable } from '../layout/ModuleLayout'
 
 function routeCode(route) {
@@ -18,7 +19,7 @@ function RouteListTable({ routes, loading, search, onSearchChange, onEdit, onDel
       <ModuleTable>
         <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           <tr>
-            {['Number', 'Route', 'Service', 'Distance', 'Stops', 'Bus', 'Driver', ''].map((h) => (
+            {['ID', 'Route', 'Service', 'Distance', 'Stops', 'Status', ''].map((h) => (
               <th key={h || 'actions'} className="px-4 py-3 text-left">
                 {h}
               </th>
@@ -28,13 +29,13 @@ function RouteListTable({ routes, loading, search, onSearchChange, onEdit, onDel
         <tbody className="divide-y divide-outline-variant bg-white">
           {loading ? (
             <tr>
-              <td colSpan={8} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={7} className="py-10 text-center text-on-surface-variant">
                 Loading routes...
               </td>
             </tr>
           ) : routes.length === 0 ? (
             <tr>
-              <td colSpan={8} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={7} className="py-10 text-center text-on-surface-variant">
                 No routes found. Add a route to get started.
               </td>
             </tr>
@@ -58,11 +59,12 @@ function RouteListTable({ routes, loading, search, onSearchChange, onEdit, onDel
                 </td>
                 <td className="px-4 py-3 tabular-nums text-neutral-700">{route.distance} km</td>
                 <td className="px-4 py-3 tabular-nums">{route.stops?.length ?? 0}</td>
-                <td className="px-4 py-3 text-neutral-600">
-                  {route.busId?.regNumber || '—'}
-                </td>
-                <td className="px-4 py-3 text-neutral-600">
-                  {route.driverId?.name || '—'}
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${routeStatusClass(route.status)}`}
+                  >
+                    {formatRouteStatus(route.status)}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1">
