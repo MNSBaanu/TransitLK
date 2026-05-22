@@ -109,6 +109,13 @@ export const createRoute = async (req, res) => {
       return res.status(400).json({ message: 'distance (km) is required and must be >= 0' })
     }
 
+    if (busId && !driverId) {
+      return res.status(400).json({ message: 'Select a driver when a bus is assigned' })
+    }
+    if (driverId && !busId) {
+      return res.status(400).json({ message: 'Select a bus when a driver is assigned' })
+    }
+
     await validateBusAssignment(busId)
     await validateDriverAssignment(driverId)
 
@@ -135,6 +142,15 @@ export const updateRoute = async (req, res) => {
     }
 
     const data = prepareRouteData(req.body)
+
+    const nextBusId = data.busId !== undefined ? data.busId : existing.busId
+    const nextDriverId = data.driverId !== undefined ? data.driverId : existing.driverId
+    if (nextBusId && !nextDriverId) {
+      return res.status(400).json({ message: 'Select a driver when a bus is assigned' })
+    }
+    if (nextDriverId && !nextBusId) {
+      return res.status(400).json({ message: 'Select a bus when a driver is assigned' })
+    }
 
     if (data.busId !== undefined) await validateBusAssignment(data.busId)
     if (data.driverId !== undefined) await validateDriverAssignment(data.driverId)
