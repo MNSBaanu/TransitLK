@@ -17,6 +17,15 @@ TransitLK follows a **three-tier architecture**:
 
 External services: **Google Maps Platform** (maps/geocoding from the browser), **GitHub** (version control), **Vercel** (frontend hosting), **Render** (backend hosting).
 
+### Deployment & multi-depot roadmap
+
+| Stage | Description |
+|-------|-------------|
+| **Single depot (now)** | MVP targets one operational depot. `scripts/seedDepot.js` creates **SRMSS Central Depot** and links buses/drivers. JWT + role guards secure modules per actor. |
+| **Multi-depot (later)** | Add depots island-wide; assign each staff user, bus, and driver to a `depotId`; scope routes, schedules, and reports by depot; depot managers see only their depot; administrators see all. |
+
+**Already in the data model:** `Depot`, optional `depotId` on `User`, `Admin`, `Bus`, `Driver`. **Not yet enforced:** depot filters on `Route` / `Schedule` APIs or UI; cross-depot admin views.
+
 ---
 
 ## 2. Actors

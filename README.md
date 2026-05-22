@@ -13,6 +13,17 @@
 
 TransitLK eliminates the dependency on manual scheduling and fragmented spreadsheets used across Sri Lankan public transport depots. It provides authorized personnel — administrators, supervisors, and depot staff — with a unified digital platform to manage routes, schedules, vehicles, and drivers efficiently.
 
+The system is designed for **scalability and usability**: secure role-based access for administrators, supervisors, and operational staff, with a data model that can grow from one depot to many.
+
+### Deployment model
+
+| Phase | Scope | What you get today |
+|-------|--------|-------------------|
+| **Now (MVP)** | **Single depot** | One seeded depot (`SRMSS Central Depot`, Colombo). Fleet users and buses link via `depotId`. Routes and schedules are not yet depot-scoped in queries. |
+| **Later** | **Island-wide** | Multiple depots across Sri Lanka; staff see only their depot’s data; administrators retain cross-depot oversight. |
+
+Seed the default depot from `server/`: `node scripts/seedDepot.js` (after MongoDB is connected).
+
 ---
 
 ## Features

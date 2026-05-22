@@ -461,3 +461,10 @@ body {
     background-color: var(--fleet-primary);
   }
 }
+
+/* Google Places Autocomplete dropdown (Route editor) */
+.pac-container {
+  z-index: 10000 !important;
+  border-radius: 0.5rem;
+  font-family: inherit;
+}
