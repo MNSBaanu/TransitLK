@@ -86,6 +86,59 @@ export function getMonthDayDates(anchorDate) {
   return days
 }
 
+/** Dates covered when building a daily, weekly, or monthly timetable */
+export function getTimetableDates(period, anchorDate) {
+  if (period === 'weekly') return getWeekDayDates(anchorDate)
+  if (period === 'monthly') return getMonthDayDates(anchorDate)
+  return [toDateInputValue(new Date(anchorDate))]
+}
+
+export function buildTimetableRows(routes, schedules = [], anchorDate) {
+  const active = routes.filter((r) => r.status === 'active' || !r.status)
+  return active.map((route) => {
+    const routeId = String(route._id)
+    const existing = schedules.find(
+      (s) =>
+        String(s.routeId?._id || s.routeId) === routeId && tripDateKey(s) === anchorDate
+    )
+    return {
+      routeId: route._id,
+      routeName: route.routeName,
+      startPoint: route.startPoint,
+      endPoint: route.endPoint,
+      distance: route.distance,
+      serviceType: route.serviceType,
+      included: true,
+      departureTime: existing?.departureTime || '08:00',
+      arrivalTime: existing?.arrivalTime || '12:00',
+      busId: String(existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''),
+      driverId: String(
+        existing?.driverId?._id || existing?.driverId || route.driverId?._id || route.driverId || ''
+      ),
+    }
+  })
+}
+
+export function validateTimetableRows(rows) {
+  const errors = []
+  const included = rows.filter((r) => r.included)
+  if (included.length === 0) {
+    return ['Select at least one route for the timetable']
+  }
+  for (const row of included) {
+    const label = row.routeName || 'Route'
+    if (!row.departureTime || !row.arrivalTime) {
+      errors.push(`${label}: departure and arrival times are required`)
+      continue
+    }
+    const timeErr = validateTimeRange(row.departureTime, row.arrivalTime)
+    if (timeErr) errors.push(`${label}: ${timeErr}`)
+    if (!row.busId) errors.push(`${label}: assign a bus`)
+    if (!row.driverId) errors.push(`${label}: assign a driver`)
+  }
+  return errors
+}
+
 export function getViewDateRange(viewMode, anchorDate) {
   if (viewMode === 'weekly') {
     return { from: startOfWeekDate(anchorDate), to: endOfWeekDate(anchorDate) }

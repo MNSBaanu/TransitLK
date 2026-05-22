@@ -8,7 +8,7 @@ import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
-import ScheduleAddDrawer from '../components/schedules/ScheduleAddDrawer'
+import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
@@ -17,8 +17,10 @@ import {
   formatPeriodLabel,
   formatTripDate,
   getViewDateRange,
-  getWeekDayDates,
+  buildTimetableRows,
+  getTimetableDates,
   reasonToStatus,
+  validateTimetableRows,
   scheduleCode,
   toDateInputValue,
   tripDateKey,
@@ -36,15 +38,6 @@ import { useLayout } from '../context/LayoutContext'
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
-const emptyAddForm = {
-  routeId: '',
-  busId: '',
-  driverId: '',
-  tripDate: toDateInputValue(new Date()),
-  departureTime: '08:00',
-  arrivalTime: '12:00',
-}
-
 function SchedulesPage() {
   const { user } = useAuth()
   const [schedules, setSchedules] = useState([])
@@ -59,12 +52,12 @@ function SchedulesPage() {
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
   const [viewMode, setViewMode] = useState('daily')
   const [selected, setSelected] = useState(null)
-  const [showAdd, setShowAdd] = useState(false)
-  const [repeatWeek, setRepeatWeek] = useState(false)
-  const [addConflict, setAddConflict] = useState(null)
+  const [showTimetable, setShowTimetable] = useState(false)
+  const [timetablePeriod, setTimetablePeriod] = useState('daily')
+  const [timetableAnchor, setTimetableAnchor] = useState(() => toDateInputValue(new Date()))
+  const [timetableRows, setTimetableRows] = useState([])
   const [showConflictPanel, setShowConflictPanel] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
-  const [addForm, setAddForm] = useState(emptyAddForm)
   const [adjustForm, setAdjustForm] = useState({
     departureTime: '08:00',
     arrivalTime: '12:00',
@@ -202,50 +195,10 @@ function SchedulesPage() {
     return [...byBus.values()].sort((a, b) => a.regNumber.localeCompare(b.regNumber))
   }, [filteredSchedules, viewDate])
 
-  const selectedRoute = useMemo(
-    () => routes.find((r) => r._id === addForm.routeId),
-    [routes, addForm.routeId]
-  )
-
-  useEffect(() => {
-    if (!showAdd || !addForm.busId || !addForm.driverId || !addForm.tripDate) {
-      setAddConflict(null)
-      return
-    }
-    const timeErr = validateTimeRange(addForm.departureTime, addForm.arrivalTime)
-    if (timeErr) {
-      setAddConflict({ hasConflict: true, conflicts: [{ message: timeErr }] })
-      return
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        const { data } = await api.get('/schedules/conflicts/check', {
-          params: {
-            tripDate: addForm.tripDate,
-            routeId: addForm.routeId,
-            busId: addForm.busId,
-            driverId: addForm.driverId,
-            departureTime: addForm.departureTime,
-            arrivalTime: addForm.arrivalTime,
-          },
-        })
-        setAddConflict(data)
-      } catch {
-        setAddConflict(null)
-      }
-    }, 350)
-
-    return () => clearTimeout(timer)
-  }, [
-    showAdd,
-    addForm.routeId,
-    addForm.busId,
-    addForm.driverId,
-    addForm.tripDate,
-    addForm.departureTime,
-    addForm.arrivalTime,
-  ])
+  const timetableTripCount = useMemo(() => {
+    const included = timetableRows.filter((r) => r.included).length
+    return included * getTimetableDates(timetablePeriod, timetableAnchor).length
+  }, [timetableRows, timetablePeriod, timetableAnchor])
 
   const [adjustConflict, setAdjustConflict] = useState(null)
 
@@ -305,8 +258,32 @@ function SchedulesPage() {
     setShowAdjustDrawer(true)
   }
 
-  const handleAddChange = (e) => {
-    setAddForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  const openTimetableDrawer = () => {
+    setTimetablePeriod(viewMode)
+    setTimetableAnchor(viewDate)
+    setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
+    setError('')
+    setShowTimetable(true)
+  }
+
+  const handleTimetableRowChange = (routeId, field, value) => {
+    setTimetableRows((rows) =>
+      rows.map((r) => (String(r.routeId) === String(routeId) ? { ...r, [field]: value } : r))
+    )
+  }
+
+  const handleTimetableToggleAll = (checked) => {
+    setTimetableRows((rows) => rows.map((r) => ({ ...r, included: checked })))
+  }
+
+  const handleTimetablePeriodChange = (period) => {
+    setTimetablePeriod(period)
+    setTimetableRows(buildTimetableRows(routes, schedules, timetableAnchor))
+  }
+
+  const handleTimetableAnchorChange = (date) => {
+    setTimetableAnchor(date)
+    setTimetableRows(buildTimetableRows(routes, schedules, date))
   }
 
   const handleAdjustChange = (e) => {
@@ -392,73 +369,63 @@ function SchedulesPage() {
     await api.post('/schedules', { ...payload, tripDate })
   }
 
-  const handleCreate = async (e) => {
+  const handleCreateTimetable = async (e) => {
     e.preventDefault()
-    const timeErr = validateTimeRange(addForm.departureTime, addForm.arrivalTime)
-    if (timeErr) {
-      setError(timeErr)
-      return
-    }
-    if (addConflict?.hasConflict) {
-      setError('Resolve scheduling conflicts before creating this trip')
+    const validationErrors = validateTimetableRows(timetableRows)
+    if (validationErrors.length) {
+      setError(validationErrors.join('. '))
       return
     }
 
     setSaving(true)
     setError('')
-    const dates = repeatWeek ? getWeekDayDates(addForm.tripDate) : [addForm.tripDate]
-    const payload = {
-      routeId: addForm.routeId,
-      busId: addForm.busId,
-      driverId: addForm.driverId,
-      departureTime: addForm.departureTime,
-      arrivalTime: addForm.arrivalTime,
-      status: 'draft',
-      adjustmentReason: emergencyMode ? 'emergency' : 'normal',
-    }
-
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+    const included = timetableRows.filter((r) => r.included)
     let created = 0
     const skipped = []
 
     try {
-      for (const day of dates) {
-        try {
-          await createOneSchedule(day, payload)
-          created += 1
-        } catch (err) {
-          const msg = err.response?.data?.message || 'Conflict'
-          const detail = err.response?.data?.conflicts?.map((c) => c.message).join('; ')
-          skipped.push(`${day}: ${detail || msg}`)
+      for (const row of included) {
+        const payload = {
+          routeId: row.routeId,
+          busId: row.busId,
+          driverId: row.driverId,
+          departureTime: row.departureTime,
+          arrivalTime: row.arrivalTime,
+          status: 'draft',
+          adjustmentReason: emergencyMode ? 'emergency' : 'normal',
+        }
+        for (const day of dates) {
+          try {
+            await createOneSchedule(day, payload)
+            created += 1
+          } catch (err) {
+            const msg = err.response?.data?.message || 'Conflict'
+            const detail = err.response?.data?.conflicts?.map((c) => c.message).join('; ')
+            skipped.push(`${row.routeName} ${day}: ${detail || msg}`)
+          }
         }
       }
 
-      setShowAdd(false)
-      setAddForm({ ...emptyAddForm, tripDate: viewDate })
-      setRepeatWeek(false)
-      setAddConflict(null)
-
       if (created > 0) {
+        setShowTimetable(false)
+        setViewMode(timetablePeriod)
+        setViewDate(timetableAnchor)
         showToast(
-          repeatWeek
-            ? `Weekly timetable: ${created} trip(s) created${skipped.length ? `, ${skipped.length} skipped` : ''}`
-            : 'Schedule created'
+          `${timetablePeriod.charAt(0).toUpperCase() + timetablePeriod.slice(1)} timetable: ${created} trip(s) created${
+            skipped.length ? `, ${skipped.length} skipped` : ''
+          }`
         )
         loadData()
       }
       if (skipped.length) {
-        setError(`Some days could not be scheduled: ${skipped.join(' | ')}`)
+        setError(`Some trips could not be scheduled: ${skipped.slice(0, 5).join(' | ')}${skipped.length > 5 ? ` (+${skipped.length - 5} more)` : ''}`)
       }
       if (created === 0) {
-        setError(skipped[0] || 'Failed to create schedule')
+        setError(skipped[0] || 'Failed to create timetable')
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to create schedule'
-      const conflictsData = err.response?.data?.conflicts
-      setError(
-        conflictsData?.length
-          ? `${msg}: ${conflictsData.map((c) => c.message).join('; ')}`
-          : msg
-      )
+      setError(err.response?.data?.message || 'Failed to create timetable')
     } finally {
       setSaving(false)
     }
@@ -599,8 +566,8 @@ function SchedulesPage() {
         subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <ModulePrimaryButton icon="add" onClick={() => setShowAdd(true)}>
-              Add Schedule
+            <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
+              Create Timetable
             </ModulePrimaryButton>
             <ModuleSecondaryButton
               icon="tune"
@@ -694,7 +661,7 @@ function SchedulesPage() {
         canSubmit={user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR}
       />
 
-      {error && !showAdd && (
+      {error && !showTimetable && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
@@ -837,31 +804,25 @@ function SchedulesPage() {
         onMaintenanceOffline={handleMaintenanceOffline}
       />
 
-      <ScheduleAddDrawer
-        open={showAdd}
+      <ScheduleTimetableDrawer
+        open={showTimetable}
         onClose={() => {
-          setShowAdd(false)
+          setShowTimetable(false)
           setError('')
-          setAddConflict(null)
         }}
-        form={{ ...addForm, tripDate: addForm.tripDate || viewDate }}
-        onChange={handleAddChange}
-        routes={routes}
-        buses={buses.filter(
-          (b) =>
-            (b.status === 'available' || b.status === 'in-service') &&
-            (!selectedRoute?.serviceType ||
-              !b.serviceType ||
-              b.serviceType === selectedRoute.serviceType)
-        )}
-        drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
+        period={timetablePeriod}
+        onPeriodChange={handleTimetablePeriodChange}
+        anchorDate={timetableAnchor}
+        onAnchorDateChange={handleTimetableAnchorChange}
+        rows={timetableRows}
+        onRowChange={handleTimetableRowChange}
+        onToggleAll={handleTimetableToggleAll}
+        buses={buses}
+        drivers={drivers}
         saving={saving}
         error={error}
-        onSubmit={handleCreate}
-        repeatWeek={repeatWeek}
-        onRepeatWeekChange={setRepeatWeek}
-        conflictPreview={addConflict}
-        selectedRoute={selectedRoute}
+        onSubmit={handleCreateTimetable}
+        tripCount={timetableTripCount}
       />
     </div>
   )
