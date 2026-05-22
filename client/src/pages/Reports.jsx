@@ -100,9 +100,22 @@ function Reports() {
     }
   }
 
-  const handlePdf = () => {
-    window.print()
-    showToast('Use print dialog to save as PDF')
+  const handlePdf = async () => {
+    try {
+      const { data: blob } = await api.get('/reports/export/pdf', {
+        params: { from: fromDate, to: toDate },
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `transitlk-report-${fromDate}-${toDate}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('PDF downloaded')
+    } catch {
+      showToast('PDF export failed')
+    }
   }
 
   const fuelSegments = useMemo(() => {
