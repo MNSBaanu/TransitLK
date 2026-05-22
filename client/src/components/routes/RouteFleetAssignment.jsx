@@ -86,6 +86,7 @@ function driverRequirementItems(driver) {
 }
 
 function RouteFleetAssignment({
+  readOnly = false,
   serviceType,
   busId,
   driverId,
@@ -119,13 +120,16 @@ function RouteFleetAssignment({
 
   return (
     <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
-      <span className={labelClass}>Fleet assignment</span>
+      <span className={labelClass}>
+        {readOnly ? 'Fleet assignment rules (preview)' : 'Fleet assignment'}
+      </span>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <RequirementChecklist title="Bus requirements" items={busChecks} />
         <RequirementChecklist title="Driver requirements" items={driverChecks} />
       </div>
 
+      {readOnly ? null : (
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className={labelClass}>Bus</span>
@@ -177,20 +181,35 @@ function RouteFleetAssignment({
           )}
         </label>
       </div>
+      )}
 
-      <p className="mt-3 text-xs text-on-surface-variant">
-        {busEligible.length} bus(es) and {driverEligible.length} driver(s) meet all requirements
-        for this route.
-      </p>
+      {readOnly ? (
+        busId && driverId && (
+          <p
+            className={`mt-3 text-xs font-semibold ${assignmentReady ? 'text-green-700' : 'text-amber-700'}`}
+          >
+            {assignmentReady
+              ? 'Current assignment meets all requirements.'
+              : 'Current assignment does not meet all requirements.'}
+          </p>
+        )
+      ) : (
+        <>
+          <p className="mt-3 text-xs text-on-surface-variant">
+            {busEligible.length} bus(es) and {driverEligible.length} driver(s) meet all requirements
+            for this route.
+          </p>
 
-      {busId && driverId && (
-        <p
-          className={`mt-3 text-xs font-semibold ${assignmentReady ? 'text-green-700' : 'text-red-600'}`}
-        >
-          {assignmentReady
-            ? 'Assignment meets availability, capacity, and service type rules.'
-            : 'Selected bus or driver does not meet all requirements.'}
-        </p>
+          {busId && driverId && (
+            <p
+              className={`mt-3 text-xs font-semibold ${assignmentReady ? 'text-green-700' : 'text-red-600'}`}
+            >
+              {assignmentReady
+                ? 'Assignment meets availability, capacity, and service type rules.'
+                : 'Selected bus or driver does not meet all requirements.'}
+            </p>
+          )}
+        </>
       )}
     </div>
   )

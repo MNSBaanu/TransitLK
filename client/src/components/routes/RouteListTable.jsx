@@ -13,6 +13,7 @@ function RouteListTable({
   loading,
   search,
   onSearchChange,
+  onView,
   onEdit,
   onAssignFleet,
   onDelete,
@@ -54,10 +55,18 @@ function RouteListTable({
                   {routeCode(route)}
                 </td>
                 <td className="px-4 py-3">
-                  <p className="font-semibold text-neutral-900">{route.routeName}</p>
-                  <p className="text-xs text-on-surface-variant">
-                    {route.startPoint} → {route.endPoint}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onView(route)}
+                    className="text-left hover:opacity-90"
+                  >
+                    <p className="font-semibold text-neutral-900 hover:underline">
+                      {route.routeName}
+                    </p>
+                    <p className="text-xs text-on-surface-variant">
+                      {route.startPoint} → {route.endPoint}
+                    </p>
+                  </button>
                 </td>
                 <td className="px-4 py-3 capitalize text-on-surface-variant">
                   {formatServiceType(route.serviceType)}
@@ -95,6 +104,14 @@ function RouteListTable({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onView(route)}
+                      className="rounded-lg p-2 text-neutral-700 hover:bg-surface-container"
+                      title="View route"
+                    >
+                      <Icon name="visibility" size={18} />
+                    </button>
                     <button
                       type="button"
                       onClick={() => onEdit(route)}
