@@ -1,5 +1,6 @@
 import Icon from '../Icon'
 import RouteMap from '../RouteMap'
+import PlacesAutocompleteInput from './PlacesAutocompleteInput'
 import { ModuleCard } from '../layout/ModuleLayout'
 import {
   formatServiceType,
@@ -19,6 +20,9 @@ function RouteEditView({
   onStopInputChange,
   onFormChange,
   onAddStop,
+  onStopPlaceSelect,
+  onStartPlaceSelect,
+  onEndPlaceSelect,
   onRemoveStop,
   onMapUpdate,
   onSave,
@@ -79,11 +83,27 @@ function RouteEditView({
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className={labelClass}>Start point</span>
-                <input name="startPoint" value={form.startPoint} onChange={onFormChange} required className={inputClass} />
+                <PlacesAutocompleteInput
+                  name="startPoint"
+                  value={form.startPoint}
+                  onChange={onFormChange}
+                  onPlaceSelect={onStartPlaceSelect}
+                  required
+                  className={inputClass}
+                  placeholder="Search start location…"
+                />
               </label>
               <label className="block">
                 <span className={labelClass}>End point</span>
-                <input name="endPoint" value={form.endPoint} onChange={onFormChange} required className={inputClass} />
+                <PlacesAutocompleteInput
+                  name="endPoint"
+                  value={form.endPoint}
+                  onChange={onFormChange}
+                  onPlaceSelect={onEndPlaceSelect}
+                  required
+                  className={inputClass}
+                  placeholder="Search end location…"
+                />
               </label>
             </div>
 
@@ -94,12 +114,13 @@ function RouteEditView({
                   + Add stop
                 </button>
               </div>
-              <input
+              <PlacesAutocompleteInput
+                name="stopInput"
                 value={stopInput}
                 onChange={(e) => onStopInputChange(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onAddStop())}
-                className="mb-2 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm"
-                placeholder="Stop name"
+                onPlaceSelect={onStopPlaceSelect}
+                className="mb-2 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+                placeholder="Search stop location…"
               />
               <ul className="max-h-32 space-y-1 overflow-y-auto">
                 {form.stops.map((stop, i) => (
