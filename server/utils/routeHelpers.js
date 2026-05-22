@@ -12,6 +12,7 @@ const ALLOWED_FIELDS = [
   'busId',
   'driverId',
   'serviceType',
+  'status',
 ]
 
 export function sanitizeRouteBody(body) {
