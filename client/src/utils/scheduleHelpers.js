@@ -119,6 +119,21 @@ export function buildTimetableRows(routes, schedules = [], anchorDate) {
   })
 }
 
+/** Group timetable conflict issues by route for row-level hints */
+export function groupTimetableConflictsByRoute(issues = []) {
+  const byRoute = new Map()
+  for (const issue of issues) {
+    const key = String(issue.routeId)
+    const list = byRoute.get(key) || []
+    for (const c of issue.conflicts || []) {
+      const label = issue.tripDate ? `${issue.tripDate}: ${c.message}` : c.message
+      if (!list.includes(label)) list.push(label)
+    }
+    byRoute.set(key, list)
+  }
+  return byRoute
+}
+
 export function validateTimetableRows(rows) {
   const errors = []
   const included = rows.filter((r) => r.included)

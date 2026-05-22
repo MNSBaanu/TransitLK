@@ -9,6 +9,7 @@ import {
   updateSchedule,
   deleteSchedule,
   checkScheduleConflicts,
+  checkTimetableConflicts,
   submitSchedule,
   approveSchedule,
   rejectSchedule,
@@ -25,6 +26,12 @@ router.get(
   '/conflicts/check',
   authorize(...API_ACCESS.schedules.filter((r) => r !== ROLES.DRIVER)),
   checkScheduleConflicts
+)
+
+router.post(
+  '/conflicts/timetable',
+  authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
+  checkTimetableConflicts
 )
 
 router
