@@ -10,6 +10,8 @@ import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
 import {
@@ -21,6 +23,7 @@ import {
   getTimetableDates,
   groupTimetableConflictsByRoute,
   reasonToStatus,
+  requiresAdjustmentNotes,
   validateTimetableRows,
   scheduleCode,
   toDateInputValue,
@@ -73,6 +76,7 @@ function SchedulesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -179,6 +183,20 @@ function SchedulesPage() {
       })
     return entries
   }, [conflicts, filteredSchedules, buses, emergencyMode])
+
+  const adjustBuses = useMemo(() => {
+    const serviceType = selected?.routeId?.serviceType
+    const minCap = defaultMinCapacityForService(serviceType)
+    const currentBusId = String(adjustForm.busId || selected?.busId?._id || selected?.busId || '')
+    return buses.filter((b) => {
+      const id = String(b._id)
+      if (id === currentBusId) return true
+      return (
+        (b.status === 'available' || b.status === 'in-service') &&
+        isBusAssignable(b, serviceType, minCap)
+      )
+    })
+  }, [buses, selected, adjustForm.busId])
 
   const ganttRows = useMemo(() => {
     const dayTrips = filteredSchedules.filter((s) => tripDateKey(s) === viewDate)
@@ -303,7 +321,7 @@ function SchedulesPage() {
       driverId: trip.driverId?._id || trip.driverId || '',
       status: trip.status || 'scheduled',
       reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
-      notes: '',
+      notes: trip.adjustmentNotes || '',
     })
     setShowAdjustDrawer(true)
   }
@@ -360,36 +378,74 @@ function SchedulesPage() {
   const handleMaintenanceSwap = () => {
     if (!selected) return
     const currentBusId = String(selected.busId?._id || selected.busId)
+    const serviceType = selected.routeId?.serviceType
+    const minCap = defaultMinCapacityForService(serviceType)
     const alternate = buses.find(
-      (b) => b.status === 'available' && String(b._id) !== currentBusId
+      (b) =>
+        String(b._id) !== currentBusId &&
+        isBusAssignable(b, serviceType, minCap)
     )
     if (!alternate) {
-      setError('No alternate available bus for swap')
+      setError('No alternate bus matches route service type and capacity')
       return
     }
     setAdjustForm((prev) => ({
       ...prev,
       busId: alternate._id,
       reason: 'maintenance',
-      status: 'delayed',
+      status: reasonToStatus('maintenance', prev.status),
+      notes: prev.notes || `Maintenance swap from ${selected.busId?.regNumber || 'vehicle'} to ${alternate.regNumber}`,
     }))
     setError('')
-    showToast(`Suggested swap: ${alternate.regNumber}`)
+    showToast(`Suggested swap: ${alternate.regNumber} — apply to save`)
+  }
+
+  const handleDriverAbsenceSwap = () => {
+    if (!selected) return
+    const currentDriverId = String(selected.driverId?._id || selected.driverId)
+    const alternate = drivers.find(
+      (d) =>
+        (d.status === 'available' || !d.status) &&
+        String(d._id) !== currentDriverId
+    )
+    if (!alternate) {
+      setError('No alternate available driver for reassignment')
+      return
+    }
+    setAdjustForm((prev) => ({
+      ...prev,
+      driverId: alternate._id,
+      reason: 'absence',
+      status: reasonToStatus('absence', prev.status),
+      notes: prev.notes || `Cover driver for ${selected.driverId?.name || 'assigned driver'}: ${alternate.name}`,
+    }))
+    setError('')
+    showToast(`Suggested driver: ${alternate.name} — apply to save`)
   }
 
   const handleMaintenanceOffline = async () => {
     if (!selected) return
     const busId = selected.busId?._id || selected.busId
-    if (!busId || !window.confirm('Take vehicle offline for maintenance and cancel this trip?')) {
-      return
-    }
+    if (!busId) return
+
     setSaving(true)
     setError('')
+    const notes =
+      adjustForm.notes?.trim() ||
+      `Emergency maintenance offline — trip ${scheduleCode(selected)} cancelled`
+
     try {
+      await api.post('/maintenance', {
+        bus_id: busId,
+        service_date: selected.tripDate || new Date().toISOString(),
+        description: notes,
+        cost: 0,
+      })
       await api.put(`/buses/${busId}`, { status: 'maintenance' })
       await api.put(`/schedules/${selected._id}`, {
         status: 'cancelled',
         adjustmentReason: 'maintenance',
+        adjustmentNotes: notes,
         routeId: selected.routeId?._id || selected.routeId,
         busId,
         driverId: selected.driverId?._id || selected.driverId,
@@ -397,6 +453,7 @@ function SchedulesPage() {
         arrivalTime: selected.arrivalTime,
         tripDate: selected.tripDate,
       })
+      setMaintenanceConfirm(false)
       setSelected(null)
       setAdjustForm({
         departureTime: '08:00',
@@ -407,7 +464,7 @@ function SchedulesPage() {
         reason: 'maintenance',
         notes: '',
       })
-      showToast('Vehicle set to maintenance; trip cancelled')
+      showToast('Maintenance logged; vehicle offline; trip cancelled')
       loadData()
     } catch (err) {
       setError(err.response?.data?.message || 'Maintenance offline action failed')
@@ -560,14 +617,20 @@ function SchedulesPage() {
 
   const handleCancelTrip = async () => {
     if (!selected) return
-    const reason = window.prompt('Cancellation reason (required):', 'operational')
-    if (!reason?.trim()) return
+    const cancelReason = adjustForm.reason === 'normal' ? 'obstruction' : adjustForm.reason
+    if (requiresAdjustmentNotes(cancelReason) && !adjustForm.notes?.trim()) {
+      setError('Add a cancellation note in the reason/notes section before cancelling')
+      return
+    }
     setSaving(true)
     setError('')
     try {
       await api.put(`/schedules/${selected._id}`, {
         status: 'cancelled',
-        adjustmentReason: 'obstruction',
+        adjustmentReason: cancelReason,
+        adjustmentNotes:
+          adjustForm.notes?.trim() ||
+          `Trip cancelled — ${cancelReason}`,
         tripDate: selected.tripDate,
         routeId: selected.routeId?._id || selected.routeId,
         busId: selected.busId?._id || selected.busId,
@@ -592,6 +655,10 @@ function SchedulesPage() {
       setError(timeErr)
       return
     }
+    if (requiresAdjustmentNotes(adjustForm.reason) && !adjustForm.notes?.trim()) {
+      setError('Notes are required for emergency, maintenance, absence, or obstruction adjustments')
+      return
+    }
     if (adjustConflict?.hasConflict) {
       setError('Resolve scheduling conflicts before saving')
       return
@@ -604,8 +671,9 @@ function SchedulesPage() {
         arrivalTime: adjustForm.arrivalTime,
         busId: adjustForm.busId,
         driverId: adjustForm.driverId,
-        status: adjustForm.status,
+        status: reasonToStatus(adjustForm.reason, adjustForm.status),
         adjustmentReason: adjustForm.reason,
+        adjustmentNotes: adjustForm.notes?.trim() || '',
         tripDate: selected.tripDate,
         routeId: selected.routeId?._id || selected.routeId,
       })
@@ -866,7 +934,7 @@ function SchedulesPage() {
         adjustForm={adjustForm}
         onAdjustChange={handleAdjustChange}
         drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
-        buses={buses}
+        buses={adjustBuses}
         conflicts={conflicts}
         eventLog={eventLog}
         showConflictPanel={showConflictPanel}
@@ -881,7 +949,19 @@ function SchedulesPage() {
         }
         adjustConflict={adjustConflict}
         onMaintenanceSwap={handleMaintenanceSwap}
-        onMaintenanceOffline={handleMaintenanceOffline}
+        onMaintenanceOffline={() => setMaintenanceConfirm(true)}
+        onDriverAbsenceSwap={handleDriverAbsenceSwap}
+      />
+
+      <ConfirmDialog
+        open={maintenanceConfirm}
+        title="Maintenance offline"
+        message="Log maintenance, mark the vehicle offline, and cancel this trip? Add details in the notes field first if needed."
+        confirmLabel="Confirm offline"
+        variant="danger"
+        loading={saving}
+        onConfirm={handleMaintenanceOffline}
+        onCancel={() => setMaintenanceConfirm(false)}
       />
 
       <ScheduleTimetableDrawer

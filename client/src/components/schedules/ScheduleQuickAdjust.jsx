@@ -1,5 +1,10 @@
 import Icon from '../Icon'
-import { scheduleCode } from '../../utils/scheduleHelpers'
+import {
+  ADJUSTMENT_REASON_LABELS,
+  formatAdjustmentChange,
+  requiresAdjustmentNotes,
+  scheduleCode,
+} from '../../utils/scheduleHelpers'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900 disabled:opacity-50'
@@ -44,6 +49,7 @@ function ScheduleQuickAdjust({
   adjustConflict,
   onMaintenanceSwap,
   onMaintenanceOffline,
+  onDriverAbsenceSwap,
 }) {
   const form = adjustForm || defaultAdjust
 
@@ -136,9 +142,26 @@ function ScheduleQuickAdjust({
               </span>
             </div>
             {selected && (
-              <p className="text-xs text-on-surface-variant">
-                {scheduleCode(selected)} · {selected.departureTime}–{selected.arrivalTime}
-              </p>
+              <>
+                <p className="text-xs text-on-surface-variant">
+                  {scheduleCode(selected)} · {selected.departureTime}–{selected.arrivalTime}
+                </p>
+                <p className="mt-2 text-xs">
+                  <span className="font-semibold text-on-surface-variant">Status: </span>
+                  <span className="capitalize text-neutral-900">{selected.status}</span>
+                  {selected.adjustmentReason && selected.adjustmentReason !== 'normal' && (
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                      {ADJUSTMENT_REASON_LABELS[selected.adjustmentReason] || selected.adjustmentReason}
+                    </span>
+                  )}
+                </p>
+                {selected.adjustmentNotes && (
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    <span className="font-semibold">Last note: </span>
+                    {selected.adjustmentNotes}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -233,11 +256,64 @@ function ScheduleQuickAdjust({
               onChange={onAdjustChange}
               disabled={!selected}
               rows={3}
-              placeholder="Additional notes for depot log..."
-              className={`${inputClass} resize-none`}
+              placeholder={
+                requiresAdjustmentNotes(form.reason)
+                  ? 'Required: describe the emergency, maintenance, absence, or obstruction...'
+                  : 'Optional notes for depot log...'
+              }
+              className={`${inputClass} resize-none ${
+                requiresAdjustmentNotes(form.reason) && !form.notes?.trim()
+                  ? 'border-amber-400'
+                  : ''
+              }`}
             />
+            {requiresAdjustmentNotes(form.reason) && (
+              <p className="mt-1 text-xs text-amber-800">Notes required for this adjustment type</p>
+            )}
+          </label>
+
+          <label className="block">
+            <span className={`${labelClass} mb-1 block`}>Trip status after save</span>
+            <select
+              name="status"
+              value={form.status}
+              onChange={onAdjustChange}
+              disabled={!selected}
+              className={inputClass}
+            >
+              <option value="scheduled">Scheduled</option>
+              <option value="delayed">Delayed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="draft">Draft</option>
+              <option value="pending">Pending approval</option>
+            </select>
           </label>
         </div>
+
+        {selected?.adjustmentHistory?.length > 0 && (
+          <div className="mt-4 border-t border-outline-variant pt-4">
+            <span className={`${labelClass} mb-2 block`}>Adjustment history</span>
+            <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg bg-surface-container/50 p-2">
+              {[...selected.adjustmentHistory].reverse().slice(0, 6).map((entry, i) => (
+                <div key={i} className="rounded border border-outline-variant/60 bg-white p-2 text-[11px]">
+                  <p className="font-semibold text-neutral-900">
+                    {ADJUSTMENT_REASON_LABELS[entry.reason] || entry.reason}
+                    <span className="ml-1 font-normal text-on-surface-variant">
+                      · {entry.at ? new Date(entry.at).toLocaleString('en-GB') : ''}
+                      {entry.by?.name ? ` · ${entry.by.name}` : ''}
+                    </span>
+                  </p>
+                  {entry.notes && <p className="text-on-surface-variant">{entry.notes}</p>}
+                  {(entry.changes || []).slice(0, 3).map((ch, ci) => (
+                    <p key={ci} className="text-on-surface-variant">
+                      {formatAdjustmentChange(ch)}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 border-t border-outline-variant pt-4">
           <span className={`${labelClass} mb-2 block`}>Active alerts &amp; event log</span>
@@ -281,7 +357,12 @@ function ScheduleQuickAdjust({
           <button
             type="button"
             onClick={onApply}
-            disabled={saving || !selected || adjustConflict?.hasConflict}
+            disabled={
+              saving ||
+              !selected ||
+              adjustConflict?.hasConflict ||
+              (requiresAdjustmentNotes(form.reason) && !form.notes?.trim())
+            }
             className={primaryBtn}
           >
             {saving ? 'Saving...' : 'Apply Changes'}
@@ -313,7 +394,16 @@ function ScheduleQuickAdjust({
             className={secondaryBtn}
           >
             <Icon name="swap_horiz" size={18} />
-            Maintenance Swap Suggestion
+            Suggest maintenance vehicle swap
+          </button>
+          <button
+            type="button"
+            onClick={onDriverAbsenceSwap}
+            disabled={!selected || saving}
+            className={secondaryBtn}
+          >
+            <Icon name="person_add" size={18} />
+            Suggest cover driver
           </button>
           <button
             type="button"
