@@ -16,7 +16,7 @@ export const createMaintenance = async (req, res) => {
     const record = await Maintenance.create({ bus_id, service_date, description, cost })
 
     // Update bus status to in maintenance
-    await Bus.findByIdAndUpdate(bus_id, { status: 'in maintenance' })
+    await Bus.findByIdAndUpdate(bus_id, { status: 'maintenance' })
 
     res.status(201).json(record)
   } catch (error) {
