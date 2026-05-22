@@ -38,6 +38,10 @@ function ScheduleQuickAdjust({
   saving,
   error,
   onApply,
+  onCancelTrip,
+  onSubmitDraft,
+  canSubmitDraft,
+  adjustConflict,
   onMaintenanceSwap,
   onMaintenanceOffline,
 }) {
@@ -256,9 +260,45 @@ function ScheduleQuickAdjust({
           </div>
         </div>
 
+        {adjustConflict?.hasConflict && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <p className="font-semibold">Conflict check</p>
+            <ul className="mt-1 list-inside list-disc">
+              {(adjustConflict.conflicts || []).map((c, i) => (
+                <li key={i}>{c.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-auto space-y-2 pt-4">
-          <button type="button" onClick={onApply} disabled={saving || !selected} className={primaryBtn}>
+          <button
+            type="button"
+            onClick={onApply}
+            disabled={saving || !selected || adjustConflict?.hasConflict}
+            className={primaryBtn}
+          >
             {saving ? 'Saving...' : 'Apply Changes'}
+          </button>
+          {canSubmitDraft && selected?.status === 'draft' && (
+            <button
+              type="button"
+              onClick={onSubmitDraft}
+              disabled={!selected || saving || adjustConflict?.hasConflict}
+              className={secondaryBtn}
+            >
+              <Icon name="send" size={18} />
+              Submit for approval
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCancelTrip}
+            disabled={!selected || saving || selected?.status === 'cancelled'}
+            className={secondaryBtn}
+          >
+            <Icon name="cancel" size={18} />
+            Cancel trip
           </button>
           <button
             type="button"
