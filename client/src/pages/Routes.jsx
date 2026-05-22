@@ -217,17 +217,63 @@ function RoutesPage() {
     })
   }
 
-  const addStop = () => {
-    const name = stopInput.trim()
+  const addStop = (place) => {
+    const name = (place?.label || stopInput).trim()
     if (!name) return
-    setForm((prev) => ({ ...prev, stops: [...prev.stops, name] }))
+    setForm((prev) => {
+      const next = { ...prev, stops: [...prev.stops, name] }
+      if (place?.location?.lat != null) {
+        next.stopLocations = [
+          ...(prev.stopLocations || []),
+          {
+            name,
+            lat: place.location.lat,
+            lng: place.location.lng,
+          },
+        ]
+      }
+      return next
+    })
     setStopInput('')
   }
+
+  const handleStartPlaceSelect = useCallback((place) => {
+    setForm((prev) => ({
+      ...prev,
+      startPoint: place.label,
+      startLocation: place.location,
+    }))
+  }, [])
+
+  const handleEndPlaceSelect = useCallback((place) => {
+    setForm((prev) => ({
+      ...prev,
+      endPoint: place.label,
+      endLocation: place.location,
+    }))
+  }, [])
+
+  const handleStopPlaceSelect = useCallback((place) => {
+    const name = place.label?.trim()
+    if (!name) return
+    setForm((prev) => {
+      const next = { ...prev, stops: [...prev.stops, name] }
+      if (place.location?.lat != null) {
+        next.stopLocations = [
+          ...(prev.stopLocations || []),
+          { name, lat: place.location.lat, lng: place.location.lng },
+        ]
+      }
+      return next
+    })
+    setStopInput('')
+  }, [])
 
   const removeStop = (index) => {
     setForm((prev) => ({
       ...prev,
       stops: prev.stops.filter((_, i) => i !== index),
+      stopLocations: (prev.stopLocations || []).filter((_, i) => i !== index),
     }))
   }
 
@@ -358,6 +404,9 @@ function RoutesPage() {
             onStopInputChange={setStopInput}
             onFormChange={handleFormChange}
             onAddStop={addStop}
+            onStartPlaceSelect={handleStartPlaceSelect}
+            onEndPlaceSelect={handleEndPlaceSelect}
+            onStopPlaceSelect={handleStopPlaceSelect}
             onRemoveStop={removeStop}
             onMapUpdate={handleMapUpdate}
             onSave={handleSave}
