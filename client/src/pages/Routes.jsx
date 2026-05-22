@@ -6,7 +6,9 @@ import api from '../services/api'
 import Icon from '../components/Icon'
 import RouteListTable from '../components/routes/RouteListTable'
 import RouteEditView from '../components/routes/RouteEditView'
+import RouteView from '../components/routes/RouteView'
 import RouteFleetAssignModal from '../components/routes/RouteFleetAssignModal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import {
   defaultMinCapacityForService,
   isBusAssignable,
@@ -64,6 +66,8 @@ function RoutesPage() {
   const [buses, setBuses] = useState([])
   const [drivers, setDrivers] = useState([])
   const [assignRoute, setAssignRoute] = useState(null)
+  const [deleteTargetId, setDeleteTargetId] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -72,7 +76,9 @@ function RoutesPage() {
   const [form, setForm] = useState(emptyForm)
   const [stopInput, setStopInput] = useState('')
 
-  const isEditing = Boolean(selectedId)
+  const isViewing = pageView === 'view' && Boolean(selectedId)
+  const isEditPage = pageView === 'edit'
+  const isEditingExisting = isEditPage && Boolean(selectedId)
 
   const showToast = (message) => {
     setToast(message)
@@ -132,7 +138,8 @@ function RoutesPage() {
   }, [routes])
 
   const selectedRoute = routes.find((r) => r._id === selectedId)
-  const displayRouteCode = isEditing ? routeCode(selectedRoute) : 'NEW'
+  const displayRouteCode =
+    isEditingExisting || isViewing ? routeCode(selectedRoute) : 'NEW'
 
   const selectedBus = useMemo(() => {
     if (!form.busId) return null
@@ -164,6 +171,15 @@ function RoutesPage() {
   const openList = () => {
     resetForm()
     setPageView('list')
+  }
+
+  const openViewer = (route) => {
+    if (!route) return
+    setSelectedId(route._id)
+    setForm(routeFromApi(route))
+    setStopInput('')
+    setError('')
+    setPageView('view')
   }
 
   const openEditor = (route) => {
@@ -282,7 +298,7 @@ function RoutesPage() {
     if (form.stopLocations?.length) payload.stopLocations = form.stopLocations
     if (form.serviceType) payload.serviceType = form.serviceType
     if (form.status) payload.status = form.status
-    if (isEditing) {
+    if (isEditingExisting) {
       payload.busId = form.busId?.trim() || null
       payload.driverId = form.driverId?.trim() || null
     }
@@ -292,11 +308,11 @@ function RoutesPage() {
   const handleSave = async (e) => {
     e.preventDefault()
     setError('')
-    if (isEditing && !validateFleetAssignment()) return
+    if (isEditingExisting && !validateFleetAssignment()) return
     setSaving(true)
     try {
       const payload = buildPayload()
-      if (isEditing) {
+      if (isEditingExisting) {
         const { data } = await api.put(`/routes/${selectedId}`, payload)
         setRoutes((prev) => prev.map((r) => (r._id === selectedId ? data : r)))
       } else {
@@ -312,16 +328,29 @@ function RoutesPage() {
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this route?')) return
+  const deleteTargetRoute = routes.find((r) => r._id === deleteTargetId)
+
+  const handleDeleteRequest = (id) => {
+    setDeleteTargetId(id)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTargetId) return
+    setDeleting(true)
     setError('')
     try {
-      await api.delete(`/routes/${id}`)
-      setRoutes((prev) => prev.filter((r) => r._id !== id))
-      if (selectedId === id) openList()
+      await api.delete(`/routes/${deleteTargetId}`)
+      setRoutes((prev) => prev.filter((r) => r._id !== deleteTargetId))
+      if (selectedId === deleteTargetId && (pageView === 'edit' || pageView === 'view')) {
+        openList()
+      }
+      if (assignRoute?._id === deleteTargetId) setAssignRoute(null)
+      setDeleteTargetId(null)
       showToast('Route removed')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete route')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -371,11 +400,28 @@ function RoutesPage() {
               loading={loading}
               search={search}
               onSearchChange={setSearch}
+              onView={openViewer}
               onEdit={openEditor}
               onAssignFleet={setAssignRoute}
-              onDelete={handleDelete}
+              onDelete={handleDeleteRequest}
             />
           </ModuleCard>
+
+          <ConfirmDialog
+            open={Boolean(deleteTargetId)}
+            title="Delete this route?"
+            message={
+              deleteTargetRoute
+                ? `"${deleteTargetRoute.routeName}" will be permanently removed. This cannot be undone.`
+                : 'This route will be permanently removed. This cannot be undone.'
+            }
+            confirmLabel="Delete route"
+            cancelLabel="Cancel"
+            variant="danger"
+            loading={deleting}
+            onConfirm={handleDeleteConfirm}
+            onCancel={() => !deleting && setDeleteTargetId(null)}
+          />
 
           <RouteFleetAssignModal
             route={assignRoute}
@@ -386,6 +432,36 @@ function RoutesPage() {
               setRoutes((prev) => prev.map((r) => (r._id === updated._id ? updated : r)))
               showToast('Fleet assignment saved')
             }}
+          />
+        </>
+      ) : isViewing ? (
+        <>
+          <div className="mb-5 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={openList}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant bg-white hover:bg-surface-container"
+            >
+              <Icon name="arrow_back" size={20} />
+            </button>
+            <div>
+              <h2 className="pro-page-title">
+                View route · {routeCode(selectedRoute)}
+              </h2>
+              <p className="pro-page-subtitle">
+                Read-only preview — map, stops, status, and fleet assignment
+              </p>
+            </div>
+          </div>
+          <RouteView
+            form={form}
+            routeCode={displayRouteCode}
+            selectedBus={selectedBus}
+            selectedDriver={selectedDriver}
+            buses={buses}
+            drivers={drivers}
+            onEdit={() => openEditor(selectedRoute)}
+            onBack={openList}
           />
         </>
       ) : (
@@ -400,7 +476,7 @@ function RoutesPage() {
             </button>
             <div>
               <h2 className="pro-page-title">
-                {isEditing ? `Edit route · ${routeCode(selectedRoute)}` : 'New route'}
+                {isEditingExisting ? `Edit route · ${routeCode(selectedRoute)}` : 'New route'}
               </h2>
               <p className="pro-page-subtitle">
                 Configure route ID, status, stops, fleet assignment, and map preview
@@ -410,7 +486,7 @@ function RoutesPage() {
           {error && <ModuleAlert variant="error" title={error} />}
           <RouteEditView
             form={form}
-            isEditing={isEditing}
+            isEditing={isEditingExisting}
             routeCode={displayRouteCode}
             stopInput={stopInput}
             onStopInputChange={setStopInput}
