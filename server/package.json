@@ -11,7 +11,8 @@
     "seed:depot": "node scripts/seedDepot.js",
     "seed:routes": "node scripts/seedRoute.js",
     "seed:schedules": "node scripts/seedSchedule.js",
-    "seed:all": "npm run seed:depot && npm run seed:fleet && npm run seed:routes && npm run seed:schedules"
+    "seed:all": "npm run seed:depot && npm run seed:fleet && npm run seed:routes && npm run seed:schedules",
+    "seed:auth": "node scripts/seedAuth.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -19,7 +20,8 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.4.1"
+    "mongoose": "^8.4.1",
+    "pdfkit": "^0.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"
