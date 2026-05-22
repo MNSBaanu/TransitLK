@@ -3,6 +3,7 @@ import RouteMap from '../RouteMap'
 import PlacesAutocompleteInput from './PlacesAutocompleteInput'
 import { ModuleCard } from '../layout/ModuleLayout'
 import { formatRouteStatus } from '../../utils/routeHelpers'
+import RouteFleetAssignment from './RouteFleetAssignment'
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
@@ -10,10 +11,17 @@ const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surfac
 
 function RouteEditView({
   form,
+  isEditing,
   routeCode,
   stopInput,
   onStopInputChange,
   onFormChange,
+  onBusChange,
+  onDriverChange,
+  buses,
+  drivers,
+  selectedBus,
+  selectedDriver,
   onStopPlaceSelect,
   onStartPlaceSelect,
   onEndPlaceSelect,
@@ -136,6 +144,20 @@ function RouteEditView({
                 ))}
               </ul>
             </div>
+
+            {isEditing && (
+              <RouteFleetAssignment
+                serviceType={form.serviceType}
+                busId={form.busId}
+                driverId={form.driverId}
+                buses={buses}
+                drivers={drivers}
+                selectedBus={selectedBus}
+                selectedDriver={selectedDriver}
+                onBusChange={onBusChange}
+                onDriverChange={onDriverChange}
+              />
+            )}
           </div>
         </ModuleCard>
 
@@ -169,6 +191,22 @@ function RouteEditView({
                 <p className={labelClass}>Stops</p>
                 <p className="font-bold">{form.stops.length}</p>
               </div>
+              {isEditing && (
+                <>
+                  <div>
+                    <p className={labelClass}>Bus</p>
+                    <p className="font-bold text-sm">
+                      {selectedBus?.regNumber || '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className={labelClass}>Driver</p>
+                    <p className="font-bold text-sm">
+                      {selectedDriver?.name || '—'}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </ModuleCard>

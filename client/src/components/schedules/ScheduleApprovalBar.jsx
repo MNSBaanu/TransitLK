@@ -12,7 +12,7 @@ function ScheduleApprovalBar({ pending, saving, onApprove, onReject, onSubmit, c
           {pending.length} schedule(s) awaiting approval
         </p>
         {canSubmit && (
-          <p className="text-xs text-amber-800">Select a draft trip and submit from Quick Adjust</p>
+          <p className="text-xs text-amber-800">Select a draft trip and submit from Adjust</p>
         )}
       </div>
       {canApprove && pending.length > 0 && (

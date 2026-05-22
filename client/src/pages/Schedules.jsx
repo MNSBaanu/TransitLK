@@ -7,7 +7,7 @@ import Icon from '../components/Icon'
 import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
-import ScheduleQuickAdjust from '../components/schedules/ScheduleQuickAdjust'
+import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
 import ScheduleAddDrawer from '../components/schedules/ScheduleAddDrawer'
 import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
 import { useAuth } from '../context/AuthContext'
@@ -27,6 +27,7 @@ import {
 import {
   ModuleHeader,
   ModulePrimaryButton,
+  ModuleSecondaryButton,
   ModuleStats,
   ModuleToast,
 } from '../components/layout/ModuleLayout'
@@ -55,7 +56,7 @@ function SchedulesPage() {
   const [viewDate, setViewDate] = useState(() => toDateInputValue(new Date()))
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
-  const [showQuickPanel, setShowQuickPanel] = useState(true)
+  const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
   const [viewMode, setViewMode] = useState('daily')
   const [selected, setSelected] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -301,7 +302,7 @@ function SchedulesPage() {
       reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
       notes: '',
     })
-    setShowQuickPanel(true)
+    setShowAdjustDrawer(true)
   }
 
   const handleAddChange = (e) => {
@@ -597,9 +598,17 @@ function SchedulesPage() {
         title="Schedule Management"
         subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
         action={
-          <ModulePrimaryButton icon="add" onClick={() => setShowAdd(true)}>
-            Add schedule
-          </ModulePrimaryButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <ModulePrimaryButton icon="add" onClick={() => setShowAdd(true)}>
+              Add Schedule
+            </ModulePrimaryButton>
+            <ModuleSecondaryButton
+              icon="tune"
+              onClick={() => setShowAdjustDrawer(true)}
+            >
+              Adjust
+            </ModuleSecondaryButton>
+          </div>
         }
       />
 
@@ -633,7 +642,7 @@ function SchedulesPage() {
           type="button"
           onClick={() => {
             setShowConflictPanel(true)
-            setShowQuickPanel(true)
+            setShowAdjustDrawer(true)
           }}
           className="flex items-center gap-2 text-left text-sm font-semibold text-fleet-ink hover:opacity-80"
         >
@@ -652,7 +661,7 @@ function SchedulesPage() {
               type="button"
               onClick={() => {
                 setShowConflictPanel(true)
-                setShowQuickPanel(true)
+                setShowAdjustDrawer(true)
               }}
               className="text-xs font-bold uppercase tracking-wide text-red-700 hover:underline"
             >
@@ -692,7 +701,7 @@ function SchedulesPage() {
       )}
 
       {/* Workspace card */}
-      <div className="pro-card flex min-h-[560px] flex-col overflow-hidden lg:flex-row">
+      <div className="pro-card flex min-h-[560px] flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-5 py-4">
             <div className="pro-segmented">
@@ -796,47 +805,37 @@ function SchedulesPage() {
             )}
           </div>
         </div>
-
-        {showQuickPanel ? (
-          <aside className="flex w-full shrink-0 flex-col border-t border-outline-variant lg:w-[300px] lg:border-l lg:border-t-0">
-            <ScheduleQuickAdjust
-              selected={selected}
-              emergencyMode={emergencyMode}
-              onEmergencyToggle={handleEmergencyToggle}
-              adjustForm={adjustForm}
-              onAdjustChange={handleAdjustChange}
-              drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
-              buses={buses}
-              conflicts={conflicts}
-              eventLog={eventLog}
-              showConflictPanel={showConflictPanel}
-              onToggleConflictPanel={() => setShowConflictPanel((v) => !v)}
-              onClose={() => setShowQuickPanel(false)}
-              saving={saving}
-              error={error}
-              onApply={handleApply}
-              onCancelTrip={handleCancelTrip}
-              onSubmitDraft={handleSubmitDraft}
-              canSubmitDraft={
-                user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR
-              }
-              adjustConflict={adjustConflict}
-              onMaintenanceSwap={handleMaintenanceSwap}
-              onMaintenanceOffline={handleMaintenanceOffline}
-            />
-          </aside>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowQuickPanel(true)}
-            className="flex w-12 shrink-0 flex-col items-center justify-center gap-1 border-t border-outline-variant bg-depot-navy text-xs font-bold uppercase tracking-wide text-white hover:bg-depot-navy/90 lg:border-l lg:border-t-0"
-            title="Open Quick Adjust"
-          >
-            <Icon name="tune" size={20} />
-            <span className="[writing-mode:vertical-rl] rotate-180">Adjust</span>
-          </button>
-        )}
       </div>
+
+      <ScheduleAdjustDrawer
+        open={showAdjustDrawer}
+        onClose={() => {
+          setShowAdjustDrawer(false)
+          setShowConflictPanel(false)
+        }}
+        selected={selected}
+        emergencyMode={emergencyMode}
+        onEmergencyToggle={handleEmergencyToggle}
+        adjustForm={adjustForm}
+        onAdjustChange={handleAdjustChange}
+        drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
+        buses={buses}
+        conflicts={conflicts}
+        eventLog={eventLog}
+        showConflictPanel={showConflictPanel}
+        onToggleConflictPanel={() => setShowConflictPanel((v) => !v)}
+        saving={saving}
+        error={error}
+        onApply={handleApply}
+        onCancelTrip={handleCancelTrip}
+        onSubmitDraft={handleSubmitDraft}
+        canSubmitDraft={
+          user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR
+        }
+        adjustConflict={adjustConflict}
+        onMaintenanceSwap={handleMaintenanceSwap}
+        onMaintenanceOffline={handleMaintenanceOffline}
+      />
 
       <ScheduleAddDrawer
         open={showAdd}

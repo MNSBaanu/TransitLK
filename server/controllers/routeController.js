@@ -7,6 +7,10 @@ import {
   validateStopLocations,
   isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
+import {
+  defaultMinCapacityForService,
+  isBusAssignableForRoute,
+} from '../utils/fleetHelpers.js'
 
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType mileage' }
 const driverPopulate = {
@@ -17,7 +21,7 @@ const driverPopulate = {
 const populateRoute = (query) =>
   query.populate(busPopulate).populate(driverPopulate).populate('createdBy', 'name email role')
 
-const validateBusAssignment = async (busId) => {
+const validateBusAssignment = async (busId, routeServiceType) => {
   if (!busId) return null
   const bus = await Bus.findById(busId)
   if (!bus) {
@@ -25,8 +29,11 @@ const validateBusAssignment = async (busId) => {
     error.statusCode = 400
     throw error
   }
-  if (bus.status !== 'available') {
-    const error = new Error(`Bus is not available (current status: ${bus.status})`)
+  if (!isBusAssignableForRoute(bus, routeServiceType)) {
+    const minCap = defaultMinCapacityForService(routeServiceType)
+    const error = new Error(
+      `Bus does not meet requirements: available status, ${routeServiceType} service type, and capacity ≥ ${minCap}`
+    )
     error.statusCode = 400
     throw error
   }
@@ -116,7 +123,8 @@ export const createRoute = async (req, res) => {
       return res.status(400).json({ message: 'Select a bus when a driver is assigned' })
     }
 
-    await validateBusAssignment(busId)
+    const serviceType = data.serviceType || 'ordinary'
+    await validateBusAssignment(busId, serviceType)
     await validateDriverAssignment(driverId)
 
     const route = await Route.create({
@@ -152,7 +160,8 @@ export const updateRoute = async (req, res) => {
       return res.status(400).json({ message: 'Select a bus when a driver is assigned' })
     }
 
-    if (data.busId !== undefined) await validateBusAssignment(data.busId)
+    const serviceType = data.serviceType ?? existing.serviceType ?? 'ordinary'
+    if (data.busId !== undefined) await validateBusAssignment(data.busId, serviceType)
     if (data.driverId !== undefined) await validateDriverAssignment(data.driverId)
 
     await Route.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
