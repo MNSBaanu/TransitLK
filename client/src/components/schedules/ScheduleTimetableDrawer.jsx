@@ -26,6 +26,9 @@ function ScheduleTimetableDrawer({
   error,
   onSubmit,
   tripCount,
+  conflictPreview,
+  checkingConflicts,
+  rowConflictHints,
 }) {
   if (!open) return null
 
@@ -45,8 +48,8 @@ function ScheduleTimetableDrawer({
           <div>
             <h3 className="text-lg font-bold text-neutral-900">Create timetable</h3>
             <p className="text-sm text-on-surface-variant">
-              Set departure and arrival times for each route, then save drafts for the selected
-              period.
+              Set departure and arrival times for each route. Overlaps are checked automatically
+              and blocked before save.
             </p>
           </div>
           <button
@@ -62,6 +65,39 @@ function ScheduleTimetableDrawer({
           <div className="shrink-0 space-y-4 border-b border-outline-variant px-5 py-4">
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+            )}
+
+            {checkingConflicts && (
+              <p className="flex items-center gap-2 text-sm text-on-surface-variant">
+                <Icon name="schedule" size={18} className="animate-pulse" />
+                Checking bus, driver, and route overlaps...
+              </p>
+            )}
+
+            {!checkingConflicts && conflictPreview?.hasConflict && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <p className="flex items-center gap-2 font-semibold">
+                  <Icon name="warning" size={18} />
+                  {conflictPreview.conflictCount || conflictPreview.issues?.length} scheduling
+                  conflict(s) — save blocked
+                </p>
+                <ul className="mt-2 max-h-28 list-inside list-disc overflow-y-auto text-xs">
+                  {(conflictPreview.issues || []).slice(0, 8).map((issue, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{issue.routeName}</span>
+                      {issue.tripDate ? ` (${issue.tripDate})` : ''}:{' '}
+                      {(issue.conflicts || []).map((c) => c.message).join('; ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!checkingConflicts && conflictPreview && !conflictPreview.hasConflict && (
+              <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                <Icon name="check_circle" size={18} />
+                No overlaps detected for this timetable
+              </p>
             )}
 
             <div className="flex flex-wrap items-end gap-4">
@@ -131,6 +167,7 @@ function ScheduleTimetableDrawer({
                     <th className={`${labelClass} pb-2 pr-2`}>Window</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Bus</th>
                     <th className={`${labelClass} pb-2`}>Driver</th>
+                    <th className={`${labelClass} pb-2`}>Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
@@ -138,6 +175,8 @@ function ScheduleTimetableDrawer({
                     const timeErr = row.included
                       ? validateTimeRange(row.departureTime, row.arrivalTime)
                       : null
+                    const rowHints = rowConflictHints?.get?.(String(row.routeId)) || []
+                    const hasRowConflict = row.included && (timeErr || rowHints.length > 0)
                     const rowBuses = buses.filter(
                       (b) =>
                         (b.status === 'available' || b.status === 'in-service') &&
@@ -149,7 +188,9 @@ function ScheduleTimetableDrawer({
                     return (
                       <tr
                         key={row.routeId}
-                        className={row.included ? '' : 'opacity-50'}
+                        className={`${row.included ? '' : 'opacity-50'} ${
+                          hasRowConflict ? 'bg-red-50/60' : ''
+                        }`}
                       >
                         <td className="py-3 pr-2 align-top">
                           <input
@@ -237,6 +278,29 @@ function ScheduleTimetableDrawer({
                             ))}
                           </select>
                         </td>
+                        <td className="py-3 align-top">
+                          {hasRowConflict ? (
+                            <div className="max-w-[140px]">
+                              <span className="flex items-center gap-1 text-xs font-semibold text-red-700">
+                                <Icon name="warning" size={14} />
+                                Conflict
+                              </span>
+                              <ul className="mt-1 list-disc pl-3 text-[10px] text-red-600">
+                                {timeErr && <li>{timeErr}</li>}
+                                {rowHints.slice(0, 2).map((hint, hi) => (
+                                  <li key={hi}>{hint}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : row.included ? (
+                            <span className="flex items-center gap-1 text-xs text-emerald-700">
+                              <Icon name="check_circle" size={14} />
+                              Clear
+                            </span>
+                          ) : (
+                            <span className="text-xs text-on-surface-variant">—</span>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
@@ -247,12 +311,18 @@ function ScheduleTimetableDrawer({
 
           <div className="flex shrink-0 items-center justify-between gap-3 border-t border-outline-variant bg-white px-5 py-4">
             <p className="text-xs text-on-surface-variant">
-              Each included route gets the same departure and arrival times on every day in this{' '}
-              {period} period. Trips are saved as drafts for approval.
+              Trips with bus, driver, or route overlaps cannot be saved. Conflicts are checked
+              against existing schedules and within this timetable.
             </p>
             <button
               type="submit"
-              disabled={saving || rows.length === 0 || tripCount === 0}
+              disabled={
+                saving ||
+                rows.length === 0 ||
+                tripCount === 0 ||
+                checkingConflicts ||
+                conflictPreview?.hasConflict
+              }
               className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving

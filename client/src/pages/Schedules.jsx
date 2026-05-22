@@ -19,6 +19,7 @@ import {
   getViewDateRange,
   buildTimetableRows,
   getTimetableDates,
+  groupTimetableConflictsByRoute,
   reasonToStatus,
   validateTimetableRows,
   scheduleCode,
@@ -56,6 +57,8 @@ function SchedulesPage() {
   const [timetablePeriod, setTimetablePeriod] = useState('daily')
   const [timetableAnchor, setTimetableAnchor] = useState(() => toDateInputValue(new Date()))
   const [timetableRows, setTimetableRows] = useState([])
+  const [timetableConflicts, setTimetableConflicts] = useState(null)
+  const [checkingTimetableConflicts, setCheckingTimetableConflicts] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [adjustForm, setAdjustForm] = useState({
@@ -152,7 +155,7 @@ function SchedulesPage() {
     conflicts.forEach((c) => {
       entries.push({
         type: 'error',
-        title: `${c.type === 'bus' ? 'Vehicle' : 'Driver'} conflict`,
+        title: `${c.type === 'bus' ? 'Vehicle' : c.type === 'route' ? 'Route' : 'Driver'} conflict`,
         body: c.message,
       })
     })
@@ -199,6 +202,53 @@ function SchedulesPage() {
     const included = timetableRows.filter((r) => r.included).length
     return included * getTimetableDates(timetablePeriod, timetableAnchor).length
   }, [timetableRows, timetablePeriod, timetableAnchor])
+
+  const timetableRowConflicts = useMemo(
+    () => groupTimetableConflictsByRoute(timetableConflicts?.issues),
+    [timetableConflicts]
+  )
+
+  useEffect(() => {
+    if (!showTimetable) {
+      setTimetableConflicts(null)
+      setCheckingTimetableConflicts(false)
+      return
+    }
+
+    const included = timetableRows.filter((r) => r.included)
+    if (!included.length) {
+      setTimetableConflicts({ hasConflict: false, issues: [], conflictCount: 0 })
+      return
+    }
+
+    const rowErrors = validateTimetableRows(timetableRows)
+    if (rowErrors.length) {
+      setTimetableConflicts({
+        hasConflict: true,
+        issues: [{ routeId: '', routeName: 'Validation', tripDate: '', conflicts: rowErrors.map((message) => ({ type: 'validation', message })) }],
+        conflictCount: rowErrors.length,
+      })
+      return
+    }
+
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+    const timer = setTimeout(async () => {
+      setCheckingTimetableConflicts(true)
+      try {
+        const { data } = await api.post('/schedules/conflicts/timetable', {
+          dates,
+          rows: included,
+        })
+        setTimetableConflicts(data)
+      } catch {
+        setTimetableConflicts(null)
+      } finally {
+        setCheckingTimetableConflicts(false)
+      }
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [showTimetable, timetableRows, timetablePeriod, timetableAnchor])
 
   const [adjustConflict, setAdjustConflict] = useState(null)
 
@@ -262,6 +312,7 @@ function SchedulesPage() {
     setTimetablePeriod(viewMode)
     setTimetableAnchor(viewDate)
     setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
+    setTimetableConflicts(null)
     setError('')
     setShowTimetable(true)
   }
@@ -377,10 +428,33 @@ function SchedulesPage() {
       return
     }
 
-    setSaving(true)
-    setError('')
     const dates = getTimetableDates(timetablePeriod, timetableAnchor)
     const included = timetableRows.filter((r) => r.included)
+
+    try {
+      const { data: precheck } = await api.post('/schedules/conflicts/timetable', {
+        dates,
+        rows: included,
+      })
+      setTimetableConflicts(precheck)
+      if (precheck.hasConflict) {
+        setError(
+          `Cannot create timetable: ${precheck.conflictCount || precheck.issues?.length} conflict(s) detected. Resolve overlaps before saving.`
+        )
+        return
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Conflict check failed')
+      return
+    }
+
+    if (timetableConflicts?.hasConflict) {
+      setError('Resolve all scheduling conflicts before creating the timetable')
+      return
+    }
+
+    setSaving(true)
+    setError('')
     let created = 0
     const skipped = []
 
@@ -457,7 +531,13 @@ function SchedulesPage() {
       showToast('Schedule approved')
       loadData()
     } catch (err) {
-      setError(err.response?.data?.message || 'Approve failed')
+      const msg = err.response?.data?.message || 'Approve failed'
+      const conflictsData = err.response?.data?.conflicts
+      setError(
+        conflictsData?.length
+          ? `${msg}: ${conflictsData.map((c) => c.message).join('; ')}`
+          : msg
+      )
     } finally {
       setSaving(false)
     }
@@ -563,7 +643,7 @@ function SchedulesPage() {
 
       <ModuleHeader
         title="Schedule Management"
-        subtitle="Daily, weekly, and monthly timetables with conflict detection and emergency adjustments."
+        subtitle="Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
@@ -808,6 +888,7 @@ function SchedulesPage() {
         open={showTimetable}
         onClose={() => {
           setShowTimetable(false)
+          setTimetableConflicts(null)
           setError('')
         }}
         period={timetablePeriod}
@@ -823,6 +904,9 @@ function SchedulesPage() {
         error={error}
         onSubmit={handleCreateTimetable}
         tripCount={timetableTripCount}
+        conflictPreview={timetableConflicts}
+        checkingConflicts={checkingTimetableConflicts}
+        rowConflictHints={timetableRowConflicts}
       />
     </div>
   )

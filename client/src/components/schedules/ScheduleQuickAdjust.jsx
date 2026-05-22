@@ -69,7 +69,13 @@ function ScheduleQuickAdjust({
                 className="rounded-lg border-l-4 border-red-600 bg-[#f5f5f5] p-3"
               >
                 <p className={`${labelClass} mb-1 text-red-700`}>
-                  {c.type === 'bus' ? 'Vehicle conflict' : 'Driver conflict'}
+                  {c.type === 'bus'
+                    ? 'Vehicle conflict'
+                    : c.type === 'driver'
+                      ? 'Driver conflict'
+                      : c.type === 'route'
+                        ? 'Route conflict'
+                        : 'Scheduling conflict'}
                 </p>
                 <p className="text-sm text-neutral-900">{c.message}</p>
                 <button type="button" onClick={onToggleConflictPanel} className={`${secondaryBtn} mt-3`}>
