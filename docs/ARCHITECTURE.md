@@ -21,13 +21,15 @@ External services: **Google Maps Platform** (maps/geocoding from the browser), *
 
 ## 2. Actors
 
-| Actor | Access |
-|-------|--------|
-| Administrator | Full depot operations, users, configuration |
-| Supervisor | Routes, schedules, fleet oversight |
-| Depot staff | Day-to-day scheduling, maintenance, fuel logs |
+| Actor | Role key | Login collection | Default home |
+|-------|----------|------------------|--------------|
+| Administrator | `administrator` | `admins` | `/dashboard` |
+| Transport Scheduler | `transport_scheduler` | `users` | `/routes` |
+| Fleet Manager | `fleet_manager` | `users` | `/buses` |
+| Depot Manager | `depot_manager` | `users` | `/dashboard` |
+| Driver | `driver` | `drivers` (email + password) | `/my-trips` |
 
-All actors interact with the system via **HTTPS** through a web browser.
+All actors sign in at `/login`. JWT protects every API except `POST /api/auth/login`. The React app blocks manual URL access to modules outside the user’s role.
 
 ---
 
@@ -286,3 +288,12 @@ For submission, redraw the logical diagram in **Draw.io / Figma** using:
 - Deployment strip below (GitHub → Vercel, Render, Atlas)
 
 Replace or supplement the original architectural diagram PNG with an export from this specification.
+
+---
+
+## 12. Authentication and RBAC
+
+- **Seed accounts:** `npm run seed:auth` in `server/` (see `docs/DEMO-SCRIPT.md`).
+- **Frontend:** `AuthContext`, `RequireAuth`, `RoleGuard`, role config in `client/src/config/roles.js`.
+- **Backend:** `protect` + `authorize` on all `/api/*` modules except auth login.
+- **Driver trips:** `GET /api/schedules` auto-filters to `req.user.driverId` when role is `driver`.

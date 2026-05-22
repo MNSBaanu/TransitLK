@@ -273,9 +273,10 @@ Aligns with coursework: assignment of buses to routes/schedules based on **servi
 |---------------------|---------------|
 | Route               | Baanu         |
 | Schedule            | Baanu         |
+| Reports             | Baanu         |
+| User / auth / RBAC  | Baanu         |
 | Driver, Bus, FuelLog, Maintenance | Irfa |
-| User / auth         | Baanu (done)  |
-| Depot, Admin, Dashboard, Reports | Group / pending |
+| Depot, Dashboard (ops UI) | Group / Member 3 |
 
 ---
 
