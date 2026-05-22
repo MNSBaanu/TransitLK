@@ -39,3 +39,23 @@ export function isWithinWorkingHoursAtTime(workingHours, departureTime) {
   if (end <= start) end += 24 * 60
   return minutes >= start && minutes < end
 }
+
+export const SERVICE_MIN_CAPACITY = {
+  ordinary: 40,
+  express: 35,
+  'semi-luxury': 28,
+}
+
+export function defaultMinCapacityForService(serviceType) {
+  return SERVICE_MIN_CAPACITY[serviceType] ?? 30
+}
+
+export function isBusAssignableForRoute(bus, routeServiceType) {
+  if (!bus || bus.status !== 'available') return false
+  if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) {
+    return false
+  }
+  const minCapacity = defaultMinCapacityForService(routeServiceType)
+  if (Number(bus.capacity) < minCapacity) return false
+  return true
+}

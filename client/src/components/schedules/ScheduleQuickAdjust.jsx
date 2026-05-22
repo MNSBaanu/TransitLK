@@ -86,7 +86,7 @@ function ScheduleQuickAdjust({
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
-        <h3 className="text-base font-bold text-neutral-900">Quick Adjust</h3>
+        <h3 className="text-base font-bold text-neutral-900">Adjust</h3>
         <button
           type="button"
           onClick={onClose}
