@@ -187,12 +187,23 @@ export function detectDayConflicts(schedules) {
           message: `Driver overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
         })
       }
+      if (String(a.routeId?._id || a.routeId) === String(b.routeId?._id || b.routeId)) {
+        conflicts.push({
+          type: 'route',
+          a,
+          b,
+          message: `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+        })
+      }
     }
   }
   return conflicts
 }
 
 export const SCHEDULE_STATUS_STYLES = {
+  draft: 'bg-slate-100 text-slate-600',
+  pending: 'bg-amber-100 text-amber-800',
+  approved: 'bg-indigo-100 text-indigo-800',
   scheduled: 'bg-fleet-primary-light text-fleet-primary',
   'on-time': 'bg-green-100 text-green-800',
   delayed: 'bg-amber-100 text-amber-800',
