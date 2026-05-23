@@ -86,6 +86,74 @@ export function getMonthDayDates(anchorDate) {
   return days
 }
 
+/** Dates covered when building a daily, weekly, or monthly timetable */
+export function getTimetableDates(period, anchorDate) {
+  if (period === 'weekly') return getWeekDayDates(anchorDate)
+  if (period === 'monthly') return getMonthDayDates(anchorDate)
+  return [toDateInputValue(new Date(anchorDate))]
+}
+
+export function buildTimetableRows(routes, schedules = [], anchorDate) {
+  const active = routes.filter((r) => r.status === 'active' || !r.status)
+  return active.map((route) => {
+    const routeId = String(route._id)
+    const existing = schedules.find(
+      (s) =>
+        String(s.routeId?._id || s.routeId) === routeId && tripDateKey(s) === anchorDate
+    )
+    return {
+      routeId: route._id,
+      routeName: route.routeName,
+      startPoint: route.startPoint,
+      endPoint: route.endPoint,
+      distance: route.distance,
+      serviceType: route.serviceType,
+      included: true,
+      departureTime: existing?.departureTime || '08:00',
+      arrivalTime: existing?.arrivalTime || '12:00',
+      busId: String(existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''),
+      driverId: String(
+        existing?.driverId?._id || existing?.driverId || route.driverId?._id || route.driverId || ''
+      ),
+    }
+  })
+}
+
+/** Group timetable conflict issues by route for row-level hints */
+export function groupTimetableConflictsByRoute(issues = []) {
+  const byRoute = new Map()
+  for (const issue of issues) {
+    const key = String(issue.routeId)
+    const list = byRoute.get(key) || []
+    for (const c of issue.conflicts || []) {
+      const label = issue.tripDate ? `${issue.tripDate}: ${c.message}` : c.message
+      if (!list.includes(label)) list.push(label)
+    }
+    byRoute.set(key, list)
+  }
+  return byRoute
+}
+
+export function validateTimetableRows(rows) {
+  const errors = []
+  const included = rows.filter((r) => r.included)
+  if (included.length === 0) {
+    return ['Select at least one route for the timetable']
+  }
+  for (const row of included) {
+    const label = row.routeName || 'Route'
+    if (!row.departureTime || !row.arrivalTime) {
+      errors.push(`${label}: departure and arrival times are required`)
+      continue
+    }
+    const timeErr = validateTimeRange(row.departureTime, row.arrivalTime)
+    if (timeErr) errors.push(`${label}: ${timeErr}`)
+    if (!row.busId) errors.push(`${label}: assign a bus`)
+    if (!row.driverId) errors.push(`${label}: assign a driver`)
+  }
+  return errors
+}
+
 export function getViewDateRange(viewMode, anchorDate) {
   if (viewMode === 'weekly') {
     return { from: startOfWeekDate(anchorDate), to: endOfWeekDate(anchorDate) }
@@ -142,11 +210,36 @@ export function detectPeriodConflicts(schedules) {
   return conflicts
 }
 
+export const ADJUSTMENT_REASON_LABELS = {
+  normal: 'Normal adjustment',
+  emergency: 'Emergency / unexpected event',
+  maintenance: 'Vehicle maintenance',
+  absence: 'Driver absence',
+  obstruction: 'Route obstruction',
+}
+
+export function requiresAdjustmentNotes(reason) {
+  return ['emergency', 'maintenance', 'absence', 'obstruction'].includes(reason)
+}
+
 export function reasonToStatus(reason, currentStatus) {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'
   if (reason === 'absence' || reason === 'obstruction') return 'delayed'
   return currentStatus || 'scheduled'
+}
+
+export function formatAdjustmentChange(change) {
+  if (!change?.field) return ''
+  const labels = {
+    departureTime: 'Departure',
+    arrivalTime: 'Arrival',
+    busId: 'Bus',
+    driverId: 'Driver',
+    status: 'Status',
+    adjustmentReason: 'Reason',
+  }
+  return `${labels[change.field] || change.field}: ${change.from || '—'} → ${change.to || '—'}`
 }
 
 export function scheduleCode(schedule) {
@@ -187,12 +280,23 @@ export function detectDayConflicts(schedules) {
           message: `Driver overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
         })
       }
+      if (String(a.routeId?._id || a.routeId) === String(b.routeId?._id || b.routeId)) {
+        conflicts.push({
+          type: 'route',
+          a,
+          b,
+          message: `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+        })
+      }
     }
   }
   return conflicts
 }
 
 export const SCHEDULE_STATUS_STYLES = {
+  draft: 'bg-slate-100 text-slate-600',
+  pending: 'bg-amber-100 text-amber-800',
+  approved: 'bg-indigo-100 text-indigo-800',
   scheduled: 'bg-fleet-primary-light text-fleet-primary',
   'on-time': 'bg-green-100 text-green-800',
   delayed: 'bg-amber-100 text-amber-800',

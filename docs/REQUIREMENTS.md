@@ -6,6 +6,7 @@
 |----------|-----------|
 | Module | CS6003 – Advanced Software Engineering (Coursework-1) |
 | Status | Draft |
+| Companion | [`REQUIREMENT-M.md`](./REQUIREMENT-M.md) — module-based requirements with implementation status |
 
 ---
 

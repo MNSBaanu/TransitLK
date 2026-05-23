@@ -15,6 +15,7 @@ import fuelRoutes from './routes/fuelRoutes.js'
 import reportRoutes from './routes/reportRoutes.js'
 import depotRoutes from './routes/depotRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
+import userRoutes from './routes/userRoutes.js'
 
 dotenv.config()
 connectDB()
@@ -36,6 +37,7 @@ app.use('/api/fuel', fuelRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/depots', depotRoutes)
 app.use('/api/admins', adminRoutes)
+app.use('/api/users', userRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {

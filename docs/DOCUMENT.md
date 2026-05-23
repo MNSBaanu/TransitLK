@@ -10,7 +10,8 @@ Thus, the **Smart Route Management and Scheduling System (SRMSS)** is proposed a
 
 > **Group report (draft):** See [`GROUP-REPORT.md`](./GROUP-REPORT.md)  
 > **Agile timeline & Gantt:** See [`AGILE-TIMELINE.md`](./AGILE-TIMELINE.md)  
-> **Requirements specification:** See [`REQUIREMENTS.md`](./REQUIREMENTS.md) for Version 1 functional, non-functional, system, and domain requirements.
+> **Requirements specification:** See [`REQUIREMENTS.md`](./REQUIREMENTS.md) for Version 1 functional, non-functional, system, and domain requirements (by **role**).  
+> **Module-based requirements:** See [`REQUIREMENT-M.md`](./REQUIREMENT-M.md) for the same scope organised by **system module**, with implementation status and gaps.
 
 ---
 
@@ -19,6 +20,12 @@ Thus, the **Smart Route Management and Scheduling System (SRMSS)** is proposed a
 The proposed system eliminates the dependency on manual paperwork and fragmented spreadsheets by providing a centralized digital dashboard accessible by authorized personnel. It will enhance operational transparency, improve time management, and promote sustainability by optimizing existing resources rather than expanding the fleet or infrastructure.
 
 The system will be built with scalability and usability in mind, ensuring it can be deployed in multiple depots while maintaining secure and reliable access for administrators, supervisors, and operational staff.
+
+**Current build (MVP):** TransitLK runs against **one depot** — a single operational site with shared routes, schedules, and fleet data. This keeps development and demos simple while the core modules (route planning, scheduling, fleet, dashboard) are completed.
+
+**Future rollout:** The same platform is intended for **depots across Sri Lanka** (island-wide). The `Depot` entity and `depotId` on users, buses, and drivers are the foundation; later work adds depot scoping on routes/schedules, API filters by depot, and depot-manager dashboards limited to their site. Administrators retain system-wide visibility.
+
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) § Deployment & multi-depot roadmap.
 
 ---
 

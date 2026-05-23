@@ -1,12 +1,133 @@
-function Icon({ name, className = '', size = 22 }) {
+import {
+  AlertOctagon,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
+  BarChart3,
+  Bell,
+  BellRing,
+  Bus,
+  Calendar,
+  CalendarClock,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  CircleX,
+  ClipboardClock,
+  Clock,
+  CreditCard,
+  Download,
+  Eye,
+  FileText,
+  Fuel,
+  Gauge,
+  HelpCircle,
+  Home,
+  Info,
+  LayoutDashboard,
+  LayoutGrid,
+  Leaf,
+  LineChart,
+  LogOut,
+  Mail,
+  Map,
+  MessageCircle,
+  Minus,
+  MoreVertical,
+  Pencil,
+  PersonStanding,
+  Plus,
+  PlusCircle,
+  Ruler,
+  Search,
+  Send,
+  SlidersHorizontal,
+  Trash2,
+  User,
+  UserCog,
+  UserPlus,
+  Users,
+  Warehouse,
+  Wrench,
+  X,
+  XCircle,
+  Zap,
+} from 'lucide-react'
+
+/** Maps legacy Material icon names → Lucide components (macOS-style strokes). */
+const ICON_MAP = {
+  add: Plus,
+  add_circle: PlusCircle,
+  arrow_back: ArrowLeft,
+  arrow_forward: ArrowRight,
+  assessment: BarChart3,
+  bolt: Zap,
+  build: Wrench,
+  build_circle: Wrench,
+  calendar_month: Calendar,
+  calendar_today: Calendar,
+  cancel: XCircle,
+  chat_bubble: MessageCircle,
+  check_circle: CheckCircle,
+  chevron_left: ChevronLeft,
+  chevron_right: ChevronRight,
+  close: X,
+  dashboard: LayoutDashboard,
+  delete: Trash2,
+  directions_bus: Bus,
+  directions_run: PersonStanding,
+  download: Download,
+  eco: Leaf,
+  edit: Pencil,
+  emergency_home: Home,
+  error: CircleX,
+  event: Calendar,
+  group: Users,
+  help: HelpCircle,
+  info: Info,
+  insights: LineChart,
+  local_gas_station: Fuel,
+  logout: LogOut,
+  mail: Mail,
+  manage_accounts: UserCog,
+  map: Map,
+  more_vert: MoreVertical,
+  notifications: Bell,
+  notifications_active: BellRing,
+  payments: CreditCard,
+  pending_actions: ClipboardClock,
+  person: User,
+  person_add: UserPlus,
+  picture_as_pdf: FileText,
+  remove: Minus,
+  report_problem: AlertOctagon,
+  schedule: Clock,
+  schedule_send: CalendarClock,
+  search: Search,
+  send: Send,
+  space_dashboard: LayoutGrid,
+  speed: Gauge,
+  straighten: Ruler,
+  swap_horiz: ArrowLeftRight,
+  tune: SlidersHorizontal,
+  visibility: Eye,
+  warehouse: Warehouse,
+  warning: AlertTriangle,
+}
+
+const DefaultIcon = HelpCircle
+
+function Icon({ name, className = '', size = 22, strokeWidth = 1.75 }) {
+  const LucideIcon = ICON_MAP[name] || DefaultIcon
+
   return (
-    <span
-      className={`material-symbols-outlined ${className}`}
-      style={{ fontSize: size }}
-      aria-hidden={true}
-    >
-      {name}
-    </span>
+    <LucideIcon
+      className={`shrink-0 ${className}`}
+      size={size}
+      strokeWidth={strokeWidth}
+      aria-hidden
+    />
   )
 }
 
