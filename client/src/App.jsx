@@ -6,6 +6,7 @@ import Drivers from './pages/Drivers'
 import Buses from './pages/Buses'
 import Maintenance from './pages/Maintenance'
 import Reports from './pages/Reports'
+import Users from './pages/Users'
 import Login from './pages/Login'
 import DriverTrips from './pages/DriverTrips'
 import AppLayout from './components/AppLayout'
@@ -35,6 +36,7 @@ function App() {
             <Route path="/schedules" element={<Schedules />} />
             <Route path="/buses" element={<Buses />} />
             <Route path="/drivers" element={<Drivers />} />
+            <Route path="/users" element={<Users />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/my-trips" element={<DriverTrips />} />
