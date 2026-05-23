@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import bcrypt from 'bcryptjs'
 
 const driverSchema = new mongoose.Schema(
   {
@@ -12,6 +13,18 @@ const driverSchema = new mongoose.Schema(
       required: [true, 'License number is required'],
       trim: true,
       unique: true,
+    },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      minlength: 6,
+      select: false,
     },
     contactNo: {
       type: String,
@@ -33,6 +46,18 @@ const driverSchema = new mongoose.Schema(
   },
   { timestamps: true, collection: 'drivers' }
 )
+
+driverSchema.pre('save', async function (next) {
+  if (!this.isModified('password') || !this.password) return next()
+  const salt = await bcrypt.genSalt(10)
+  this.password = await bcrypt.hash(this.password, salt)
+  next()
+})
+
+driverSchema.methods.matchPassword = async function (enteredPassword) {
+  if (!this.password) return false
+  return bcrypt.compare(enteredPassword, this.password)
+}
 
 const Driver = mongoose.model('Driver', driverSchema)
 export default Driver

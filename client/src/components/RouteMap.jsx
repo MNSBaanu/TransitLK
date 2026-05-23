@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
+import { getGoogleMapsApiKey, loadGoogleMapsScript } from '../utils/googleMapsLoader'
 
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+const MAPS_KEY = getGoogleMapsApiKey()
 const DEFAULT_CENTER = { lat: 6.9271, lng: 79.8612 }
 
 function toLatLng(loc) {
@@ -15,18 +16,21 @@ function geocodeAddress(geocoder, address) {
       resolve(null)
       return
     }
-    geocoder.geocode({ address: `${address.trim()}, Sri Lanka` }, (results, status) => {
-      if (status === 'OK' && results[0]) {
-        const { lat, lng } = results[0].geometry.location
-        resolve({
-          lat: lat(),
-          lng: lng(),
-          address: results[0].formatted_address,
-        })
-      } else {
-        resolve(null)
+    geocoder.geocode(
+      { address: address.trim(), componentRestrictions: { country: 'LK' } },
+      (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const { lat, lng } = results[0].geometry.location
+          resolve({
+            lat: lat(),
+            lng: lng(),
+            address: results[0].formatted_address,
+          })
+        } else {
+          resolve(null)
+        }
       }
-    })
+    )
   })
 }
 
@@ -49,20 +53,9 @@ function RouteMap({
   useEffect(() => {
     if (!MAPS_KEY || scriptReady) return
 
-    const existing = document.querySelector('script[data-google-maps]')
-    if (existing) {
-      existing.addEventListener('load', () => setScriptReady(true))
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=places`
-    script.async = true
-    script.defer = true
-    script.dataset.googleMaps = 'true'
-    script.onload = () => setScriptReady(true)
-    script.onerror = () => setMapError('Failed to load Google Maps')
-    document.head.appendChild(script)
+    loadGoogleMapsScript()
+      .then(() => setScriptReady(true))
+      .catch(() => setMapError('Failed to load Google Maps'))
   }, [scriptReady])
 
   useEffect(() => {

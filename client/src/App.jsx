@@ -6,23 +6,46 @@ import Drivers from './pages/Drivers'
 import Buses from './pages/Buses'
 import Maintenance from './pages/Maintenance'
 import Reports from './pages/Reports'
+import Users from './pages/Users'
+import Login from './pages/Login'
+import DriverTrips from './pages/DriverTrips'
 import AppLayout from './components/AppLayout'
+import { RequireAuth, RoleGuard, PublicOnly } from './components/ProtectedRoute'
+import { homePathForRole } from './config/roles'
+import { useAuth } from './context/AuthContext'
+
+function RootRedirect() {
+  const { isAuthenticated, user, loading } = useAuth()
+  if (loading) return null
+  if (isAuthenticated && user) {
+    return <Navigate to={homePathForRole(user.role)} replace />
+  }
+  return <Navigate to="/login" replace />
+}
 
 function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/routes" element={<RoutesPage />} />
-        <Route path="/schedules" element={<Schedules />} />
-        <Route path="/drivers" element={<Drivers />} />
-        <Route path="/buses" element={<Buses />} />
-        <Route path="/maintenance" element={<Maintenance />} />
-        <Route path="/reports" element={<Reports />} />
+      <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
+
+      <Route element={<RequireAuth />}>
+        <Route element={<AppLayout />}>
+          <Route element={<RoleGuard />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/routes" element={<RoutesPage />} />
+            <Route path="/schedules" element={<Schedules />} />
+            <Route path="/buses" element={<Buses />} />
+            <Route path="/drivers" element={<Drivers />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/maintenance" element={<Maintenance />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/my-trips" element={<DriverTrips />} />
+          </Route>
+        </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<RootRedirect />} />
+      <Route path="*" element={<RootRedirect />} />
     </Routes>
   )
 }

@@ -1,5 +1,4 @@
 import Admin from '../models/Admin.js'
-import User from '../models/User.js'
 
 const populateAdmin = (query) =>
   query.populate('userId', 'name email role').populate('depotId', 'depotName location')
@@ -25,18 +24,23 @@ export const getAdminById = async (req, res) => {
 
 export const createAdmin = async (req, res) => {
   try {
-    const { userId, depotId } = req.body
-    if (!userId) return res.status(400).json({ message: 'userId is required' })
+    const { name, email, password, depotId, userId } = req.body
+    if (!name?.trim() || !email?.trim() || !password) {
+      return res.status(400).json({ message: 'name, email, and password are required' })
+    }
 
-    const user = await User.findById(userId)
-    if (!user) return res.status(400).json({ message: 'User not found' })
-
-    const admin = await Admin.create({ userId, depotId: depotId || undefined })
+    const admin = await Admin.create({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      depotId: depotId || undefined,
+      userId: userId || undefined,
+    })
     const populated = await populateAdmin(Admin.findById(admin._id))
     res.status(201).json(populated)
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Admin profile already exists for this user' })
+      return res.status(400).json({ message: 'Admin with this email already exists' })
     }
     res.status(500).json({ message: error.message })
   }
