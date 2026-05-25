@@ -23,7 +23,8 @@ const driverPopulate = {
   path: 'driverId',
   select: 'name licenseNo contactNo workingHours status',
 }
-const depotPopulate = { path: 'depotId', select: 'depotName location' }
+const depotPopulate = { path: 'depotId', select: 'depotCode depotName region location' }
+const PAGE_SIZE_OPTIONS = new Set([10, 15])
 
 const populateRoute = (query) =>
   query
@@ -31,6 +32,33 @@ const populateRoute = (query) =>
     .populate(driverPopulate)
     .populate(depotPopulate)
     .populate('createdBy', 'name email role')
+
+const sortRoutes = (query) =>
+  query.sort({ routeNo: 1, createdAt: 1 }).collation({ locale: 'en', numericOrdering: true })
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const buildRouteFilter = (req, search = '') => {
+  const filter = {}
+  if (!isSuperadministrator(req.user)) {
+    filter.depotId = requireUserDepot(req.user)
+  }
+
+  const trimmedSearch = search.trim()
+  if (trimmedSearch) {
+    const regex = new RegExp(escapeRegex(trimmedSearch), 'i')
+    filter.$or = [
+      { routeNo: regex },
+      { routeName: regex },
+      { startPoint: regex },
+      { endPoint: regex },
+      { viaDescription: regex },
+      { stops: regex },
+    ]
+  }
+
+  return filter
+}
 
 const validateBusAssignment = async (busId, routeServiceType, routeDepotId) => {
   if (!busId) return null
@@ -100,12 +128,56 @@ const prepareRouteData = (body) => {
 // @route   GET /api/routes
 export const getRoutes = async (req, res) => {
   try {
-    const filter = {}
-    if (!isSuperadministrator(req.user)) {
-      filter.depotId = requireUserDepot(req.user)
+    const rawSearch = typeof req.query.search === 'string' ? req.query.search : ''
+    const requestedPage = Number.parseInt(req.query.page, 10)
+    const requestedLimit = Number.parseInt(req.query.limit, 10)
+    const search = rawSearch.trim()
+    const wantsPagination =
+      Number.isFinite(requestedPage) || Number.isFinite(requestedLimit) || Boolean(search)
+    const filter = buildRouteFilter(req, search)
+
+    if (!wantsPagination) {
+      const routes = await populateRoute(sortRoutes(Route.find(filter)))
+      return res.json(routes)
     }
-    const routes = await populateRoute(Route.find(filter).sort({ createdAt: -1 }))
-    res.json(routes)
+
+    const limit = PAGE_SIZE_OPTIONS.has(requestedLimit) ? requestedLimit : 10
+    const totalItems = await Route.countDocuments(filter)
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / limit) : 1
+    const page = Math.min(Math.max(requestedPage || 1, 1), totalPages)
+    const skip = (page - 1) * limit
+
+    const [routes, active, assigned, avgDistanceResult] = await Promise.all([
+      populateRoute(sortRoutes(Route.find(filter).skip(skip).limit(limit))),
+      Route.countDocuments({ ...filter, status: 'active' }),
+      Route.countDocuments({
+        ...filter,
+        busId: { $exists: true, $ne: null },
+        driverId: { $exists: true, $ne: null },
+      }),
+      Route.aggregate([
+        { $match: filter },
+        { $group: { _id: null, avgDistance: { $avg: '$distance' } } },
+      ]),
+    ])
+
+    res.json({
+      items: routes,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+      summary: {
+        total: totalItems,
+        active,
+        assigned,
+        avgDistance: avgDistanceResult[0]?.avgDistance ?? null,
+      },
+    })
   } catch (error) {
     const status = error.statusCode || 500
     res.status(status).json({ message: error.message })
@@ -136,12 +208,12 @@ export const getRouteById = async (req, res) => {
 export const createRoute = async (req, res) => {
   try {
     const data = prepareRouteData(req.body)
-    const { routeName, distance, startPoint, endPoint, busId, driverId } = data
+    const { routeNo, routeName, distance, startPoint, endPoint, busId, driverId } = data
     const depotId = resolveWriteDepotId(req.user, data.depotId)
 
-    if (!routeName?.trim() || !startPoint?.trim() || !endPoint?.trim()) {
+    if (!routeNo?.trim() || !routeName?.trim() || !startPoint?.trim() || !endPoint?.trim()) {
       return res.status(400).json({
-        message: 'routeName, startPoint, and endPoint are required',
+        message: 'routeNo, routeName, startPoint, and endPoint are required',
       })
     }
     if (distance === undefined || distance === null || Number(distance) < 0) {
@@ -168,6 +240,9 @@ export const createRoute = async (req, res) => {
     const populated = await populateRoute(Route.findById(route._id))
     res.status(201).json(populated)
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Route number already exists for this depot' })
+    }
     const status = error.statusCode || 500
     res.status(status).json({ message: error.message })
   }
@@ -185,6 +260,10 @@ export const updateRoute = async (req, res) => {
 
     const data = prepareRouteData(req.body)
     const depotId = resolveWriteDepotId(req.user, data.depotId ?? existing.depotId)
+
+    if (data.routeNo !== undefined && !data.routeNo?.trim()) {
+      return res.status(400).json({ message: 'routeNo is required' })
+    }
 
     const nextBusId = data.busId !== undefined ? data.busId : existing.busId
     const nextDriverId = data.driverId !== undefined ? data.driverId : existing.driverId
@@ -206,6 +285,9 @@ export const updateRoute = async (req, res) => {
     const populated = await populateRoute(Route.findById(req.params.id))
     res.json(populated)
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Route number already exists for this depot' })
+    }
     const status = error.statusCode || 500
     res.status(status).json({ message: error.message })
   }

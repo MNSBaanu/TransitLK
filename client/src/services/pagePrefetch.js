@@ -4,6 +4,7 @@ import { getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
 const CACHE_TTL_MS = 60 * 1000
 const pageCache = new Map()
 const inflightRequests = new Map()
+const ROUTE_SUPPORT_CACHE_KEY = '__routes_support__'
 
 function asArray(value) {
   return Array.isArray(value) ? value : []
@@ -40,7 +41,14 @@ function getDefaultReportOptions() {
 }
 
 function normalizeOptions(path, options = {}) {
-  if (path === '/routes') return {}
+  if (path === '/routes') {
+    const limit = Number(options.limit)
+    return {
+      page: Math.max(Number(options.page) || 1, 1),
+      limit: [10, 15].includes(limit) ? limit : 10,
+      search: typeof options.search === 'string' ? options.search.trim() : '',
+    }
+  }
 
   if (path === '/schedules') {
     const defaults = getDefaultScheduleOptions()
@@ -65,7 +73,9 @@ function normalizeOptions(path, options = {}) {
 function getCacheKey(path, options = {}) {
   const normalized = normalizeOptions(path, options)
 
-  if (path === '/routes') return path
+  if (path === '/routes') {
+    return `${path}?page=${normalized.page}&limit=${normalized.limit}&search=${encodeURIComponent(normalized.search)}`
+  }
 
   if (path === '/schedules') {
     return `${path}?viewMode=${normalized.viewMode}&viewDate=${normalized.viewDate}`
@@ -82,17 +92,67 @@ function isFresh(entry) {
   return Boolean(entry) && Date.now() - entry.timestamp < CACHE_TTL_MS
 }
 
-async function fetchRoutesPageData() {
-  const [routeRes, busRes, driverRes] = await Promise.all([
-    api.get('/routes'),
-    api.get('/buses'),
-    api.get('/drivers'),
+async function fetchRouteSupportData({ force = false } = {}) {
+  if (!force) {
+    const cached = pageCache.get(ROUTE_SUPPORT_CACHE_KEY)
+    if (isFresh(cached)) return cached.data
+  }
+
+  if (inflightRequests.has(ROUTE_SUPPORT_CACHE_KEY)) {
+    return inflightRequests.get(ROUTE_SUPPORT_CACHE_KEY)
+  }
+
+  const request = Promise.all([api.get('/buses'), api.get('/drivers')])
+    .then(([busRes, driverRes]) => {
+      const data = {
+        buses: asArray(busRes.data),
+        drivers: asArray(driverRes.data),
+      }
+      pageCache.set(ROUTE_SUPPORT_CACHE_KEY, {
+        data,
+        timestamp: Date.now(),
+      })
+      return data
+    })
+    .finally(() => {
+      inflightRequests.delete(ROUTE_SUPPORT_CACHE_KEY)
+    })
+
+  inflightRequests.set(ROUTE_SUPPORT_CACHE_KEY, request)
+  return request
+}
+
+async function fetchRoutesPageData(options = {}) {
+  const { page, limit, search } = normalizeOptions('/routes', options)
+  const [routeRes, support] = await Promise.all([
+    api.get('/routes', {
+      params: { page, limit, search },
+    }),
+    fetchRouteSupportData(),
   ])
+  const routeData = routeRes.data || {}
 
   return {
-    routes: asArray(routeRes.data),
-    buses: asArray(busRes.data),
-    drivers: asArray(driverRes.data),
+    routes: asArray(routeData.items),
+    buses: support.buses,
+    drivers: support.drivers,
+    pagination: routeData.pagination || {
+      page,
+      limit,
+      totalItems: 0,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    },
+    summary: routeData.summary || {
+      total: 0,
+      active: 0,
+      assigned: 0,
+      avgDistance: null,
+    },
+    page,
+    limit,
+    search,
   }
 }
 

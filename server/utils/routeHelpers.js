@@ -1,10 +1,12 @@
 import { isWithinWorkingHours } from './fleetHelpers.js'
 
 const ALLOWED_FIELDS = [
+  'routeNo',
   'routeName',
   'distance',
   'startPoint',
   'endPoint',
+  'viaDescription',
   'stops',
   'startLocation',
   'endLocation',
@@ -19,6 +21,13 @@ export function sanitizeRouteBody(body) {
   const data = {}
   for (const key of ALLOWED_FIELDS) {
     if (body[key] !== undefined) data[key] = body[key]
+  }
+  if (data.routeNo !== undefined) data.routeNo = String(data.routeNo).trim()
+  if (data.routeName !== undefined) data.routeName = String(data.routeName).trim()
+  if (data.startPoint !== undefined) data.startPoint = String(data.startPoint).trim()
+  if (data.endPoint !== undefined) data.endPoint = String(data.endPoint).trim()
+  if (data.viaDescription !== undefined) {
+    data.viaDescription = String(data.viaDescription).trim() || undefined
   }
   if (Array.isArray(data.stops)) {
     data.stops = data.stops.map((s) => String(s).trim()).filter(Boolean)
