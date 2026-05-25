@@ -1,5 +1,6 @@
 import Depot from '../models/Depot.js'
 
+const normalizeDepotCode = (code) => (typeof code === 'string' ? code.trim().toUpperCase() : '')
 const normalizeRegion = (region) => (typeof region === 'string' ? region.trim() : '')
 
 export const getDepots = async (req, res) => {
@@ -23,14 +24,16 @@ export const getDepotById = async (req, res) => {
 
 export const createDepot = async (req, res) => {
   try {
-    const { region, depotName, location, contactNo } = req.body
+    const { depotCode, region, depotName, location, contactNo } = req.body
+    const normalizedDepotCode = normalizeDepotCode(depotCode)
     const normalizedRegion = normalizeRegion(region)
 
-    if (!normalizedRegion || !depotName?.trim()) {
-      return res.status(400).json({ message: 'region and depotName are required' })
+    if (!normalizedDepotCode || !normalizedRegion || !depotName?.trim()) {
+      return res.status(400).json({ message: 'depotCode, region and depotName are required' })
     }
 
     const depot = await Depot.create({
+      depotCode: normalizedDepotCode,
       region: normalizedRegion,
       depotName,
       location,
@@ -38,6 +41,9 @@ export const createDepot = async (req, res) => {
     })
     res.status(201).json(depot)
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Depot code already exists' })
+    }
     res.status(500).json({ message: error.message })
   }
 }
@@ -45,6 +51,12 @@ export const createDepot = async (req, res) => {
 export const updateDepot = async (req, res) => {
   try {
     const updates = { ...req.body }
+    if (updates.depotCode !== undefined) {
+      updates.depotCode = normalizeDepotCode(updates.depotCode)
+      if (!updates.depotCode) {
+        return res.status(400).json({ message: 'depotCode is required' })
+      }
+    }
     if (updates.region !== undefined) {
       updates.region = normalizeRegion(updates.region)
       if (!updates.region) {
@@ -59,6 +71,9 @@ export const updateDepot = async (req, res) => {
     if (!depot) return res.status(404).json({ message: 'Depot not found' })
     res.json(depot)
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Depot code already exists' })
+    }
     res.status(500).json({ message: error.message })
   }
 }

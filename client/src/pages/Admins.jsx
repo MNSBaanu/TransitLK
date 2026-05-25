@@ -181,7 +181,7 @@ function AdminModal({ admin, depots, onClose, onSave }) {
               </option>
               {depots.map((depot) => (
                 <option key={depot._id} value={depot._id}>
-                  {depot.depotName}
+                  {`${depot.depotCode || '—'} - ${depot.depotName}`}
                 </option>
               ))}
             </select>
@@ -261,7 +261,9 @@ function Admins() {
         admin.name?.toLowerCase().includes(q) ||
         admin.email?.toLowerCase().includes(q) ||
         ROLE_LABELS[admin.role]?.toLowerCase().includes(q) ||
-        admin.depotId?.depotName?.toLowerCase().includes(q)
+        admin.depotId?.depotName?.toLowerCase().includes(q) ||
+        admin.depotId?.depotCode?.toLowerCase().includes(q) ||
+        admin.depotId?.region?.toLowerCase().includes(q)
     )
   }, [admins, search])
 
@@ -300,7 +302,7 @@ function Admins() {
     <div className="w-full">
       <ModuleHeader
         title="Administrator Management"
-        subtitle="Create superadministrators and depot administrators, then assign depot ownership for system-wide control."
+        subtitle="Create superadministrators and Administrators, then assign depot ownership for system-wide control."
         action={
           <ModulePrimaryButton icon="manage_accounts" onClick={() => setModal('add')}>
             Add administrator
@@ -318,7 +320,7 @@ function Admins() {
         items={[
           { label: 'Admin accounts', value: stats.total, icon: 'manage_accounts' },
           { label: 'Superadmins', value: stats.superadmins, icon: 'shield_person' },
-          { label: 'Depot administrators', value: stats.administrators, icon: 'person' },
+          { label: 'Administrators', value: stats.administrators, icon: 'person' },
         ]}
       />
 
@@ -376,7 +378,9 @@ function Admins() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-on-surface-variant">
-                    {admin.depotId?.depotName || 'System-wide'}
+                    {admin.depotId
+                      ? `${admin.depotId.depotCode || '—'} - ${admin.depotId.depotName}`
+                      : 'System-wide'}
                   </td>
                   <td className="px-4 py-3">
                     <AccessBadges role={admin.role} />
