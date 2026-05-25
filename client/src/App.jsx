@@ -6,7 +6,9 @@ import Drivers from './pages/Drivers'
 import Buses from './pages/Buses'
 import Maintenance from './pages/Maintenance'
 import Reports from './pages/Reports'
+import Admins from './pages/Admins'
 import Users from './pages/Users'
+import Depots from './pages/Depots'
 import Login from './pages/Login'
 import DriverTrips from './pages/DriverTrips'
 import AppLayout from './components/AppLayout'
@@ -32,11 +34,13 @@ function App() {
         <Route element={<AppLayout />}>
           <Route element={<RoleGuard />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admins" element={<Admins />} />
             <Route path="/routes" element={<RoutesPage />} />
             <Route path="/schedules" element={<Schedules />} />
             <Route path="/buses" element={<Buses />} />
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/depots" element={<Depots />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/my-trips" element={<DriverTrips />} />
