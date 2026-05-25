@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { homePathForRole, ROLE_LABELS } from '../config/roles'
 
 const DEMO_ACCOUNTS = [
-  { email: 'admin@transitlk.lk', role: 'administrator', hint: 'Full system access' },
+  { email: 'superadmin@transitlk.lk', role: 'superadministrator', hint: 'Manage depots and administrators' },
+  { email: 'admin@transitlk.lk', role: 'administrator', hint: 'Assigned depot administration' },
   { email: 'scheduler@transitlk.lk', role: 'transport_scheduler', hint: 'Routes & schedules' },
   { email: 'fleet@transitlk.lk', role: 'fleet_manager', hint: 'Buses, drivers, maintenance' },
   { email: 'depot@transitlk.lk', role: 'depot_manager', hint: 'Dashboard & approvals' },

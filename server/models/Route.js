@@ -56,6 +56,11 @@ const routeSchema = new mongoose.Schema(
       type: [stopLocationSchema],
       default: [],
     },
+    depotId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Depot',
+      index: true,
+    },
     busId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Bus',

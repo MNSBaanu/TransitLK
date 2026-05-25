@@ -37,7 +37,7 @@ export const login = async (req, res) => {
     const admin = await Admin.findOne({ email: normalizedEmail })
     if (admin && (await admin.matchPassword(password))) {
       return res.json(
-        buildAuthResponse(admin, ROLES.ADMINISTRATOR, 'admin', {
+        buildAuthResponse(admin, admin.role, 'admin', {
           depotId: admin.depotId,
         })
       )
@@ -107,7 +107,7 @@ export const getMe = async (req, res) => {
         _id: admin._id,
         name: admin.name,
         email: admin.email,
-        role: ROLES.ADMINISTRATOR,
+        role: admin.role,
         accountType: 'admin',
         depotId: admin.depotId,
       })

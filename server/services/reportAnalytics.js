@@ -4,6 +4,7 @@ import Driver from '../models/Driver.js'
 import Bus from '../models/Bus.js'
 import FuelLog from '../models/FuelLog.js'
 import Maintenance from '../models/Maintenance.js'
+import { isSuperadministrator, requireUserDepot } from '../utils/depotAccess.js'
 import {
   startOfDay,
   endOfDay,
@@ -49,26 +50,46 @@ function bucketLabel(date, index, period, bucketCount) {
   return `W${index + 1}`
 }
 
-export async function buildDashboardAnalytics(query = {}) {
+export async function buildDashboardAnalytics(query = {}, user = null) {
   const { from, to, period = 'monthly', routeId, busId } = query
   const { start, end, mode } = parseReportRange({ from, to, period })
+  const scoped = user && !isSuperadministrator(user)
+  const depotId = scoped ? requireUserDepot(user) : null
+
+  const [scopedRouteIds, scopedBusIds] = await Promise.all([
+    scoped ? Route.find({ depotId }).distinct('_id') : Promise.resolve(null),
+    scoped ? Bus.find({ depotId }).distinct('_id') : Promise.resolve(null),
+  ])
 
   const scheduleFilter = { tripDate: { $gte: start, $lte: end } }
+  if (scoped) scheduleFilter.routeId = { $in: scopedRouteIds || [] }
   if (routeId) scheduleFilter.routeId = routeId
+  if (scoped && routeId && !scopedRouteIds.some((id) => String(id) === String(routeId))) {
+    scheduleFilter.routeId = null
+  }
   if (busId) scheduleFilter.busId = busId
+  if (scoped && busId && !scopedBusIds.some((id) => String(id) === String(busId))) {
+    scheduleFilter.busId = null
+  }
 
   const [schedules, routes, drivers, buses, fuelLogs, maintenanceRecords] = await Promise.all([
     Schedule.find(scheduleFilter)
       .populate('routeId', 'routeName distance status serviceType')
       .populate('busId', 'regNumber capacity status')
       .populate('driverId', 'name status licenseNo'),
-    Route.find().select('routeName distance status startPoint endPoint'),
-    Driver.find().select('name status workingHours'),
-    Bus.find().select('regNumber capacity status serviceType mileage'),
-    FuelLog.find({ fuel_date: { $gte: start, $lte: end } })
+    Route.find(scoped ? { depotId } : {}).select('routeName distance status startPoint endPoint'),
+    Driver.find(scoped ? { depotId } : {}).select('name status workingHours'),
+    Bus.find(scoped ? { depotId } : {}).select('regNumber capacity status serviceType mileage'),
+    FuelLog.find({
+      ...(scoped ? { bus_id: { $in: scopedBusIds || [] } } : {}),
+      fuel_date: { $gte: start, $lte: end },
+    })
       .populate('bus_id', 'regNumber')
       .sort({ fuel_date: -1 }),
-    Maintenance.find({ service_date: { $gte: start, $lte: end } })
+    Maintenance.find({
+      ...(scoped ? { bus_id: { $in: scopedBusIds || [] } } : {}),
+      service_date: { $gte: start, $lte: end },
+    })
       .populate('bus_id', 'regNumber')
       .sort({ service_date: -1 }),
   ])
