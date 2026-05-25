@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
+import { getCachedPageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import RouteListTable from '../components/routes/RouteListTable'
 import RouteEditView from '../components/routes/RouteEditView'
@@ -60,15 +61,16 @@ function routeFromApi(route) {
 }
 
 function RoutesPage() {
+  const initialData = getCachedPageData('/routes')
   const [pageView, setPageView] = useState('list')
   const [search, setSearch] = useState('')
-  const [routes, setRoutes] = useState([])
-  const [buses, setBuses] = useState([])
-  const [drivers, setDrivers] = useState([])
+  const [routes, setRoutes] = useState(() => initialData?.routes || [])
+  const [buses, setBuses] = useState(() => initialData?.buses || [])
+  const [drivers, setDrivers] = useState(() => initialData?.drivers || [])
   const [assignRoute, setAssignRoute] = useState(null)
   const [deleteTargetId, setDeleteTargetId] = useState(null)
   const [deleting, setDeleting] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!initialData)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
@@ -85,12 +87,32 @@ function RoutesPage() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  const loadRoutes = useCallback(async () => {
+  const invalidateRelatedPages = useCallback(() => {
+    invalidatePageData('/routes')
+    invalidatePageData('/schedules')
+    invalidatePageData('/reports')
+  }, [])
+
+  const loadRoutes = useCallback(async ({ force = false } = {}) => {
+    if (!force) {
+      const cached = getCachedPageData('/routes')
+      if (cached) {
+        setRoutes(cached.routes)
+        setBuses(cached.buses)
+        setDrivers(cached.drivers)
+        setLoading(false)
+        setError('')
+        return
+      }
+    }
+
     setLoading(true)
     setError('')
     try {
-      const { data } = await api.get('/routes')
-      setRoutes(Array.isArray(data) ? data : [])
+      const data = await loadPageData('/routes', undefined, { force })
+      setRoutes(data.routes)
+      setBuses(data.buses)
+      setDrivers(data.drivers)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load routes')
     } finally {
@@ -98,24 +120,15 @@ function RoutesPage() {
     }
   }, [])
 
-  const loadFleet = useCallback(async () => {
-    try {
-      const [busRes, driverRes] = await Promise.all([
-        api.get('/buses'),
-        api.get('/drivers'),
-      ])
-      setBuses(Array.isArray(busRes.data) ? busRes.data : [])
-      setDrivers(Array.isArray(driverRes.data) ? driverRes.data : [])
-    } catch {
-      setBuses([])
-      setDrivers([])
-    }
-  }, [])
-
   useEffect(() => {
-    loadRoutes()
-    loadFleet()
-  }, [loadRoutes, loadFleet])
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (!cancelled) loadRoutes()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [loadRoutes])
 
   const filteredRoutes = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -319,6 +332,7 @@ function RoutesPage() {
         const { data } = await api.post('/routes', payload)
         setRoutes((prev) => [data, ...prev])
       }
+      invalidateRelatedPages()
       showToast('Route saved successfully')
       openList()
     } catch (err) {
@@ -341,6 +355,7 @@ function RoutesPage() {
     try {
       await api.delete(`/routes/${deleteTargetId}`)
       setRoutes((prev) => prev.filter((r) => r._id !== deleteTargetId))
+      invalidateRelatedPages()
       if (selectedId === deleteTargetId && (pageView === 'edit' || pageView === 'view')) {
         openList()
       }
@@ -430,6 +445,7 @@ function RoutesPage() {
             onClose={() => setAssignRoute(null)}
             onSaved={(updated) => {
               setRoutes((prev) => prev.map((r) => (r._id === updated._id ? updated : r)))
+              invalidateRelatedPages()
               showToast('Fleet assignment saved')
             }}
           />
