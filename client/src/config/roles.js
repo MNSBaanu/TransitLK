@@ -25,7 +25,11 @@ export const STAFF_ROLES = [
 
 /** Modules each role can reach in the depot workspace */
 export const ROLE_ACCESS_MODULES = {
-  [ROLES.SUPERADMINISTRATOR]: ['Routes', 'Schedules', 'Analytics'],
+  [ROLES.SUPERADMINISTRATOR]: [
+    'Depot Management',
+    'Administrator Management',
+    'Global Reports',
+  ],
   [ROLES.ADMINISTRATOR]: [
     'Dashboard',
     'Routes',
@@ -46,7 +50,7 @@ export function accessModulesForRole(role) {
 
 /** Default landing path after login per role */
 export const ROLE_HOME_PATH = {
-  [ROLES.SUPERADMINISTRATOR]: '/routes',
+  [ROLES.SUPERADMINISTRATOR]: '/admins',
   [ROLES.ADMINISTRATOR]: '/dashboard',
   [ROLES.TRANSPORT_SCHEDULER]: '/routes',
   [ROLES.FLEET_MANAGER]: '/buses',
@@ -56,7 +60,7 @@ export const ROLE_HOME_PATH = {
 
 /** Paths each role may access (URL guard) */
 export const ROLE_ALLOWED_PATHS = {
-  [ROLES.SUPERADMINISTRATOR]: ['/routes', '/schedules', '/reports'],
+  [ROLES.SUPERADMINISTRATOR]: ['/admins', '/depots', '/reports'],
   [ROLES.ADMINISTRATOR]: [
     '/dashboard',
     '/routes',
@@ -75,8 +79,10 @@ export const ROLE_ALLOWED_PATHS = {
 
 export const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard', roles: [ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER] },
-  { path: '/routes', label: 'Routes', roles: [ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER] },
-  { path: '/schedules', label: 'Schedules', roles: [ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER, ROLES.DEPOT_MANAGER] },
+  { path: '/admins', label: 'Admins', roles: [ROLES.SUPERADMINISTRATOR] },
+  { path: '/depots', label: 'Depots', roles: [ROLES.SUPERADMINISTRATOR] },
+  { path: '/routes', label: 'Routes', roles: [ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER] },
+  { path: '/schedules', label: 'Schedules', roles: [ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER, ROLES.DEPOT_MANAGER] },
   { path: '/buses', label: 'Fleet & Drivers', roles: [ROLES.ADMINISTRATOR, ROLES.FLEET_MANAGER] },
   { path: '/users', label: 'Users', roles: [ROLES.ADMINISTRATOR] },
   { path: '/maintenance', label: 'Maintenance', roles: [ROLES.ADMINISTRATOR, ROLES.FLEET_MANAGER] },

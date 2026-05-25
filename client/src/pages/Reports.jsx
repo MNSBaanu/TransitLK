@@ -6,6 +6,8 @@ import api from '../services/api'
 import { getCachedPageData, loadPageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
+import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../config/roles'
 
 const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-fleet-ink-muted'
 
@@ -142,6 +144,7 @@ function FuelTrendBars({ trend = [] }) {
 }
 
 function Reports() {
+  const { user } = useAuth()
   const printRef = useRef(null)
   const initialPeriod = 'monthly'
   const initialRange = applyPeriodRange(initialPeriod)
@@ -300,7 +303,11 @@ function Reports() {
 
       <ModuleHeader
         title="Reporting & Analytics"
-        subtitle="Trip completion, route performance, and fuel trends from live operations data"
+        subtitle={
+          user?.role === ROLES.SUPERADMINISTRATOR
+            ? 'Global reports across all depots, including trip completion, route performance, and fuel trends'
+            : 'Trip completion, route performance, and fuel trends from live operations data'
+        }
         action={
           <div className="glass-panel flex flex-wrap items-center gap-3 p-2">
             <div>
