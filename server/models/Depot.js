@@ -2,6 +2,12 @@ import mongoose from 'mongoose'
 
 const depotSchema = new mongoose.Schema(
   {
+    region: {
+      type: String,
+      required: [true, 'Region is required'],
+      trim: true,
+      index: true,
+    },
     depotName: {
       type: String,
       required: [true, 'Depot name is required'],

@@ -9,15 +9,10 @@ import {
   ModuleToast,
 } from '../components/layout/ModuleLayout'
 
-const EMPTY_FORM = {
-  depotName: '',
-  location: '',
-  contactNo: '',
-}
-
-function DepotModal({ depot, onClose, onSave }) {
+function DepotModal({ depot, regionOptions, onClose, onSave }) {
   const isEdit = Boolean(depot)
   const [form, setForm] = useState(() => ({
+    region: depot?.region || '',
     depotName: depot?.depotName || '',
     location: depot?.location || '',
     contactNo: depot?.contactNo || '',
@@ -37,6 +32,7 @@ function DepotModal({ depot, onClose, onSave }) {
 
     try {
       const payload = {
+        region: form.region.trim(),
         depotName: form.depotName.trim(),
         location: form.location.trim(),
         contactNo: form.contactNo.trim(),
@@ -68,6 +64,23 @@ function DepotModal({ depot, onClose, onSave }) {
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">Region</span>
+            <input
+              name="region"
+              value={form.region}
+              onChange={handleChange}
+              list="depot-region-options"
+              required
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              placeholder="Enter region"
+            />
+            <datalist id="depot-region-options">
+              {regionOptions.map((region) => (
+                <option key={region} value={region} />
+              ))}
+            </datalist>
+          </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Depot name</span>
             <input
@@ -152,11 +165,17 @@ function Depots() {
     if (!q) return depots
     return depots.filter(
       (depot) =>
+        depot.region?.toLowerCase().includes(q) ||
         depot.depotName?.toLowerCase().includes(q) ||
         depot.location?.toLowerCase().includes(q) ||
         depot.contactNo?.toLowerCase().includes(q)
     )
   }, [depots, search])
+
+  const regionOptions = useMemo(
+    () => [...new Set(depots.map((depot) => depot.region?.trim()).filter(Boolean))].sort(),
+    [depots]
+  )
 
   const handleSaved = async () => {
     setModal(null)
@@ -181,9 +200,9 @@ function Depots() {
     <div className="w-full">
       <ModuleHeader
         title="Depot Management"
-        subtitle="Create and maintain depot records used to scope administrators, staff, and operational data."
+        subtitle="Create and maintain region-linked depot records used to scope administrators, staff, and operational data."
         action={
-          <ModulePrimaryButton icon="add_business" onClick={() => setModal(EMPTY_FORM)}>
+          <ModulePrimaryButton icon="add_business" onClick={() => setModal('add')}>
             Add depot
           </ModulePrimaryButton>
         }
@@ -192,7 +211,7 @@ function Depots() {
       <ModuleAlert
         variant="warning"
         title="Depots control administrator scope"
-        body="Assign administrators to depots from Users & Access after creating depot master records here."
+        body="Assign administrators to depots after creating region-backed depot master records here."
       />
 
       <ModuleStats
@@ -200,9 +219,9 @@ function Depots() {
           { label: 'Total depots', value: depots.length, icon: 'domain' },
           { label: 'Visible results', value: filtered.length, icon: 'travel_explore' },
           {
-            label: 'Locations listed',
-            value: new Set(depots.map((depot) => depot.location).filter(Boolean)).size,
-            icon: 'place',
+            label: 'Regions listed',
+            value: new Set(depots.map((depot) => depot.region).filter(Boolean)).size,
+            icon: 'map',
           },
         ]}
       />
@@ -218,7 +237,7 @@ function Depots() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search depots by name, location, or contact..."
+            placeholder="Search depots by region, name, location, or contact..."
             className="w-full rounded-lg border border-outline-variant py-2 pl-9 pr-3 text-sm outline-none focus:border-neutral-900"
           />
         </div>
@@ -228,6 +247,7 @@ function Depots() {
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-outline-variant bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              <th className="px-4 py-3">Region</th>
               <th className="px-4 py-3">Depot</th>
               <th className="px-4 py-3">Location</th>
               <th className="px-4 py-3">Contact</th>
@@ -238,19 +258,20 @@ function Depots() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading depots...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
                   No depots found.
                 </td>
               </tr>
             ) : (
               filtered.map((depot) => (
                 <tr key={depot._id} className="border-b border-outline-variant/60 last:border-0">
+                  <td className="px-4 py-3 text-on-surface-variant">{depot.region || '—'}</td>
                   <td className="px-4 py-3 font-medium text-neutral-900">{depot.depotName}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{depot.location || '—'}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{depot.contactNo || '—'}</td>
@@ -284,7 +305,8 @@ function Depots() {
 
       {modal && (
         <DepotModal
-          depot={modal === EMPTY_FORM ? null : modal}
+          depot={modal === 'add' ? null : modal}
+          regionOptions={regionOptions}
           onClose={() => setModal(null)}
           onSave={handleSaved}
         />
