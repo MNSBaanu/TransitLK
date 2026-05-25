@@ -1,6 +1,7 @@
 import Route from '../models/Route.js'
 import Bus from '../models/Bus.js'
 import Driver from '../models/Driver.js'
+import Schedule from '../models/Schedule.js'
 import {
   sanitizeRouteBody,
   validateLocation,
@@ -302,6 +303,14 @@ export const deleteRoute = async (req, res) => {
       return res.status(404).json({ message: 'Route not found' })
     }
     assertDepotAccess(req.user, route.depotId, 'Not allowed to manage this route')
+
+    const linkedSchedules = await Schedule.countDocuments({ routeId: route._id })
+    if (linkedSchedules > 0) {
+      return res.status(409).json({
+        message: `Cannot delete route because ${linkedSchedules} schedule(s) are linked to it. Remove those schedules first.`,
+      })
+    }
+
     await route.deleteOne()
     res.json({ message: 'Route removed', id: route._id })
   } catch (error) {
