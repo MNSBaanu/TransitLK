@@ -836,9 +836,15 @@ function SchedulesPage() {
         onApprove={handleApprove}
         onReject={handleReject}
         canApprove={
-          user?.role === ROLES.DEPOT_MANAGER || user?.role === ROLES.ADMINISTRATOR
+          user?.role === ROLES.SUPERADMINISTRATOR ||
+          user?.role === ROLES.DEPOT_MANAGER ||
+          user?.role === ROLES.ADMINISTRATOR
         }
-        canSubmit={user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR}
+        canSubmit={
+          user?.role === ROLES.SUPERADMINISTRATOR ||
+          user?.role === ROLES.TRANSPORT_SCHEDULER ||
+          user?.role === ROLES.ADMINISTRATOR
+        }
       />
 
       {error && !showTimetable && (
@@ -977,7 +983,9 @@ function SchedulesPage() {
         onCancelTrip={handleCancelTrip}
         onSubmitDraft={handleSubmitDraft}
         canSubmitDraft={
-          user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR
+          user?.role === ROLES.SUPERADMINISTRATOR ||
+          user?.role === ROLES.TRANSPORT_SCHEDULER ||
+          user?.role === ROLES.ADMINISTRATOR
         }
         adjustConflict={adjustConflict}
         onMaintenanceSwap={handleMaintenanceSwap}

@@ -7,21 +7,32 @@ import connectDB from '../config/db.js'
 import Admin from '../models/Admin.js'
 import User from '../models/User.js'
 import Driver from '../models/Driver.js'
+import Depot from '../models/Depot.js'
 import { ROLES } from '../utils/roles.js'
 
 dotenv.config()
 
 const PASSWORD = 'password123'
 
-const accounts = {
+const baseAccounts = {
+  superadmin: {
+    model: Admin,
+    filter: { email: 'superadmin@transitlk.lk' },
+    data: {
+      name: 'Super Administrator',
+      email: 'superadmin@transitlk.lk',
+      password: PASSWORD,
+      role: ROLES.SUPERADMINISTRATOR,
+    },
+  },
   admin: {
     model: Admin,
     filter: { email: 'admin@transitlk.lk' },
     data: {
-      name: 'System Administrator',
+      name: 'Depot Administrator',
       email: 'admin@transitlk.lk',
       password: PASSWORD,
-      role: 'administrator',
+      role: ROLES.ADMINISTRATOR,
     },
   },
   scheduler: {
@@ -83,6 +94,18 @@ async function seedDriverLogin() {
 
 async function seed() {
   await connectDB()
+  const defaultDepot = await Depot.findOne().sort({ createdAt: 1 })
+
+  const accounts = {
+    ...baseAccounts,
+    admin: {
+      ...baseAccounts.admin,
+      data: {
+        ...baseAccounts.admin.data,
+        depotId: defaultDepot?._id,
+      },
+    },
+  }
 
   for (const [key, { model, filter, data }] of Object.entries(accounts)) {
     const existing = await model.findOne(filter)
