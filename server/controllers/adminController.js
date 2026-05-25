@@ -3,7 +3,7 @@ import { emailInUse } from '../utils/accountEmails.js'
 import { ROLES } from '../utils/roles.js'
 
 const populateAdmin = (query) =>
-  query.populate('userId', 'name email role').populate('depotId', 'depotName location')
+  query.populate('userId', 'name email role').populate('depotId', 'depotCode depotName region location')
 
 export const getAdmins = async (req, res) => {
   try {

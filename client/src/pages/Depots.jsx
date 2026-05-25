@@ -12,6 +12,7 @@ import {
 function DepotModal({ depot, regionOptions, onClose, onSave }) {
   const isEdit = Boolean(depot)
   const [form, setForm] = useState(() => ({
+    depotCode: depot?.depotCode || '',
     region: depot?.region || '',
     depotName: depot?.depotName || '',
     location: depot?.location || '',
@@ -32,6 +33,7 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
 
     try {
       const payload = {
+        depotCode: form.depotCode.trim(),
         region: form.region.trim(),
         depotName: form.depotName.trim(),
         location: form.location.trim(),
@@ -64,6 +66,17 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">Depot code</span>
+            <input
+              name="depotCode"
+              value={form.depotCode}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm uppercase outline-none focus:border-neutral-900"
+              placeholder="ML"
+            />
+          </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Region</span>
             <input
@@ -165,6 +178,7 @@ function Depots() {
     if (!q) return depots
     return depots.filter(
       (depot) =>
+        depot.depotCode?.toLowerCase().includes(q) ||
         depot.region?.toLowerCase().includes(q) ||
         depot.depotName?.toLowerCase().includes(q) ||
         depot.location?.toLowerCase().includes(q) ||
@@ -237,7 +251,7 @@ function Depots() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search depots by region, name, location, or contact..."
+            placeholder="Search depots by code, region, name, location, or contact..."
             className="w-full rounded-lg border border-outline-variant py-2 pl-9 pr-3 text-sm outline-none focus:border-neutral-900"
           />
         </div>
@@ -247,6 +261,7 @@ function Depots() {
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-outline-variant bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Region</th>
               <th className="px-4 py-3">Depot</th>
               <th className="px-4 py-3">Location</th>
@@ -258,19 +273,20 @@ function Depots() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading depots...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">
                   No depots found.
                 </td>
               </tr>
             ) : (
               filtered.map((depot) => (
                 <tr key={depot._id} className="border-b border-outline-variant/60 last:border-0">
+                  <td className="px-4 py-3 text-on-surface-variant">{depot.depotCode || '—'}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{depot.region || '—'}</td>
                   <td className="px-4 py-3 font-medium text-neutral-900">{depot.depotName}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{depot.location || '—'}</td>

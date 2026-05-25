@@ -384,7 +384,7 @@ function Users() {
         title="Users & Access"
         subtitle={
           isSuperadmin
-            ? 'Manage superadministrators, depot administrators, and staff access across the workspace.'
+            ? 'Manage superadministrators, Administrators, and staff access across the workspace.'
             : 'Manage staff who can sign in to the depot workspace and which modules they can use.'
         }
         action={
