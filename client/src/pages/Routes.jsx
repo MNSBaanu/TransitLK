@@ -3,7 +3,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { getCachedPageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
+import {
+  getCachedPageData,
+  invalidatePageData,
+  loadPageData,
+  prefetchPageData,
+} from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import RouteListTable from '../components/routes/RouteListTable'
 import RouteEditView from '../components/routes/RouteEditView'
@@ -24,10 +29,12 @@ import {
   ModuleToast,
 } from '../components/layout/ModuleLayout'
 const emptyForm = {
+  routeNo: '',
   routeName: '',
   distance: '',
   startPoint: '',
   endPoint: '',
+  viaDescription: '',
   stops: [],
   startLocation: null,
   endLocation: null,
@@ -38,17 +45,42 @@ const emptyForm = {
   driverId: '',
 }
 
+const DEFAULT_PAGE_SIZE = 10
+const PAGE_SIZE_OPTIONS = [10, 15]
+const DEFAULT_ROUTE_OPTIONS = {
+  page: 1,
+  limit: DEFAULT_PAGE_SIZE,
+  search: '',
+}
+const EMPTY_PAGINATION = {
+  page: 1,
+  limit: DEFAULT_PAGE_SIZE,
+  totalItems: 0,
+  totalPages: 1,
+  hasNextPage: false,
+  hasPreviousPage: false,
+}
+const EMPTY_SUMMARY = {
+  total: 0,
+  active: 0,
+  assigned: 0,
+  avgDistance: null,
+}
+
 function routeCode(route) {
+  if (route?.routeNo) return route.routeNo
   if (!route?._id) return 'NEW'
   return route._id.slice(-6).toUpperCase()
 }
 
 function routeFromApi(route) {
   return {
+    routeNo: route.routeNo || '',
     routeName: route.routeName || '',
     distance: String(route.distance ?? ''),
     startPoint: route.startPoint || '',
     endPoint: route.endPoint || '',
+    viaDescription: route.viaDescription || '',
     stops: route.stops?.length ? [...route.stops] : [],
     startLocation: route.startLocation || null,
     endLocation: route.endLocation || null,
@@ -61,12 +93,17 @@ function routeFromApi(route) {
 }
 
 function RoutesPage() {
-  const initialData = getCachedPageData('/routes')
+  const initialData = getCachedPageData('/routes', DEFAULT_ROUTE_OPTIONS)
   const [pageView, setPageView] = useState('list')
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState(() => initialData?.search || '')
+  const [search, setSearch] = useState(() => initialData?.search || '')
+  const [currentPage, setCurrentPage] = useState(() => initialData?.pagination?.page || 1)
+  const [pageSize, setPageSize] = useState(() => initialData?.pagination?.limit || DEFAULT_PAGE_SIZE)
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
   const [buses, setBuses] = useState(() => initialData?.buses || [])
   const [drivers, setDrivers] = useState(() => initialData?.drivers || [])
+  const [pagination, setPagination] = useState(() => initialData?.pagination || EMPTY_PAGINATION)
+  const [summary, setSummary] = useState(() => initialData?.summary || EMPTY_SUMMARY)
   const [assignRoute, setAssignRoute] = useState(null)
   const [deleteTargetId, setDeleteTargetId] = useState(null)
   const [deleting, setDeleting] = useState(false)
@@ -93,13 +130,20 @@ function RoutesPage() {
     invalidatePageData('/reports')
   }, [])
 
-  const loadRoutes = useCallback(async ({ force = false } = {}) => {
+  const loadRoutes = useCallback(
+    async ({ page = currentPage, limit = pageSize, search: searchTerm = search, force = false } = {}) => {
     if (!force) {
-      const cached = getCachedPageData('/routes')
+        const cached = getCachedPageData('/routes', {
+          page,
+          limit,
+          search: searchTerm,
+        })
       if (cached) {
         setRoutes(cached.routes)
         setBuses(cached.buses)
         setDrivers(cached.drivers)
+          setPagination(cached.pagination || EMPTY_PAGINATION)
+          setSummary(cached.summary || EMPTY_SUMMARY)
         setLoading(false)
         setError('')
         return
@@ -109,46 +153,77 @@ function RoutesPage() {
     setLoading(true)
     setError('')
     try {
-      const data = await loadPageData('/routes', undefined, { force })
+        const data = await loadPageData(
+          '/routes',
+          {
+            page,
+            limit,
+            search: searchTerm,
+          },
+          { force }
+        )
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
+        setPagination(data.pagination || EMPTY_PAGINATION)
+        setSummary(data.summary || EMPTY_SUMMARY)
+        if (data.pagination?.page && data.pagination.page !== currentPage) {
+          setCurrentPage(data.pagination.page)
+        }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load routes')
     } finally {
       setLoading(false)
     }
-  }, [])
+    },
+    [currentPage, pageSize, search]
+  )
 
   useEffect(() => {
     let cancelled = false
     Promise.resolve().then(() => {
-      if (!cancelled) loadRoutes()
+      if (!cancelled) {
+        loadRoutes({
+          page: currentPage,
+          limit: pageSize,
+          search,
+        })
+      }
     })
     return () => {
       cancelled = true
     }
-  }, [loadRoutes])
+  }, [currentPage, pageSize, search, loadRoutes])
 
-  const filteredRoutes = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return routes
-    return routes.filter(
-      (r) =>
-        r.routeName?.toLowerCase().includes(q) ||
-        r.startPoint?.toLowerCase().includes(q) ||
-        r.endPoint?.toLowerCase().includes(q)
-    )
-  }, [routes, search])
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1)
+      setSearch(searchInput.trim())
+    }, 250)
+    return () => clearTimeout(timeoutId)
+  }, [searchInput])
+
+  useEffect(() => {
+    if (!pagination.hasNextPage) return
+    prefetchPageData('/routes', {
+      page: pagination.page + 1,
+      limit: pagination.limit,
+      search,
+    })
+  }, [pagination, search])
 
   const routeStats = useMemo(() => {
-    const active = routes.filter((r) => r.status === 'active').length
-    const assigned = routes.filter((r) => r.busId && r.driverId).length
-    const avgDist = routes.length
-      ? (routes.reduce((s, r) => s + (r.distance || 0), 0) / routes.length).toFixed(1)
-      : '—'
-    return { total: routes.length, active, assigned, avgDist }
-  }, [routes])
+    const avgDist =
+      summary.avgDistance == null || Number.isNaN(Number(summary.avgDistance))
+        ? '—'
+        : Number(summary.avgDistance).toFixed(1)
+    return {
+      total: summary.total || 0,
+      active: summary.active || 0,
+      assigned: summary.assigned || 0,
+      avgDist,
+    }
+  }, [summary])
 
   const selectedRoute = routes.find((r) => r._id === selectedId)
   const displayRouteCode =
@@ -300,10 +375,12 @@ function RoutesPage() {
 
   const buildPayload = () => {
     const payload = {
+      routeNo: form.routeNo.trim(),
       routeName: form.routeName.trim(),
       distance: Number(form.distance),
       startPoint: form.startPoint.trim(),
       endPoint: form.endPoint.trim(),
+      viaDescription: form.viaDescription.trim() || undefined,
       stops: form.stops,
     }
     if (form.startLocation?.lat != null) payload.startLocation = form.startLocation
@@ -326,13 +403,20 @@ function RoutesPage() {
     try {
       const payload = buildPayload()
       if (isEditingExisting) {
-        const { data } = await api.put(`/routes/${selectedId}`, payload)
-        setRoutes((prev) => prev.map((r) => (r._id === selectedId ? data : r)))
+        await api.put(`/routes/${selectedId}`, payload)
       } else {
-        const { data } = await api.post('/routes', payload)
-        setRoutes((prev) => [data, ...prev])
+        await api.post('/routes', payload)
+        setSearchInput('')
+        setSearch('')
+        setCurrentPage(1)
       }
       invalidateRelatedPages()
+      await loadRoutes({
+        page: isEditingExisting ? currentPage : 1,
+        limit: pageSize,
+        search: isEditingExisting ? search : '',
+        force: true,
+      })
       showToast('Route saved successfully')
       openList()
     } catch (err) {
@@ -354,8 +438,13 @@ function RoutesPage() {
     setError('')
     try {
       await api.delete(`/routes/${deleteTargetId}`)
-      setRoutes((prev) => prev.filter((r) => r._id !== deleteTargetId))
       invalidateRelatedPages()
+      await loadRoutes({
+        page: currentPage,
+        limit: pageSize,
+        search,
+        force: true,
+      })
       if (selectedId === deleteTargetId && (pageView === 'edit' || pageView === 'view')) {
         openList()
       }
@@ -411,10 +500,18 @@ function RoutesPage() {
           )}
           <ModuleCard className="p-5">
             <RouteListTable
-              routes={filteredRoutes}
+              routes={routes}
               loading={loading}
-              search={search}
-              onSearchChange={setSearch}
+              search={searchInput}
+              onSearchChange={setSearchInput}
+              pagination={pagination}
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(nextLimit) => {
+                setCurrentPage(1)
+                setPageSize(nextLimit)
+              }}
               onView={openViewer}
               onEdit={openEditor}
               onAssignFleet={setAssignRoute}
@@ -439,13 +536,19 @@ function RoutesPage() {
           />
 
           <RouteFleetAssignModal
+            key={assignRoute?._id || 'route-fleet-assign'}
             route={assignRoute}
             buses={buses}
             drivers={drivers}
             onClose={() => setAssignRoute(null)}
-            onSaved={(updated) => {
-              setRoutes((prev) => prev.map((r) => (r._id === updated._id ? updated : r)))
+            onSaved={async () => {
               invalidateRelatedPages()
+              await loadRoutes({
+                page: currentPage,
+                limit: pageSize,
+                search,
+                force: true,
+              })
               showToast('Fleet assignment saved')
             }}
           />
