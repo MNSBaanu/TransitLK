@@ -30,7 +30,7 @@ router.get(
 
 router.post(
   '/conflicts/timetable',
-  authorize(ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
+  authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
   checkTimetableConflicts
 )
 
@@ -38,23 +38,23 @@ router
   .route('/')
   .get(authorize(...API_ACCESS.schedules), getSchedules)
   .post(
-    authorize(ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
+    authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
     createSchedule
   )
 
 router.post(
   '/:id/submit',
-  authorize(ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
+  authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
   submitSchedule
 )
 router.post(
   '/:id/approve',
-  authorize(ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
+  authorize(ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
   approveSchedule
 )
 router.post(
   '/:id/reject',
-  authorize(ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
+  authorize(ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
   rejectSchedule
 )
 
@@ -63,7 +63,6 @@ router
   .get(authorize(...API_ACCESS.schedules), getScheduleById)
   .put(
     authorize(
-      ROLES.SUPERADMINISTRATOR,
       ROLES.ADMINISTRATOR,
       ROLES.TRANSPORT_SCHEDULER,
       ROLES.DEPOT_MANAGER
@@ -71,7 +70,7 @@ router
     updateSchedule
   )
   .delete(
-    authorize(ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
+    authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
     deleteSchedule
   )
 

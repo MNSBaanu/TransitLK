@@ -39,6 +39,14 @@ const adminSchema = new mongoose.Schema(
   { timestamps: true, collection: 'admins' }
 )
 
+adminSchema.index(
+  { userId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { userId: { $type: 'objectId' } },
+  }
+)
+
 adminSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next()
   const salt = await bcrypt.genSalt(10)
