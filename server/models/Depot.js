@@ -24,6 +24,14 @@ const depotSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    directContactNo: {
+      type: String,
+      trim: true,
+    },
+    mobileContactNo: {
+      type: String,
+      trim: true,
+    },
     contactNo: {
       type: String,
       trim: true,

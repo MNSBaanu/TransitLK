@@ -2,6 +2,7 @@ import Depot from '../models/Depot.js'
 
 const normalizeDepotCode = (code) => (typeof code === 'string' ? code.trim().toUpperCase() : '')
 const normalizeRegion = (region) => (typeof region === 'string' ? region.trim() : '')
+const normalizeContact = (value) => (typeof value === 'string' ? value.trim() : '')
 
 export const getDepots = async (req, res) => {
   try {
@@ -24,7 +25,8 @@ export const getDepotById = async (req, res) => {
 
 export const createDepot = async (req, res) => {
   try {
-    const { depotCode, region, depotName, location, contactNo } = req.body
+    const { depotCode, region, depotName, location, contactNo, directContactNo, mobileContactNo } =
+      req.body
     const normalizedDepotCode = normalizeDepotCode(depotCode)
     const normalizedRegion = normalizeRegion(region)
 
@@ -37,7 +39,9 @@ export const createDepot = async (req, res) => {
       region: normalizedRegion,
       depotName,
       location,
-      contactNo,
+      directContactNo: normalizeContact(directContactNo),
+      mobileContactNo: normalizeContact(mobileContactNo),
+      contactNo: normalizeContact(contactNo),
     })
     res.status(201).json(depot)
   } catch (error) {
@@ -62,6 +66,15 @@ export const updateDepot = async (req, res) => {
       if (!updates.region) {
         return res.status(400).json({ message: 'region is required' })
       }
+    }
+    if (updates.directContactNo !== undefined) {
+      updates.directContactNo = normalizeContact(updates.directContactNo)
+    }
+    if (updates.mobileContactNo !== undefined) {
+      updates.mobileContactNo = normalizeContact(updates.mobileContactNo)
+    }
+    if (updates.contactNo !== undefined) {
+      updates.contactNo = normalizeContact(updates.contactNo)
     }
 
     const depot = await Depot.findByIdAndUpdate(req.params.id, updates, {

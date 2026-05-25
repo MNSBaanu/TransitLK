@@ -16,6 +16,8 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
     region: depot?.region || '',
     depotName: depot?.depotName || '',
     location: depot?.location || '',
+    directContactNo: depot?.directContactNo || '',
+    mobileContactNo: depot?.mobileContactNo || '',
     contactNo: depot?.contactNo || '',
   }))
   const [saving, setSaving] = useState(false)
@@ -37,6 +39,8 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
         region: form.region.trim(),
         depotName: form.depotName.trim(),
         location: form.location.trim(),
+        directContactNo: form.directContactNo.trim(),
+        mobileContactNo: form.mobileContactNo.trim(),
         contactNo: form.contactNo.trim(),
       }
 
@@ -114,7 +118,27 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-neutral-600">Contact number</span>
+            <span className="mb-1 block text-xs font-medium text-neutral-600">Direct contact</span>
+            <input
+              name="directContactNo"
+              value={form.directContactNo}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              placeholder="081 - 2499148"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">Mobile contact</span>
+            <input
+              name="mobileContactNo"
+              value={form.mobileContactNo}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              placeholder="077 - 1057040"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-neutral-600">Legacy contact (optional)</span>
             <input
               name="contactNo"
               value={form.contactNo}
@@ -182,6 +206,8 @@ function Depots() {
         depot.region?.toLowerCase().includes(q) ||
         depot.depotName?.toLowerCase().includes(q) ||
         depot.location?.toLowerCase().includes(q) ||
+        depot.directContactNo?.toLowerCase().includes(q) ||
+        depot.mobileContactNo?.toLowerCase().includes(q) ||
         depot.contactNo?.toLowerCase().includes(q)
     )
   }, [depots, search])
@@ -251,7 +277,7 @@ function Depots() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search depots by code, region, name, location, or contact..."
+            placeholder="Search depots by code, region, name, location, direct, or mobile..."
             className="w-full rounded-lg border border-outline-variant py-2 pl-9 pr-3 text-sm outline-none focus:border-neutral-900"
           />
         </div>
@@ -265,7 +291,7 @@ function Depots() {
               <th className="px-4 py-3">Region</th>
               <th className="px-4 py-3">Depot</th>
               <th className="px-4 py-3">Location</th>
-              <th className="px-4 py-3">Contact</th>
+              <th className="px-4 py-3">Contacts</th>
               <th className="px-4 py-3">Created</th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
@@ -290,7 +316,22 @@ function Depots() {
                   <td className="px-4 py-3 text-on-surface-variant">{depot.region || '—'}</td>
                   <td className="px-4 py-3 font-medium text-neutral-900">{depot.depotName}</td>
                   <td className="px-4 py-3 text-on-surface-variant">{depot.location || '—'}</td>
-                  <td className="px-4 py-3 text-on-surface-variant">{depot.contactNo || '—'}</td>
+                  <td className="px-4 py-3 text-on-surface-variant">
+                    <div className="space-y-1">
+                      <div>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                          Direct:
+                        </span>{' '}
+                        {depot.directContactNo || '—'}
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                          Mobile:
+                        </span>{' '}
+                        {depot.mobileContactNo || depot.contactNo || '—'}
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-on-surface-variant">
                     {depot.createdAt ? new Date(depot.createdAt).toLocaleDateString('en-GB') : '—'}
                   </td>
