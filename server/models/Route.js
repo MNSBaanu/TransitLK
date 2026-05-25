@@ -20,6 +20,10 @@ const stopLocationSchema = new mongoose.Schema(
 
 const routeSchema = new mongoose.Schema(
   {
+    routeNo: {
+      type: String,
+      trim: true,
+    },
     routeName: {
       type: String,
       required: [true, 'Route name is required'],
@@ -40,6 +44,10 @@ const routeSchema = new mongoose.Schema(
       required: [true, 'End point is required'],
       trim: true,
     },
+    viaDescription: {
+      type: String,
+      trim: true,
+    },
     stops: {
       type: [String],
       default: [],
@@ -55,6 +63,11 @@ const routeSchema = new mongoose.Schema(
     stopLocations: {
       type: [stopLocationSchema],
       default: [],
+    },
+    depotId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Depot',
+      index: true,
     },
     busId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -80,6 +93,14 @@ const routeSchema = new mongoose.Schema(
     },
   },
   { timestamps: true, collection: 'routes' }
+)
+
+routeSchema.index(
+  { depotId: 1, routeNo: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { routeNo: { $type: 'string' } },
+  }
 )
 
 const Route = mongoose.model('Route', routeSchema)

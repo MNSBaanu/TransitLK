@@ -1,9 +1,10 @@
 import Icon from '../Icon'
 import { formatServiceType } from '../../utils/fleetHelpers'
 import { formatRouteStatus, routeStatusClass } from '../../utils/routeHelpers'
-import { ModuleSearchInput, ModuleTable } from '../layout/ModuleLayout'
+import { ModuleSearchInput, ModuleSecondaryButton, ModuleTable } from '../layout/ModuleLayout'
 
 function routeCode(route) {
+  if (route?.routeNo) return route.routeNo
   if (!route?._id) return '—'
   return route._id.slice(-6).toUpperCase()
 }
@@ -13,22 +14,47 @@ function RouteListTable({
   loading,
   search,
   onSearchChange,
+  pagination,
+  pageSize,
+  pageSizeOptions,
+  onPageChange,
+  onPageSizeChange,
   onView,
   onEdit,
   onAssignFleet,
   onDelete,
 }) {
+  const startItem = routes.length === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1
+  const endItem = routes.length === 0 ? 0 : startItem + routes.length - 1
+
   return (
     <>
-      <ModuleSearchInput
-        value={search}
-        onChange={(e) => onSearchChange(e.target.value)}
-        placeholder="Search routes, stops..."
-      />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <ModuleSearchInput
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search route no, route, via, stops..."
+          className="min-w-[240px]"
+        />
+        <label className="ml-auto flex items-center gap-2 text-sm text-on-surface-variant">
+          <span>Rows</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900"
+          >
+            {pageSizeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option} / page
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <ModuleTable>
         <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           <tr>
-            {['ID', 'Route', 'Service', 'Distance', 'Stops', 'Bus', 'Driver', 'Status', ''].map((h) => (
+            {['Route No', 'Route', 'Via', 'Service', 'Distance', 'Bus', 'Driver', 'Status', ''].map((h) => (
               <th key={h || 'actions'} className="px-4 py-3 text-left">
                 {h}
               </th>
@@ -68,11 +94,13 @@ function RouteListTable({
                     </p>
                   </button>
                 </td>
+                <td className="px-4 py-3 text-on-surface-variant">
+                  {route.viaDescription || route.stops?.join(', ') || '—'}
+                </td>
                 <td className="px-4 py-3 capitalize text-on-surface-variant">
                   {formatServiceType(route.serviceType)}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-neutral-700">{route.distance} km</td>
-                <td className="px-4 py-3 tabular-nums">{route.stops?.length ?? 0}</td>
                 <td className="px-4 py-3">
                   <button
                     type="button"
@@ -135,6 +163,30 @@ function RouteListTable({
           )}
         </tbody>
       </ModuleTable>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-on-surface-variant">
+          Showing {startItem}-{endItem} of {pagination.totalItems}
+        </p>
+        <div className="flex items-center gap-2">
+          <ModuleSecondaryButton
+            onClick={() => onPageChange(pagination.page - 1)}
+            disabled={!pagination.hasPreviousPage || loading}
+            icon="chevron_left"
+          >
+            Previous
+          </ModuleSecondaryButton>
+          <span className="px-2 text-sm font-medium text-neutral-700">
+            Page {pagination.page} of {pagination.totalPages}
+          </span>
+          <ModuleSecondaryButton
+            onClick={() => onPageChange(pagination.page + 1)}
+            disabled={!pagination.hasNextPage || loading}
+            icon="chevron_right"
+          >
+            Next
+          </ModuleSecondaryButton>
+        </div>
+      </div>
     </>
   )
 }

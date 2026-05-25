@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
+import { getCachedPageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
@@ -18,7 +19,6 @@ import {
   detectPeriodConflicts,
   formatPeriodLabel,
   formatTripDate,
-  getViewDateRange,
   buildTimetableRows,
   getTimetableDates,
   groupTimetableConflictsByRoute,
@@ -43,14 +43,19 @@ const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
 function SchedulesPage() {
+  const initialViewDate = toDateInputValue(new Date())
+  const initialData = getCachedPageData('/schedules', {
+    viewMode: 'daily',
+    viewDate: initialViewDate,
+  })
   const { user } = useAuth()
-  const [schedules, setSchedules] = useState([])
-  const [routes, setRoutes] = useState([])
-  const [buses, setBuses] = useState([])
-  const [drivers, setDrivers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [schedules, setSchedules] = useState(() => initialData?.schedules || [])
+  const [routes, setRoutes] = useState(() => initialData?.routes || [])
+  const [buses, setBuses] = useState(() => initialData?.buses || [])
+  const [drivers, setDrivers] = useState(() => initialData?.drivers || [])
+  const [loading, setLoading] = useState(!initialData)
   const { scheduleSearch } = useLayout()
-  const [viewDate, setViewDate] = useState(() => toDateInputValue(new Date()))
+  const [viewDate, setViewDate] = useState(initialViewDate)
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
@@ -83,27 +88,33 @@ function SchedulesPage() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const invalidateRelatedPages = useCallback(() => {
+    invalidatePageData('/schedules')
+    invalidatePageData('/reports')
+  }, [])
+
+  const loadData = useCallback(async ({ force = false, keepContent = false } = {}) => {
+    if (!force) {
+      const cached = getCachedPageData('/schedules', { viewMode, viewDate })
+      if (cached) {
+        setSchedules(cached.schedules)
+        setRoutes(cached.routes)
+        setBuses(cached.buses)
+        setDrivers(cached.drivers)
+        setLoading(false)
+        setError('')
+        return
+      }
+    }
+
+    if (!keepContent) setLoading(true)
     setError('')
-    const { from, to } = getViewDateRange(viewMode, viewDate)
     try {
-      const [schedRes, routeRes, busRes, driverRes] = await Promise.all([
-        api.get('/schedules', {
-          params: {
-            fromDate: from,
-            toDate: to,
-            view: viewMode,
-          },
-        }),
-        api.get('/routes'),
-        api.get('/buses'),
-        api.get('/drivers'),
-      ])
-      setSchedules(Array.isArray(schedRes.data) ? schedRes.data : [])
-      setRoutes(Array.isArray(routeRes.data) ? routeRes.data : [])
-      setBuses(Array.isArray(busRes.data) ? busRes.data : [])
-      setDrivers(Array.isArray(driverRes.data) ? driverRes.data : [])
+      const data = await loadPageData('/schedules', { viewMode, viewDate }, { force })
+      setSchedules(data.schedules)
+      setRoutes(data.routes)
+      setBuses(data.buses)
+      setDrivers(data.drivers)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load schedules')
     } finally {
@@ -112,7 +123,13 @@ function SchedulesPage() {
   }, [viewDate, viewMode])
 
   useEffect(() => {
-    loadData()
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (!cancelled) loadData()
+    })
+    return () => {
+      cancelled = true
+    }
   }, [loadData])
 
   const filteredSchedules = useMemo(() => {
@@ -228,25 +245,31 @@ function SchedulesPage() {
 
   useEffect(() => {
     if (!showTimetable) {
-      setTimetableConflicts(null)
-      setCheckingTimetableConflicts(false)
-      return
+      const resetTimer = window.setTimeout(() => {
+        setTimetableConflicts(null)
+        setCheckingTimetableConflicts(false)
+      }, 0)
+      return () => window.clearTimeout(resetTimer)
     }
 
     const included = timetableRows.filter((r) => r.included)
     if (!included.length) {
-      setTimetableConflicts({ hasConflict: false, issues: [], conflictCount: 0 })
-      return
+      const emptyTimer = window.setTimeout(() => {
+        setTimetableConflicts({ hasConflict: false, issues: [], conflictCount: 0 })
+      }, 0)
+      return () => window.clearTimeout(emptyTimer)
     }
 
     const rowErrors = validateTimetableRows(timetableRows)
     if (rowErrors.length) {
-      setTimetableConflicts({
-        hasConflict: true,
-        issues: [{ routeId: '', routeName: 'Validation', tripDate: '', conflicts: rowErrors.map((message) => ({ type: 'validation', message })) }],
-        conflictCount: rowErrors.length,
-      })
-      return
+      const validationTimer = window.setTimeout(() => {
+        setTimetableConflicts({
+          hasConflict: true,
+          issues: [{ routeId: '', routeName: 'Validation', tripDate: '', conflicts: rowErrors.map((message) => ({ type: 'validation', message })) }],
+          conflictCount: rowErrors.length,
+        })
+      }, 0)
+      return () => window.clearTimeout(validationTimer)
     }
 
     const dates = getTimetableDates(timetablePeriod, timetableAnchor)
@@ -272,13 +295,15 @@ function SchedulesPage() {
 
   useEffect(() => {
     if (!selected || !adjustForm.busId || !adjustForm.driverId) {
-      setAdjustConflict(null)
-      return
+      const resetTimer = window.setTimeout(() => setAdjustConflict(null), 0)
+      return () => window.clearTimeout(resetTimer)
     }
     const timeErr = validateTimeRange(adjustForm.departureTime, adjustForm.arrivalTime)
     if (timeErr) {
-      setAdjustConflict({ hasConflict: true, conflicts: [{ message: timeErr }] })
-      return
+      const errorTimer = window.setTimeout(() => {
+        setAdjustConflict({ hasConflict: true, conflicts: [{ message: timeErr }] })
+      }, 0)
+      return () => window.clearTimeout(errorTimer)
     }
     const timer = setTimeout(async () => {
       try {
@@ -464,8 +489,9 @@ function SchedulesPage() {
         reason: 'maintenance',
         notes: '',
       })
+      invalidateRelatedPages()
       showToast('Maintenance logged; vehicle offline; trip cancelled')
-      loadData()
+      loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Maintenance offline action failed')
     } finally {
@@ -542,12 +568,13 @@ function SchedulesPage() {
         setShowTimetable(false)
         setViewMode(timetablePeriod)
         setViewDate(timetableAnchor)
+        invalidateRelatedPages()
         showToast(
           `${timetablePeriod.charAt(0).toUpperCase() + timetablePeriod.slice(1)} timetable: ${created} trip(s) created${
             skipped.length ? `, ${skipped.length} skipped` : ''
           }`
         )
-        loadData()
+        loadData({ force: true, keepContent: true })
       }
       if (skipped.length) {
         setError(`Some trips could not be scheduled: ${skipped.slice(0, 5).join(' | ')}${skipped.length > 5 ? ` (+${skipped.length - 5} more)` : ''}`)
@@ -572,8 +599,9 @@ function SchedulesPage() {
     setSaving(true)
     try {
       await api.post(`/schedules/${selected._id}/submit`)
+      invalidateRelatedPages()
       showToast('Submitted for approval')
-      loadData()
+      loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Submit failed')
     } finally {
@@ -585,8 +613,9 @@ function SchedulesPage() {
     setSaving(true)
     try {
       await api.post(`/schedules/${id}/approve`)
+      invalidateRelatedPages()
       showToast('Schedule approved')
-      loadData()
+      loadData({ force: true, keepContent: true })
     } catch (err) {
       const msg = err.response?.data?.message || 'Approve failed'
       const conflictsData = err.response?.data?.conflicts
@@ -606,8 +635,9 @@ function SchedulesPage() {
     setSaving(true)
     try {
       await api.post(`/schedules/${id}/reject`, { reason })
+      invalidateRelatedPages()
       showToast('Returned to scheduler')
-      loadData()
+      loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Reject failed')
     } finally {
@@ -638,9 +668,10 @@ function SchedulesPage() {
         departureTime: selected.departureTime,
         arrivalTime: selected.arrivalTime,
       })
+      invalidateRelatedPages()
       showToast('Trip cancelled')
       setSelected(null)
-      loadData()
+      loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to cancel trip')
     } finally {
@@ -679,8 +710,9 @@ function SchedulesPage() {
       })
       setSelected(data)
       selectTrip(data)
+      invalidateRelatedPages()
       showToast('Schedule updated')
-      loadData()
+      loadData({ force: true, keepContent: true })
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to update schedule'
       const conflictsData = err.response?.data?.conflicts
@@ -804,9 +836,13 @@ function SchedulesPage() {
         onApprove={handleApprove}
         onReject={handleReject}
         canApprove={
-          user?.role === ROLES.DEPOT_MANAGER || user?.role === ROLES.ADMINISTRATOR
+          user?.role === ROLES.DEPOT_MANAGER ||
+          user?.role === ROLES.ADMINISTRATOR
         }
-        canSubmit={user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR}
+        canSubmit={
+          user?.role === ROLES.TRANSPORT_SCHEDULER ||
+          user?.role === ROLES.ADMINISTRATOR
+        }
       />
 
       {error && !showTimetable && (
@@ -945,7 +981,8 @@ function SchedulesPage() {
         onCancelTrip={handleCancelTrip}
         onSubmitDraft={handleSubmitDraft}
         canSubmitDraft={
-          user?.role === ROLES.TRANSPORT_SCHEDULER || user?.role === ROLES.ADMINISTRATOR
+          user?.role === ROLES.TRANSPORT_SCHEDULER ||
+          user?.role === ROLES.ADMINISTRATOR
         }
         adjustConflict={adjustConflict}
         onMaintenanceSwap={handleMaintenanceSwap}

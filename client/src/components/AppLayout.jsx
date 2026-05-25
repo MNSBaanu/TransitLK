@@ -1,8 +1,14 @@
+import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { LayoutProvider } from '../context/LayoutContext'
 import Navbar from './Navbar'
+import { primeCriticalPageData } from '../services/pagePrefetch'
 
 function AppLayout() {
+  useEffect(() => {
+    primeCriticalPageData()
+  }, [])
+
   return (
     <LayoutProvider>
       <div className="flex h-screen w-full flex-col overflow-hidden font-sans">

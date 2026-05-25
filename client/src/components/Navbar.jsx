@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import Icon from './Icon'
+import PrefetchNavLink from './PrefetchNavLink'
 import { useLayout } from '../context/LayoutContext'
 import { useNavHub } from '../hooks/useNavHub'
 import NavDropdownPanel from './nav/NavDropdownPanel'
@@ -98,7 +99,8 @@ function Navbar() {
   }, [searchOpen])
 
   useEffect(() => {
-    setSearchOpen(false)
+    const timer = window.setTimeout(() => setSearchOpen(false), 0)
+    return () => window.clearTimeout(timer)
   }, [location.pathname])
 
   return (
@@ -116,7 +118,7 @@ function Navbar() {
           aria-label="Main"
         >
           {navItems.map((item) => (
-            <NavLink
+            <PrefetchNavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
@@ -126,7 +128,7 @@ function Navbar() {
               }
             >
               {item.label}
-            </NavLink>
+            </PrefetchNavLink>
           ))}
         </nav>
 
@@ -278,7 +280,7 @@ function Navbar() {
 
       <nav className="flex justify-center gap-1 overflow-x-auto border-t border-white/10 bg-[var(--depot-nav-bg-subtle)] px-4 py-2 lg:hidden">
         {navItems.map((item) => (
-          <NavLink
+          <PrefetchNavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
@@ -290,7 +292,7 @@ function Navbar() {
             }
           >
             {item.label}
-          </NavLink>
+          </PrefetchNavLink>
         ))}
       </nav>
     </header>
