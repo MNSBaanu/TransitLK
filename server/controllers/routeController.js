@@ -71,9 +71,7 @@ const validateBusAssignment = async (busId, routeServiceType, routeDepotId) => {
   }
   if (!isBusAssignableForRoute(bus, routeServiceType)) {
     const minCap = defaultMinCapacityForService(routeServiceType)
-    const error = new Error(
-      `Bus does not meet requirements: available status, ${routeServiceType} service type, and capacity ≥ ${minCap}`
-    )
+    const error = new Error(`Bus does not meet requirements: available status and capacity ≥ ${minCap}`)
     error.statusCode = 400
     throw error
   }
@@ -111,6 +109,11 @@ const validateDriverAssignment = async (driverId, routeDepotId) => {
     throw error
   }
   return driver
+}
+
+const syncAssignedBusServiceType = async (busId, serviceType) => {
+  if (!busId || !serviceType) return
+  await Bus.findByIdAndUpdate(busId, { serviceType })
 }
 
 const prepareRouteData = (body) => {
@@ -238,6 +241,8 @@ export const createRoute = async (req, res) => {
       createdBy: req.user?.id,
     })
 
+    await syncAssignedBusServiceType(busId, serviceType)
+
     const populated = await populateRoute(Route.findById(route._id))
     res.status(201).json(populated)
   } catch (error) {
@@ -282,6 +287,7 @@ export const updateRoute = async (req, res) => {
     data.depotId = depotId
 
     await Route.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
+    await syncAssignedBusServiceType(nextBusId, serviceType)
 
     const populated = await populateRoute(Route.findById(req.params.id))
     res.json(populated)

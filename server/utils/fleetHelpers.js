@@ -52,9 +52,6 @@ export function defaultMinCapacityForService(serviceType) {
 
 export function isBusAssignableForRoute(bus, routeServiceType) {
   if (!bus || bus.status !== 'available') return false
-  if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) {
-    return false
-  }
   const minCapacity = defaultMinCapacityForService(routeServiceType)
   if (Number(bus.capacity) < minCapacity) return false
   return true

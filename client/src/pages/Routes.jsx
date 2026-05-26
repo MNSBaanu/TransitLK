@@ -213,17 +213,20 @@ function RoutesPage() {
   }, [pagination, search])
 
   const routeStats = useMemo(() => {
+    const distanceValues = routes
+      .map((route) => Number(route?.distance))
+      .filter((distance) => Number.isFinite(distance) && distance > 0)
     const avgDist =
-      summary.avgDistance == null || Number.isNaN(Number(summary.avgDistance))
-        ? '—'
-        : Number(summary.avgDistance).toFixed(1)
+      distanceValues.length > 0
+        ? (distanceValues.reduce((sum, distance) => sum + distance, 0) / distanceValues.length).toFixed(1)
+        : null
     return {
       total: summary.total || 0,
       active: summary.active || 0,
       assigned: summary.assigned || 0,
       avgDist,
     }
-  }, [summary])
+  }, [routes, summary])
 
   const selectedRoute = routes.find((r) => r._id === selectedId)
   const displayRouteCode =
@@ -490,7 +493,7 @@ function RoutesPage() {
               },
               {
                 label: 'Avg distance',
-                value: `${routeStats.avgDist} km`,
+                value: routeStats.avgDist == null ? '—' : `${routeStats.avgDist} km`,
                 icon: 'straighten',
               },
             ]}
