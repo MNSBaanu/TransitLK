@@ -76,6 +76,11 @@ async function assertScheduleAccess(user, schedule) {
   return route
 }
 
+async function syncBusServiceType(busId, serviceType) {
+  if (!busId || !serviceType) return
+  await Bus.findByIdAndUpdate(busId, { serviceType })
+}
+
 function buildHistoryChanges(existing, data) {
   const tracked = [
     'departureTime',
@@ -303,17 +308,6 @@ async function validateAssignment({ busId, driverId, departureTime, routeId, rou
     throw error
   }
 
-  if (routeId) {
-    const route = await Route.findById(routeId).select('serviceType')
-    if (route?.serviceType && bus.serviceType && route.serviceType !== bus.serviceType) {
-      const error = new Error(
-        `Bus service type (${bus.serviceType}) does not match route (${route.serviceType})`
-      )
-      error.statusCode = 400
-      throw error
-    }
-  }
-
   const driver = await Driver.findById(driverId)
   if (!driver) {
     const error = new Error('Driver not found')
@@ -457,6 +451,8 @@ export const createSchedule = async (req, res) => {
       createdBy: createdBy || req.user?.id,
     })
 
+    await syncBusServiceType(busId, route.serviceType)
+
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.status(201).json(populated)
   } catch (error) {
@@ -532,6 +528,7 @@ export const updateSchedule = async (req, res) => {
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
     await existing.save()
+    await syncBusServiceType(busId, assignmentRoute?.serviceType)
     const populated = await populateSchedule(Schedule.findById(req.params.id))
     res.json(populated)
   } catch (error) {
@@ -623,6 +620,7 @@ export const approveSchedule = async (req, res) => {
     schedule.approvedBy = req.user?.id
     schedule.rejectionReason = undefined
     await schedule.save()
+    await syncBusServiceType(schedule.busId, route?.serviceType)
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
