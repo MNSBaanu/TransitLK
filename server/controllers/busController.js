@@ -1,4 +1,5 @@
 import Bus from '../models/Bus.js'
+import Route from '../models/Route.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
@@ -30,7 +31,35 @@ export const getAllBuses = async (req, res) => {
     const buses = await Bus.find(filter)
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
-    res.json(buses)
+    const busIds = buses.map((bus) => bus._id)
+    const assignedRoutes = busIds.length
+      ? await Route.find({ busId: { $in: busIds } })
+          .select('busId routeName serviceType status updatedAt createdAt')
+          .sort({ updatedAt: -1, createdAt: -1 })
+      : []
+
+    const routeByBusId = new Map()
+    for (const route of assignedRoutes) {
+      const key = String(route.busId)
+      if (!routeByBusId.has(key)) routeByBusId.set(key, route)
+    }
+
+    const result = buses.map((bus) => {
+      const assignedRoute = routeByBusId.get(String(bus._id))
+      const doc = bus.toObject()
+      if (assignedRoute?.serviceType) {
+        doc.serviceType = assignedRoute.serviceType
+        doc.assignedRoute = {
+          _id: assignedRoute._id,
+          routeName: assignedRoute.routeName,
+          serviceType: assignedRoute.serviceType,
+          status: assignedRoute.status,
+        }
+      }
+      return doc
+    })
+
+    res.json(result)
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

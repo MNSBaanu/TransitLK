@@ -11,7 +11,8 @@
     "seed:routes": "node scripts/seedRoute.js",
     "seed:schedules": "node scripts/seedSchedule.js",
     "seed:all": "npm run seed:fleet && npm run seed:routes && npm run seed:schedules",
-    "seed:auth": "node scripts/seedAuth.js"
+    "seed:auth": "node scripts/seedAuth.js",
+    "backfill:route-service-types": "node scripts/backfillRouteServiceTypes.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -2,6 +2,7 @@ import dotenv from 'dotenv'
 import connectDB from '../config/db.js'
 import Depot from '../models/Depot.js'
 import Route from '../models/Route.js'
+import { inferRouteServiceType } from '../utils/routeServiceType.js'
 
 dotenv.config()
 
@@ -124,7 +125,7 @@ function buildRouteDoc([routeNo, startPoint, viaDescription, endPoint, distance]
     viaDescription: normalizedVia || undefined,
     stops: stopName ? [stopName] : [],
     distance,
-    serviceType: 'ordinary',
+    serviceType: inferRouteServiceType({ startPoint, endPoint, viaDescription: normalizedVia, distance }),
     status: 'active',
   }
 }
