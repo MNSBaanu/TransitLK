@@ -24,7 +24,8 @@ connectDB()
 const app = express()
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }))
+const clientOrigin = process.env.CLIENT_URL || 'http://localhost:5173'
+app.use(cors({ origin: clientOrigin, credentials: true }))
 app.use(express.json())
 
 // API Routes
