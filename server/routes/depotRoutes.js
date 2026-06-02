@@ -13,9 +13,14 @@ import { API_ACCESS } from '../utils/roles.js'
 const router = express.Router()
 
 router.use(protect)
-router.use(authorize(...API_ACCESS.depots))
 
-router.route('/').get(getDepots).post(createDepot)
-router.route('/:id').get(getDepotById).put(updateDepot).delete(deleteDepot)
+// GET depots is open to all authenticated users (needed for dropdowns)
+router.get('/', getDepots)
+router.get('/:id', getDepotById)
+
+// Write operations restricted to superadmin
+router.post('/', authorize(...API_ACCESS.depots), createDepot)
+router.put('/:id', authorize(...API_ACCESS.depots), updateDepot)
+router.delete('/:id', authorize(...API_ACCESS.depots), deleteDepot)
 
 export default router

@@ -12,7 +12,14 @@ export const createBus = async (req, res) => {
       return res.status(400).json({ message: 'Bus with this registration number already exists' })
     }
 
-    const bus = await Bus.create({ regNumber, capacity, mileage, status, depotId, serviceType })
+    const bus = await Bus.create({
+      regNumber,
+      capacity,
+      mileage,
+      status,
+      depotId: depotId || undefined,
+      serviceType,
+    })
     res.status(201).json(bus)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -88,7 +95,10 @@ export const updateBus = async (req, res) => {
       return res.status(404).json({ message: 'Bus not found' })
     }
 
-    const updated = await Bus.findByIdAndUpdate(req.params.id, req.body, {
+    const updateData = { ...req.body }
+    if (updateData.depotId === '') updateData.depotId = undefined
+
+    const updated = await Bus.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     })

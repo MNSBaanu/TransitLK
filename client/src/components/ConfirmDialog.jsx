@@ -25,7 +25,7 @@ function ConfirmDialog({
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
       aria-describedby="confirm-dialog-desc"
-      onClick={onCancel}
+      onClick={loading ? undefined : onCancel}
     >
       <div
         className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl"
@@ -60,7 +60,10 @@ function ConfirmDialog({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={async () => {
+              if (loading) return
+              await onConfirm?.()
+            }}
             disabled={loading}
             className={`min-w-[7rem] rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${confirmClass}`}
           >
