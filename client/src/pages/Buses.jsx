@@ -27,7 +27,6 @@ function busFormState(bus) {
     depotId: depotIdValue(bus.depotId),
   }
 }
-
 const STATUS_STYLES = {
   available:     'bg-green-100 text-green-700',
   'in-service':  'bg-blue-100 text-blue-700',
@@ -39,8 +38,19 @@ const ITEMS_PER_PAGE = 8
 // ── Modal ────────────────────────────────────────────────────────────────────
 function BusModal({ bus, onClose, onSave }) {
   const [form, setForm] = useState(() => busFormState(bus))
+  const [mataleDepot, setMataleDepot] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get('/depots').then(({ data }) => {
+      const depot = data.find((d) => d.depotName === 'Matale Depot')
+      if (depot) {
+        setMataleDepot(depot)
+        setForm((prev) => ({ ...prev, depotId: depot._id }))
+      }
+    }).catch(() => {})
+  }, [])
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -111,9 +121,10 @@ function BusModal({ bus, onClose, onSave }) {
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Depot ID</label>
-            <input name="depotId" value={form.depotId} onChange={handle}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Depot</label>
+            <div className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-neutral-700">
+              {mataleDepot ? mataleDepot.depotName : 'Loading...'}
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
@@ -291,10 +302,10 @@ function FleetTab({ addTrigger, onAddClose }) {
             ))}
           </div>
         </div>
-        <div className="rounded-xl border border-outline-variant bg-neutral-900 p-4 text-white">
-          <p className="text-xs text-neutral-400">Total Fleet</p>
+        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
+          <p className="text-xs text-blue-200">Total Fleet</p>
           <p className="mt-1 text-3xl font-bold">{buses.length}</p>
-          <p className="mt-1 text-xs text-neutral-400">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
+          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
         </div>
       </div>
 
@@ -314,7 +325,7 @@ function FleetTab({ addTrigger, onAddClose }) {
 // ── Driver Personnel Tab ──────────────────────────────────────────────────────
 function DriverModal({ driver, onClose, onSave }) {
   const [form, setForm] = useState(
-    driver || { name: '', licenseNo: '', contactNo: '', workingHours: '' }
+    driver || { name: '', licenseNo: '', contactNo: '', workingHours: '', licenseExpiry: '' }
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -355,10 +366,17 @@ function DriverModal({ driver, onClose, onSave }) {
             <input name="name" value={form.name} onChange={handle} required
               className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">License Number</label>
-            <input name="licenseNo" value={form.licenseNo} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">License Number</label>
+              <input name="licenseNo" value={form.licenseNo} onChange={handle} required
+                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">License Expiry Date</label>
+              <input name="licenseExpiry" type="date" value={form.licenseExpiry ? form.licenseExpiry.slice(0, 10) : ''} onChange={handle}
+                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Contact Number</label>
@@ -398,11 +416,22 @@ function getInitials(name = '') {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
 }
 
+function getLicenseStatus(expiry) {
+  if (!expiry) return null
+  const today = new Date()
+  const exp = new Date(expiry)
+  const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return { label: 'Expired', style: 'bg-red-100 text-red-700' }
+  if (diffDays <= 30) return { label: 'Expiring Soon', style: 'bg-orange-100 text-orange-700' }
+  return { label: 'Valid', style: 'bg-green-100 text-green-700' }
+}
+
 function DriversTab({ addTrigger, onAddClose }) {
   const [drivers, setDrivers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [licenseFilter, setLicenseFilter] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
   const [viewDriver, setViewDriver] = useState(null)
@@ -427,7 +456,14 @@ function DriversTab({ addTrigger, onAddClose }) {
     const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
       (d.licenseNo || '').toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter ? (d.workingHours || '').toLowerCase() === statusFilter : true
-    return matchSearch && matchStatus
+    const licStatus = getLicenseStatus(d.licenseExpiry)
+    const matchLicense = licenseFilter
+      ? (licenseFilter === 'valid' && licStatus?.label === 'Valid') ||
+        (licenseFilter === 'expiring' && licStatus?.label === 'Expiring Soon') ||
+        (licenseFilter === 'expired' && licStatus?.label === 'Expired') ||
+        (licenseFilter === 'none' && !d.licenseExpiry)
+      : true
+    return matchSearch && matchStatus && matchLicense
   })
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
@@ -465,7 +501,14 @@ function DriversTab({ addTrigger, onAddClose }) {
           <option>Class B</option>
           <option>Class C</option>
         </select>
-        <span className="ml-auto text-sm text-on-surface-variant">
+        <select value={licenseFilter} onChange={(e) => { setLicenseFilter(e.target.value); setPage(1) }}
+          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
+          <option value="">All License Status</option>
+          <option value="valid">Valid</option>
+          <option value="expiring">Expiring Soon</option>
+          <option value="expired">Expired</option>
+          <option value="none">No Expiry Set</option>
+        </select>        <span className="ml-auto text-sm text-on-surface-variant">
           Showing 1 to {Math.min(paginated.length, ITEMS_PER_PAGE)} of {filtered.length} drivers
         </span>
       </div>
@@ -478,6 +521,7 @@ function DriversTab({ addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Driver ID</th>
               <th className="px-4 py-3 text-left">Name</th>
               <th className="px-4 py-3 text-left">License No.</th>
+              <th className="px-4 py-3 text-left">Expiry</th>
               <th className="px-4 py-3 text-left">Contact</th>
               <th className="px-4 py-3 text-left">Working Hours</th>
               <th className="px-4 py-3 text-left">Actions</th>
@@ -500,6 +544,22 @@ function DriversTab({ addTrigger, onAddClose }) {
                   </div>
                 </td>
                 <td className="px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
+                <td className="px-4 py-3">
+                  {d.licenseExpiry ? (() => {
+                    const s = getLicenseStatus(d.licenseExpiry)
+                    return (
+                      <div>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {s.label}
+                        </span>
+                        <p className="mt-0.5 text-xs text-neutral-400">
+                          {new Date(d.licenseExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
+                      </div>
+                    )
+                  })() : <span className="text-xs text-neutral-400">—</span>}
+                </td>
                 <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
                 <td className="px-4 py-3">
@@ -599,6 +659,12 @@ function DriversTab({ addTrigger, onAddClose }) {
             <div className="space-y-2 text-sm">
               {[
                 ['License No.', viewDriver.licenseNo],
+                ['License Expiry', viewDriver.licenseExpiry
+                  ? (() => {
+                      const s = getLicenseStatus(viewDriver.licenseExpiry)
+                      return `${new Date(viewDriver.licenseExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} — ${s.label}`
+                    })()
+                  : 'Not set'],
                 ['Contact', viewDriver.contactNo],
                 ['Working Hours', viewDriver.workingHours || '—'],
               ].map(([label, value]) => (

@@ -34,6 +34,9 @@ const driverSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    licenseExpiry: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: ['available', 'on-leave', 'off-duty'],

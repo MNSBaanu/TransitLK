@@ -3,7 +3,7 @@ import Driver from '../models/Driver.js'
 // @desc    Create a new driver
 // @route   POST /api/drivers
 export const createDriver = async (req, res) => {
-  const { name, licenseNo, contactNo, workingHours, status, depotId } = req.body
+  const { name, licenseNo, contactNo, workingHours, licenseExpiry, status, depotId } = req.body
 
   try {
     const exists = await Driver.findOne({ licenseNo })
@@ -16,6 +16,7 @@ export const createDriver = async (req, res) => {
       licenseNo,
       contactNo,
       workingHours,
+      licenseExpiry: licenseExpiry || undefined,
       status,
       depotId,
     })
