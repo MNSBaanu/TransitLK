@@ -1,6 +1,6 @@
+import { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon'
 import {
-  formatPeriodLabel,
   formatTimeRange,
   getTimetableDates,
   getTimetableRowValidationIssues,
@@ -32,11 +32,38 @@ function ScheduleTimetableDrawer({
   checkingConflicts,
   rowConflictHints,
   canCreateTimetable = false,
+  onRefresh,
+  refreshing = false,
 }) {
+  const [focusedRouteId, setFocusedRouteId] = useState(null)
+
+  const focusRouteRow = useCallback(
+    (routeId) => {
+      const id = String(routeId)
+      setFocusedRouteId(id)
+      window.requestAnimationFrame(() => {
+        const rowEl = document.getElementById(`timetable-row-${id}`)
+        rowEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const focusField =
+          rowEl?.querySelector('[data-focus-priority]') ||
+          rowEl?.querySelector('select:not([disabled]), input:not([disabled])')
+        focusField?.focus({ preventScroll: true })
+      })
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (!focusedRouteId) return undefined
+    const timer = window.setTimeout(() => setFocusedRouteId(null), 4500)
+    return () => window.clearTimeout(timer)
+  }, [focusedRouteId])
+
   if (!open) return null
 
-  const periodLabel = formatPeriodLabel(period, anchorDate)
   const dates = getTimetableDates(period, anchorDate)
+  const dateFieldLabel =
+    period === 'daily' ? 'Trip date' : period === 'weekly' ? 'Week of' : 'Month'
   const validationBlock = (conflictPreview?.issues || []).find(
     (issue) => issue.routeName === 'Validation'
   )
@@ -85,9 +112,19 @@ function ScheduleTimetableDrawer({
         aria-label="Timetable status and errors"
       >
         <div className="flex shrink-0 items-center justify-end gap-3 px-4 py-3 sm:px-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-            Timetable feedback
-          </p>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={!onRefresh || refreshing}
+            className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-medium text-white/90 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon
+              name="refresh"
+              size={18}
+              className={refreshing ? 'animate-spin' : ''}
+            />
+            Refresh
+          </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
@@ -137,19 +174,34 @@ function ScheduleTimetableDrawer({
                             : 'border-amber-200 border-l-amber-500 bg-amber-50'
                         }`}
                       >
-                        <p
-                          className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
-                            isConflict ? 'text-red-700' : 'text-amber-800'
-                          }`}
-                        >
-                          <Icon
-                            name="warning"
-                            size={16}
-                            className={isConflict ? 'text-red-600' : 'text-amber-600'}
-                          />
-                          {isConflict ? 'Route conflict' : 'Incomplete'}
-                        </p>
-                        <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
+                                isConflict ? 'text-red-700' : 'text-amber-800'
+                              }`}
+                            >
+                              <Icon
+                                name="warning"
+                                size={16}
+                                className={isConflict ? 'text-red-600' : 'text-amber-600'}
+                              />
+                              {isConflict ? 'Route conflict' : 'Incomplete'}
+                            </p>
+                            <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => focusRouteRow(card.routeId)}
+                            className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                              isConflict
+                                ? 'border-red-300 bg-white text-red-700 hover:bg-red-100'
+                                : 'border-amber-300 bg-white text-amber-900 hover:bg-amber-100'
+                            }`}
+                          >
+                            {isConflict ? 'Fix conflict' : 'Complete'}
+                          </button>
+                        </div>
                         <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-900">
                           {card.items.map((item, i) => (
                             <li
@@ -200,9 +252,6 @@ function ScheduleTimetableDrawer({
               </button>
               <div className="min-w-0">
                 <h3 className="text-lg font-bold text-neutral-900">Create timetable</h3>
-                <p className="text-sm text-on-surface-variant">
-                  {periodLabel} · {tripCount} trip{tripCount !== 1 ? 's' : ''}
-                </p>
               </div>
             </div>
             <button
@@ -219,46 +268,64 @@ function ScheduleTimetableDrawer({
               {saving ? 'Creating...' : 'Create'}
             </button>
           </div>
-          <div className="shrink-0 border-b border-outline-variant px-5 py-4">
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
-                <span className={`${labelClass} mb-2 block`}>Timetable period</span>
-                <div className="pro-segmented">
-                  {['daily', 'weekly', 'monthly'].map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => onPeriodChange(mode)}
-                      className={`rounded-md px-4 py-2 text-sm capitalize transition-colors ${
-                        period === mode
-                          ? 'pro-segmented-active'
-                          : 'text-fleet-ink-muted hover:text-fleet-ink'
-                      }`}
-                    >
-                      {mode}
-                    </button>
-                  ))}
+          <div className="shrink-0 border-b border-outline-variant bg-surface-container/40 px-5 py-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                <div>
+                  <span className={`${labelClass} mb-2 block`}>Timetable period</span>
+                  <div className="pro-segmented">
+                    {['daily', 'weekly', 'monthly'].map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => onPeriodChange(mode)}
+                        className={`rounded-md px-4 py-2 text-sm capitalize transition-colors ${
+                          period === mode
+                            ? 'pro-segmented-active'
+                            : 'text-fleet-ink-muted hover:text-fleet-ink'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                <label className="block min-w-[11rem]">
+                  <span className={`${labelClass} mb-1 block`}>{dateFieldLabel}</span>
+                  {period === 'monthly' ? (
+                    <input
+                      type="month"
+                      value={anchorDate.slice(0, 7)}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value) onAnchorDateChange(`${value}-01`)
+                      }}
+                      required
+                      className={inputClass}
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      value={anchorDate}
+                      onChange={(e) => onAnchorDateChange(e.target.value)}
+                      required
+                      className={inputClass}
+                    />
+                  )}
+                </label>
               </div>
-              <label className="block min-w-[160px]">
-                <span className={`${labelClass} mb-1 block`}>
-                  {period === 'daily' ? 'Trip date' : period === 'weekly' ? 'Week of' : 'Month'}
-                </span>
-                <input
-                  type="date"
-                  value={anchorDate}
-                  onChange={(e) => onAnchorDateChange(e.target.value)}
-                  required
-                  className={inputClass}
-                />
-              </label>
-              <div className="rounded-lg border border-depot-blue-light/30 bg-depot-blue-light/5 px-3 py-2 text-sm">
-                <p className="text-xs font-semibold uppercase text-depot-blue-light">Coverage</p>
-                <p className="font-semibold text-neutral-900">{periodLabel}</p>
-                <p className="text-xs text-on-surface-variant">
-                  {dates.length} day{dates.length !== 1 ? 's' : ''} · {tripCount} draft trip
-                  {tripCount !== 1 ? 's' : ''} planned
-                </p>
+              <div className="flex shrink-0 items-center gap-3 rounded-lg border border-outline-variant bg-white px-4 py-2.5 shadow-sm">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-depot-blue-light/10 text-depot-blue-light">
+                  <Icon name="event" size={20} />
+                </div>
+                <div>
+                  <p className={`${labelClass} mb-0.5`}>Coverage</p>
+                  <p className="text-sm font-semibold text-neutral-900">
+                    {dates.length} day{dates.length !== 1 ? 's' : ''}
+                    <span className="mx-1.5 font-normal text-on-surface-variant">·</span>
+                    {tripCount} draft trip{tripCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -307,15 +374,27 @@ function ScheduleTimetableDrawer({
                     const rowDrivers = drivers.filter(
                       (d) => d.status === 'available' || !d.status
                     )
+                    const isFocused = String(row.routeId) === focusedRouteId
+                    const focusField =
+                      missingBus ? 'bus' : missingDriver ? 'driver' : timeErr ? 'departure' : 'bus'
                     return (
                       <tr
+                        id={`timetable-row-${row.routeId}`}
                         key={row.routeId}
-                        className={`${row.included ? '' : 'opacity-50'} ${
-                          rowStatus === 'conflict'
-                            ? 'bg-red-50/60'
-                            : rowStatus === 'incomplete'
-                              ? 'bg-amber-50/60'
-                              : ''
+                        className={`transition-colors duration-300 ${
+                          row.included ? '' : 'opacity-50'
+                        } ${
+                          isFocused
+                            ? rowStatus === 'conflict'
+                              ? 'bg-red-50 ring-2 ring-inset ring-red-600'
+                              : rowStatus === 'incomplete'
+                                ? 'bg-amber-50 ring-2 ring-inset ring-amber-500'
+                                : 'bg-depot-blue-light/15 ring-2 ring-inset ring-depot-blue-light'
+                            : rowStatus === 'conflict'
+                              ? 'bg-red-50/60'
+                              : rowStatus === 'incomplete'
+                                ? 'bg-amber-50/60'
+                                : ''
                         }`}
                       >
                         <td className="py-3 pr-2 align-top">
@@ -344,6 +423,8 @@ function ScheduleTimetableDrawer({
                             }
                             disabled={!row.included}
                             required={row.included}
+                            data-field="departure"
+                            {...(focusField === 'departure' ? { 'data-focus-priority': true } : {})}
                             className={inputClass}
                           />
                         </td>
@@ -376,6 +457,8 @@ function ScheduleTimetableDrawer({
                             }
                             disabled={!row.included}
                             required={row.included}
+                            data-field="bus"
+                            {...(focusField === 'bus' ? { 'data-focus-priority': true } : {})}
                             className={`${inputClass}${missingBus ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select bus</option>
@@ -394,6 +477,8 @@ function ScheduleTimetableDrawer({
                             }
                             disabled={!row.included}
                             required={row.included}
+                            data-field="driver"
+                            {...(focusField === 'driver' ? { 'data-focus-priority': true } : {})}
                             className={`${inputClass}${missingDriver ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select driver</option>
