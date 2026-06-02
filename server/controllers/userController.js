@@ -20,14 +20,6 @@ export const listWorkspaceUsers = async (req, res) => {
 
     if (!isSuperadministrator(req.user)) {
       const depotId = requireUserDepot(req.user)
-      // Backfill legacy staff accounts that were created before depot scoping.
-      // This keeps existing depot users visible in the current depot workspace.
-      await User.updateMany(
-        {
-          $or: [{ depotId: { $exists: false } }, { depotId: null }],
-        },
-        { $set: { depotId } }
-      )
       adminFilter.depotId = depotId
       staffFilter.depotId = depotId
     }

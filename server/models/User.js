@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema(
     depotId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Depot',
+      required: [true, 'Depot assignment is required'],
     },
     isActive: {
       type: Boolean,
