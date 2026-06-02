@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
 import { getCachedPageData, loadPageData } from '../services/pagePrefetch'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
 import { useAuth } from '../context/AuthContext'
@@ -173,7 +174,7 @@ function Reports() {
     setToDate(to)
   }
 
-  const loadReports = useCallback(async ({ force = false } = {}) => {
+  const loadReports = useCallback(async ({ force = false, keepContent = false } = {}) => {
     if (!force) {
       const cached = getCachedPageData('/reports', { period, fromDate, toDate })
       if (cached) {
@@ -184,7 +185,7 @@ function Reports() {
       }
     }
 
-    setLoading(true)
+    if (!keepContent) setLoading(true)
     setError('')
     try {
       const prefetched = await loadPageData(
@@ -210,6 +211,8 @@ function Reports() {
       cancelled = true
     }
   }, [loadReports])
+
+  useAutoRefresh(() => loadReports({ force: true, keepContent: true }))
 
   const reportParams = { from: fromDate, to: toDate, period }
 

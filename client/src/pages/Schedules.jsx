@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
 import { getCachedPageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
@@ -68,6 +69,7 @@ function SchedulesPage() {
   const [timetableRows, setTimetableRows] = useState([])
   const [timetableConflicts, setTimetableConflicts] = useState(null)
   const [checkingTimetableConflicts, setCheckingTimetableConflicts] = useState(false)
+  const [timetableRefreshing, setTimetableRefreshing] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
   const [adjustForm, setAdjustForm] = useState({
@@ -132,6 +134,29 @@ function SchedulesPage() {
       cancelled = true
     }
   }, [loadData])
+
+  useAutoRefresh(
+    () => loadData({ force: true, keepContent: true }),
+    { enabled: !showTimetable && !showAdjustDrawer && !saving }
+  )
+
+  const handleTimetableRefresh = useCallback(async () => {
+    setTimetableRefreshing(true)
+    setTimetableConflicts(null)
+    setError('')
+    try {
+      const data = await loadPageData('/schedules', { viewMode, viewDate }, { force: true })
+      setSchedules(data.schedules)
+      setRoutes(data.routes)
+      setBuses(data.buses)
+      setDrivers(data.drivers)
+      setTimetableRows(buildTimetableRows(data.routes, data.schedules, timetableAnchor))
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to refresh timetable data')
+    } finally {
+      setTimetableRefreshing(false)
+    }
+  }, [timetableAnchor, viewDate, viewMode])
 
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
@@ -1032,6 +1057,8 @@ function SchedulesPage() {
         canCreateTimetable={
           timetableReady && !checkingTimetableConflicts && !timetableConflicts?.hasConflict
         }
+        onRefresh={handleTimetableRefresh}
+        refreshing={timetableRefreshing}
       />
     </div>
   )
