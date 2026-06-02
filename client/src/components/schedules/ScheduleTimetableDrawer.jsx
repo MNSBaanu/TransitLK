@@ -36,6 +36,7 @@ function ScheduleTimetableDrawer({
   refreshing = false,
 }) {
   const [focusedRouteId, setFocusedRouteId] = useState(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const focusRouteRow = useCallback(
     (routeId) => {
@@ -58,6 +59,18 @@ function ScheduleTimetableDrawer({
     const timer = window.setTimeout(() => setFocusedRouteId(null), 4500)
     return () => window.clearTimeout(timer)
   }, [focusedRouteId])
+
+  useEffect(() => {
+    if (!open) {
+      setFeedbackOpen(false)
+      return undefined
+    }
+    return undefined
+  }, [open])
+
+  useEffect(() => {
+    if (error) setFeedbackOpen(true)
+  }, [error])
 
   if (!open) return null
 
@@ -105,35 +118,46 @@ function ScheduleTimetableDrawer({
   const hasStatusPanel =
     Boolean(error) || checkingConflicts || routeIssueCards.length > 0 || canCreateTimetable
 
-  return (
-    <div className="fixed inset-0 z-[100] flex flex-col-reverse lg:flex-row-reverse">
+  const issueCount = routeIssueCards.length
+  const hasConflictIssues = routeIssueCards.some((card) =>
+    card.items.some((item) => item.kind === 'conflict')
+  )
+  const showIssueBadge = issueCount > 0 || Boolean(error) || checkingConflicts
+
+  const feedbackPanel = (
       <aside
-        className="flex min-h-0 max-h-[42vh] w-full flex-col border-t border-white/10 bg-black/50 backdrop-blur-md lg:max-h-full lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0"
+        className="flex h-[42vh] min-h-0 w-full flex-1 flex-col border-r border-outline-variant bg-surface-container/40 shadow-2xl lg:h-full lg:min-w-0"
         aria-label="Timetable status and errors"
       >
-        <div className="flex shrink-0 items-center justify-end gap-3 px-4 py-3 sm:px-6">
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={!onRefresh || refreshing}
-            className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-medium text-white/90 transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon
-              name="refresh"
-              size={18}
-              className={refreshing ? 'animate-spin' : ''}
-            />
-            Refresh
-          </button>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-white px-4 py-3 sm:px-5">
+          <p className="text-sm font-semibold text-neutral-900">Timetable feedback</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={!onRefresh || refreshing}
+              className="flex items-center gap-1.5 rounded-lg border border-outline-variant bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-800 transition-colors hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Icon name="refresh" size={16} className={refreshing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => setFeedbackOpen(false)}
+              className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container"
+              aria-label="Close"
+            >
+              <Icon name="close" size={20} />
+            </button>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5">
           {!hasStatusPanel ? (
-            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-6 text-sm text-white/80">
-              <p className="font-semibold text-white">No issues yet</p>
+            <div className="rounded-xl border border-outline-variant bg-white px-4 py-6 text-sm text-on-surface-variant">
+              <p className="font-semibold text-neutral-900">No issues yet</p>
               <p className="mt-2 leading-relaxed">
-                Validation messages, assignment warnings, and scheduling conflicts appear here as
-                you edit routes in the panel on the left.
+                Validation messages and scheduling conflicts appear here as you edit routes.
               </p>
             </div>
           ) : (
@@ -159,7 +183,7 @@ function ScheduleTimetableDrawer({
 
               {!checkingConflicts && routeIssueCards.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                     {routeIssueCards.length} route{routeIssueCards.length !== 1 ? 's' : ''} need
                     attention
                   </p>
@@ -192,7 +216,10 @@ function ScheduleTimetableDrawer({
                           </div>
                           <button
                             type="button"
-                            onClick={() => focusRouteRow(card.routeId)}
+                            onClick={() => {
+                              setFeedbackOpen(false)
+                              focusRouteRow(card.routeId)
+                            }}
                             className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
                               isConflict
                                 ? 'border-red-300 bg-white text-red-700 hover:bg-red-100'
@@ -237,8 +264,21 @@ function ScheduleTimetableDrawer({
           )}
         </div>
       </aside>
+  )
 
-      <div className="flex h-[58vh] min-h-0 w-full shrink-0 flex-col bg-white shadow-2xl lg:h-auto lg:max-w-5xl">
+  return (
+    <div
+      className={`fixed inset-0 z-[100] flex bg-black/30 backdrop-blur-sm ${
+        feedbackOpen ? 'flex-col-reverse lg:flex-row' : 'justify-end'
+      }`}
+    >
+      {feedbackOpen && feedbackPanel}
+
+      <div
+        className={`flex min-h-0 shrink-0 flex-col bg-white shadow-2xl lg:max-w-5xl ${
+          feedbackOpen ? 'h-[58vh] w-full lg:h-full' : 'h-full w-full lg:w-auto'
+        }`}
+      >
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-outline-variant px-5 py-4">
             <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -254,19 +294,49 @@ function ScheduleTimetableDrawer({
                 <h3 className="text-lg font-bold text-neutral-900">Create timetable</h3>
               </div>
             </div>
-            <button
-              type="submit"
-              disabled={
-                saving ||
-                rows.length === 0 ||
-                tripCount === 0 ||
-                checkingConflicts ||
-                !canCreateTimetable
-              }
-              className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? 'Creating...' : 'Create'}
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen((open) => !open)}
+                className={`relative rounded-lg border p-2 transition-colors ${
+                  feedbackOpen ? 'ring-2 ring-depot-blue-light/40' : ''
+                } ${
+                  showIssueBadge
+                    ? hasConflictIssues
+                      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                      : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                    : canCreateTimetable
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      : 'border-outline-variant bg-white text-on-surface-variant hover:bg-surface-container'
+                }`}
+                aria-label="View timetable feedback"
+                title="View issues and validation feedback"
+              >
+                <Icon name="report_problem" size={22} />
+                {issueCount > 0 && (
+                  <span
+                    className={`absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white ${
+                      hasConflictIssues ? 'bg-red-600' : 'bg-amber-500'
+                    }`}
+                  >
+                    {issueCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  saving ||
+                  rows.length === 0 ||
+                  tripCount === 0 ||
+                  checkingConflicts ||
+                  !canCreateTimetable
+                }
+                className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? 'Creating...' : 'Create'}
+              </button>
+            </div>
           </div>
           <div className="shrink-0 border-b border-outline-variant bg-surface-container/40 px-5 py-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
