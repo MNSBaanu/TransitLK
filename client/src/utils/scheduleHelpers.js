@@ -134,24 +134,39 @@ export function groupTimetableConflictsByRoute(issues = []) {
   return byRoute
 }
 
+/** Per-row validation for included timetable routes (bus and driver required). */
+export function getTimetableRowValidationIssues(row) {
+  if (row.included === false) return []
+  const issues = []
+  if (!row.departureTime || !row.arrivalTime) {
+    issues.push('Departure and arrival times are required')
+  } else {
+    const timeErr = validateTimeRange(row.departureTime, row.arrivalTime)
+    if (timeErr) issues.push(timeErr)
+  }
+  if (!row.busId) issues.push('Assign a bus')
+  if (!row.driverId) issues.push('Assign a driver')
+  return issues
+}
+
 export function validateTimetableRows(rows) {
   const errors = []
-  const included = rows.filter((r) => r.included)
+  const included = rows.filter((r) => r.included !== false)
   if (included.length === 0) {
     return ['Select at least one route for the timetable']
   }
   for (const row of included) {
     const label = row.routeName || 'Route'
-    if (!row.departureTime || !row.arrivalTime) {
-      errors.push(`${label}: departure and arrival times are required`)
-      continue
+    for (const issue of getTimetableRowValidationIssues(row)) {
+      const detail = issue.charAt(0).toLowerCase() + issue.slice(1)
+      errors.push(`${label}: ${detail}`)
     }
-    const timeErr = validateTimeRange(row.departureTime, row.arrivalTime)
-    if (timeErr) errors.push(`${label}: ${timeErr}`)
-    if (!row.busId) errors.push(`${label}: assign a bus`)
-    if (!row.driverId) errors.push(`${label}: assign a driver`)
   }
   return errors
+}
+
+export function isTimetableReady(rows) {
+  return validateTimetableRows(rows).length === 0
 }
 
 export function getViewDateRange(viewMode, anchorDate) {

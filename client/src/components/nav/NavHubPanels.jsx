@@ -1,8 +1,4 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import Icon from '../Icon'
-
-const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-fleet-ink-muted'
 
 const notifStyles = {
   error: { icon: 'error', bg: 'bg-red-500/15', text: 'text-red-600' },
@@ -209,201 +205,28 @@ export function NavMessagesPanel({ hub, replyText, setReplyText, onClose }) {
   )
 }
 
-const PREFS_KEY = 'transitlk_notif_prefs'
-
-const defaultPrefs = {
-  scheduleAlerts: true,
-  maintenanceAlerts: true,
-  emailDigest: false,
-}
-
-function loadPrefs() {
-  try {
-    const raw = localStorage.getItem(PREFS_KEY)
-    return raw ? { ...defaultPrefs, ...JSON.parse(raw) } : defaultPrefs
-  } catch {
-    return defaultPrefs
-  }
-}
-
-export function NavProfilePanel({ hub, onClose, user, roleLabel, onLogout }) {
-  const navigate = useNavigate()
+export function NavProfilePanel({ hub, onClose, user, onLogout }) {
   const displayName = user?.name || hub.profile.name
   const displayEmail = user?.email || hub.profile.email
-  const displayRole = roleLabel || hub.profile.role
-  const [section, setSection] = useState('menu')
-  const [prefs, setPrefs] = useState(loadPrefs)
-  const [savedHint, setSavedHint] = useState('')
-
-  const flash = (msg) => {
-    setSavedHint(msg)
-    setTimeout(() => setSavedHint(''), 2000)
-  }
-
-  const savePrefs = (key, value) => {
-    const next = { ...prefs, [key]: value }
-    setPrefs(next)
-    localStorage.setItem(PREFS_KEY, JSON.stringify(next))
-    flash('Preferences saved')
-  }
-
-  const accountLinks = [
-    {
-      id: 'workspace',
-      label: 'My workspace',
-      desc: 'Personal depot overview & tasks',
-      icon: 'space_dashboard',
-      onClick: () => {
-        navigate('/dashboard')
-        onClose()
-      },
-    },
-    {
-      id: 'settings',
-      label: 'Account settings',
-      desc: 'Profile name, email, depot',
-      icon: 'manage_accounts',
-      onClick: () => setSection('settings'),
-    },
-    {
-      id: 'preferences',
-      label: 'Notification preferences',
-      desc: 'Alerts and email digest',
-      icon: 'notifications_active',
-      onClick: () => setSection('preferences'),
-    },
-    {
-      id: 'help',
-      label: 'Help & support',
-      desc: 'Documentation & contact',
-      icon: 'help',
-      onClick: () => {
-        flash('Support: support@transitlk.lk')
-      },
-    },
-  ]
-
-  if (section === 'settings') {
-    return (
-      <div className="p-4">
-        <button
-          type="button"
-          onClick={() => setSection('menu')}
-          className="mb-4 flex items-center gap-1.5 text-xs font-semibold text-depot-navy hover:text-depot-blue-light"
-        >
-          <Icon name="arrow_back" size={16} />
-          Account menu
-        </button>
-        <h4 className="mb-3 text-sm font-bold text-fleet-ink">Account settings</h4>
-        <div className="space-y-3">
-          <label className="block">
-            <span className={labelClass}>Display name</span>
-            <input
-              type="text"
-              value={hub.profile.name}
-              onChange={(e) => hub.updateProfileField('name', e.target.value)}
-              className="input-field mt-1"
-            />
-          </label>
-          <label className="block">
-            <span className={labelClass}>Email</span>
-            <input
-              type="email"
-              value={hub.profile.email}
-              onChange={(e) => hub.updateProfileField('email', e.target.value)}
-              className="input-field mt-1"
-            />
-          </label>
-          <div className="glass-subtle rounded-xl px-3 py-2.5">
-            <p className={labelClass}>Assigned depot</p>
-            <p className="mt-1 text-sm font-medium text-fleet-ink">{hub.profile.depot}</p>
-            <p className="mt-1 text-xs text-fleet-ink-muted">{hub.profile.role}</p>
-          </div>
-        </div>
-        {savedHint && <p className="mt-3 text-xs font-medium text-depot-navy">{savedHint}</p>}
-      </div>
-    )
-  }
-
-  if (section === 'preferences') {
-    const toggles = [
-      { key: 'scheduleAlerts', label: 'Schedule & conflict alerts', icon: 'event' },
-      { key: 'maintenanceAlerts', label: 'Maintenance & fleet alerts', icon: 'build' },
-      { key: 'emailDigest', label: 'Daily email digest', icon: 'mail' },
-    ]
-    return (
-      <div className="p-4">
-        <button
-          type="button"
-          onClick={() => setSection('menu')}
-          className="mb-4 flex items-center gap-1.5 text-xs font-semibold text-depot-navy hover:text-depot-blue-light"
-        >
-          <Icon name="arrow_back" size={16} />
-          Account menu
-        </button>
-        <h4 className="mb-3 text-sm font-bold text-fleet-ink">Notification preferences</h4>
-        <ul className="space-y-2">
-          {toggles.map((t) => (
-            <li key={t.key}>
-              <label className="glass-subtle flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-3">
-                <span className="flex items-center gap-2">
-                  <Icon name={t.icon} size={18} className="text-depot-navy" />
-                  <span className="text-sm text-fleet-ink">{t.label}</span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={prefs[t.key]}
-                  onChange={(e) => savePrefs(t.key, e.target.checked)}
-                  className="h-4 w-4 rounded border-fleet-line text-depot-blue-light"
-                />
-              </label>
-            </li>
-          ))}
-        </ul>
-        {savedHint && <p className="mt-3 text-xs font-medium text-depot-navy">{savedHint}</p>}
-      </div>
-    )
-  }
-
+  const depotId = user?.depotId?._id || user?.depotId || '—'
+  const depotBranch =
+    user?.depotId?.depotName || user?.depotId?.depotCode || hub.profile.depot || '—'
   return (
     <div>
       <div className="border-b border-white/40 bg-gradient-to-br from-depot-navy/5 to-depot-blue-light/10 p-4">
-        <div className="flex items-center gap-3">
-          <img
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMfCMQyea5MKzlWGY1ZKUohvHWFhuFZFG1KyqV0zerTOD3Wpr34zT6cnK1HPQNynynyJbjSLHH5gt24H3wrzkiko1Ets1cHJIbZTanpfT6-iNv2uwRr4aA5Blcq2LrJkPmCX0ZTShfLnsIiEOsmCP5mzv9iUoxDwWd5Cq5bNdrxWxZeEnrsWuRgbJM4itb6nn_eJaQ26eAeVeMhUqTZwmdnsL94pH0qi77pZd_Rw1smHa9KR6tLO213AQznW8jKk15jhtuY2Cbbp4"
-            alt=""
-            className="h-14 w-14 rounded-full border-2 border-white/80 object-cover shadow-md"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-bold text-fleet-ink">{displayName}</p>
-            <p className="truncate text-xs text-fleet-ink-muted">{displayEmail}</p>
-            <span className="mt-1.5 inline-block rounded-full bg-depot-navy/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-depot-navy">
-              {displayRole}
-            </span>
+        <div className="min-w-0">
+          <p className="truncate text-base font-bold text-fleet-ink">{displayName}</p>
+          <p className="truncate text-xs text-fleet-ink-muted">{displayEmail}</p>
+          <div className="mt-2 space-y-1 text-xs text-fleet-ink-muted">
+            <p>
+              <span className="font-semibold text-fleet-ink">Depot ID:</span> {String(depotId)}
+            </p>
+            <p>
+              <span className="font-semibold text-fleet-ink">Depot Branch:</span> {depotBranch}
+            </p>
           </div>
         </div>
       </div>
-
-      <ul className="space-y-1 p-2">
-        {accountLinks.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              onClick={item.onClick}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/40"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-depot-navy/10">
-                <Icon name={item.icon} size={20} className="text-depot-navy" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-fleet-ink">{item.label}</span>
-                <span className="block text-xs text-fleet-ink-muted">{item.desc}</span>
-              </span>
-              <Icon name="chevron_right" size={18} className="shrink-0 text-fleet-ink-muted" />
-            </button>
-          </li>
-        ))}
-      </ul>
 
       <div className="border-t border-white/40 p-2">
         <button
@@ -421,9 +244,6 @@ export function NavProfilePanel({ hub, onClose, user, roleLabel, onLogout }) {
           Sign out
         </button>
       </div>
-      {savedHint && (
-        <p className="px-4 pb-2 text-center text-xs font-medium text-depot-navy">{savedHint}</p>
-      )}
     </div>
   )
 }

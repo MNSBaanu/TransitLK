@@ -11,10 +11,17 @@ import {
   startOfMonth,
   endOfMonth,
   validateTimeRange,
+  validateTimetableRows,
   requiresAdjustmentNotes,
   reasonToStatus,
 } from '../utils/scheduleHelpers.js'
 import { isWithinWorkingHoursAtTime } from '../utils/fleetHelpers.js'
+import {
+  assertDepotAccess,
+  isDriver,
+  isSuperadministrator,
+  requireUserDepot,
+} from '../utils/depotAccess.js'
 
 const routePopulate = { path: 'routeId', select: 'routeName startPoint endPoint distance serviceType' }
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
@@ -31,6 +38,49 @@ const populateSchedule = (query) =>
     .populate(busPopulate)
     .populate(driverPopulate)
     .populate(historyPopulate)
+
+async function getScopedRouteIds(user) {
+  if (isSuperadministrator(user) || isDriver(user)) return null
+  const depotId = requireUserDepot(user)
+  const routes = await Route.find({ depotId }).select('_id')
+  return routes.map((route) => route._id)
+}
+
+async function getAccessibleRoute(user, routeId) {
+  const route = await Route.findById(routeId)
+  if (!route) {
+    const error = new Error('Route not found')
+    error.statusCode = 400
+    throw error
+  }
+  assertDepotAccess(user, route.depotId, 'Not allowed to access schedules for this depot')
+  return route
+}
+
+async function assertScheduleAccess(user, schedule) {
+  if (isDriver(user)) {
+    if (String(schedule.driverId) !== String(user.driverId)) {
+      const error = new Error('Not allowed to access this schedule')
+      error.statusCode = 403
+      throw error
+    }
+    return null
+  }
+
+  const route = await Route.findById(schedule.routeId).select('depotId routeName serviceType status')
+  if (!route) {
+    const error = new Error('Route not found')
+    error.statusCode = 400
+    throw error
+  }
+  assertDepotAccess(user, route.depotId, 'Not allowed to access schedules for this depot')
+  return route
+}
+
+async function syncBusServiceType(busId, serviceType) {
+  if (!busId || !serviceType) return
+  await Bus.findByIdAndUpdate(busId, { serviceType })
+}
 
 function buildHistoryChanges(existing, data) {
   const tracked = [
@@ -236,7 +286,7 @@ async function analyzeTimetableConflicts({ dates, rows }) {
   return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
-async function validateAssignment({ busId, driverId, departureTime, routeId }) {
+async function validateAssignment({ busId, driverId, departureTime, routeId, routeDepotId }) {
   const bus = await Bus.findById(busId)
   if (!bus) {
     const error = new Error('Bus not found')
@@ -253,16 +303,10 @@ async function validateAssignment({ busId, driverId, departureTime, routeId }) {
     error.statusCode = 400
     throw error
   }
-
-  if (routeId) {
-    const route = await Route.findById(routeId).select('serviceType')
-    if (route?.serviceType && bus.serviceType && route.serviceType !== bus.serviceType) {
-      const error = new Error(
-        `Bus service type (${bus.serviceType}) does not match route (${route.serviceType})`
-      )
-      error.statusCode = 400
-      throw error
-    }
+  if (routeDepotId && bus.depotId && String(bus.depotId) !== String(routeDepotId)) {
+    const error = new Error('Bus belongs to a different depot')
+    error.statusCode = 400
+    throw error
   }
 
   const driver = await Driver.findById(driverId)
@@ -283,6 +327,11 @@ async function validateAssignment({ busId, driverId, departureTime, routeId }) {
     error.statusCode = 400
     throw error
   }
+  if (routeDepotId && driver.depotId && String(driver.depotId) !== String(routeDepotId)) {
+    const error = new Error('Driver belongs to a different depot')
+    error.statusCode = 400
+    throw error
+  }
 
   return { bus, driver }
 }
@@ -292,10 +341,18 @@ export const getSchedules = async (req, res) => {
     const { tripDate, fromDate, toDate, view, routeId, busId, driverId, status } = req.query
     const filter = {}
 
-    if (req.user?.role === 'driver' && req.user?.driverId) {
+    if (isDriver(req.user) && req.user?.driverId) {
       filter.driverId = req.user.driverId
     } else {
-      if (routeId) filter.routeId = routeId
+      const scopedRouteIds = await getScopedRouteIds(req.user)
+      if (scopedRouteIds) filter.routeId = { $in: scopedRouteIds }
+      if (routeId) {
+        if (scopedRouteIds && !scopedRouteIds.some((id) => String(id) === String(routeId))) {
+          filter.routeId = null
+        } else {
+          filter.routeId = routeId
+        }
+      }
       if (busId) filter.busId = busId
       if (driverId) filter.driverId = driverId
     }
@@ -322,11 +379,14 @@ export const getSchedules = async (req, res) => {
 
 export const getScheduleById = async (req, res) => {
   try {
+    const rawSchedule = await Schedule.findById(req.params.id)
+    if (rawSchedule) await assertScheduleAccess(req.user, rawSchedule)
     const schedule = await populateSchedule(Schedule.findById(req.params.id))
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
     res.json(schedule)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
@@ -353,15 +413,20 @@ export const createSchedule = async (req, res) => {
     const timeError = validateTimeRange(departureTime, arrivalTime)
     if (timeError) return res.status(400).json({ message: timeError })
 
-    const route = await Route.findById(routeId)
-    if (!route) return res.status(400).json({ message: 'Route not found' })
+    const route = await getAccessibleRoute(req.user, routeId)
     if (route.status && route.status !== 'active') {
       return res.status(400).json({
         message: `Route "${route.routeName}" is ${route.status} and cannot be scheduled`,
       })
     }
 
-    await validateAssignment({ busId, driverId, departureTime, routeId })
+    await validateAssignment({
+      busId,
+      driverId,
+      departureTime,
+      routeId,
+      routeDepotId: route.depotId,
+    })
 
     const conflicts = await findConflicts({
       tripDate,
@@ -387,6 +452,8 @@ export const createSchedule = async (req, res) => {
       createdBy: createdBy || req.user?.id,
     })
 
+    await syncBusServiceType(busId, route.serviceType)
+
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.status(201).json(populated)
   } catch (error) {
@@ -399,6 +466,7 @@ export const updateSchedule = async (req, res) => {
   try {
     const existing = await Schedule.findById(req.params.id)
     if (!existing) return res.status(404).json({ message: 'Schedule not found' })
+    const scopedRoute = await assertScheduleAccess(req.user, existing)
 
     const data = { ...req.body }
     const routeId = data.routeId ?? existing.routeId
@@ -430,11 +498,20 @@ export const updateSchedule = async (req, res) => {
     }
 
     if (data.routeId) {
-      const route = await Route.findById(routeId)
-      if (!route) return res.status(400).json({ message: 'Route not found' })
+      await getAccessibleRoute(req.user, routeId)
     }
 
-    await validateAssignment({ busId, driverId, departureTime, routeId })
+    const assignmentRoute = data.routeId
+      ? await getAccessibleRoute(req.user, routeId)
+      : scopedRoute
+
+    await validateAssignment({
+      busId,
+      driverId,
+      departureTime,
+      routeId,
+      routeDepotId: assignmentRoute?.depotId,
+    })
 
     const conflicts = await findConflicts({
       tripDate,
@@ -452,6 +529,7 @@ export const updateSchedule = async (req, res) => {
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
     await existing.save()
+    await syncBusServiceType(busId, assignmentRoute?.serviceType)
     const populated = await populateSchedule(Schedule.findById(req.params.id))
     res.json(populated)
   } catch (error) {
@@ -462,11 +540,14 @@ export const updateSchedule = async (req, res) => {
 
 export const deleteSchedule = async (req, res) => {
   try {
-    const schedule = await Schedule.findByIdAndDelete(req.params.id)
+    const schedule = await Schedule.findById(req.params.id)
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
+    await schedule.deleteOne()
     res.json({ message: 'Schedule removed', id: schedule._id })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
@@ -474,6 +555,7 @@ export const submitSchedule = async (req, res) => {
   try {
     const schedule = await Schedule.findById(req.params.id)
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
     if (!['draft', 'pending'].includes(schedule.status)) {
       return res.status(400).json({ message: 'Only draft schedules can be submitted' })
     }
@@ -506,6 +588,7 @@ export const approveSchedule = async (req, res) => {
   try {
     const schedule = await Schedule.findById(req.params.id)
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    const route = await assertScheduleAccess(req.user, schedule)
     if (schedule.status !== 'pending') {
       return res.status(400).json({ message: 'Only pending schedules can be approved' })
     }
@@ -515,6 +598,7 @@ export const approveSchedule = async (req, res) => {
       driverId: schedule.driverId,
       departureTime: schedule.departureTime,
       routeId: schedule.routeId,
+      routeDepotId: route?.depotId,
     })
 
     const conflicts = await findConflicts({
@@ -537,6 +621,7 @@ export const approveSchedule = async (req, res) => {
     schedule.approvedBy = req.user?.id
     schedule.rejectionReason = undefined
     await schedule.save()
+    await syncBusServiceType(schedule.busId, route?.serviceType)
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
@@ -552,6 +637,7 @@ export const rejectSchedule = async (req, res) => {
     }
     const schedule = await Schedule.findById(req.params.id)
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
     if (schedule.status !== 'pending') {
       return res.status(400).json({ message: 'Only pending schedules can be rejected' })
     }
@@ -574,6 +660,14 @@ export const checkScheduleConflicts = async (req, res) => {
         message: 'tripDate, busId, driverId, departureTime, and arrivalTime are required',
       })
     }
+    const route = routeId ? await getAccessibleRoute(req.user, routeId) : null
+    await validateAssignment({
+      busId,
+      driverId,
+      departureTime,
+      routeId,
+      routeDepotId: route?.depotId,
+    })
     const conflicts = await findConflicts({
       tripDate,
       routeId,
@@ -589,11 +683,37 @@ export const checkScheduleConflicts = async (req, res) => {
   }
 }
 
+function timetableValidationResult(rows) {
+  const validationErrors = validateTimetableRows(rows)
+  if (!validationErrors.length) return null
+  return {
+    hasConflict: true,
+    issues: [
+      {
+        routeId: '',
+        routeName: 'Validation',
+        tripDate: '',
+        conflicts: validationErrors.map((message) => ({ type: 'validation', message })),
+      },
+    ],
+    conflictCount: validationErrors.length,
+  }
+}
+
 export const checkTimetableConflicts = async (req, res) => {
   try {
     const { dates, rows } = req.body
     if (!Array.isArray(dates) || !Array.isArray(rows)) {
       return res.status(400).json({ message: 'dates and rows arrays are required' })
+    }
+    const validationBlock = timetableValidationResult(rows)
+    if (validationBlock) {
+      return res.json(validationBlock)
+    }
+    if (!isSuperadministrator(req.user)) {
+      for (const row of rows) {
+        await getAccessibleRoute(req.user, row.routeId)
+      }
     }
     const result = await analyzeTimetableConflicts({ dates, rows })
     res.json(result)

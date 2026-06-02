@@ -3,8 +3,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
+import { getCachedPageData, loadPageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
+import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../config/roles'
 
 const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-fleet-ink-muted'
 
@@ -141,13 +144,20 @@ function FuelTrendBars({ trend = [] }) {
 }
 
 function Reports() {
+  const { user } = useAuth()
   const printRef = useRef(null)
-  const [period, setPeriod] = useState('monthly')
-  const initialRange = applyPeriodRange('monthly')
+  const initialPeriod = 'monthly'
+  const initialRange = applyPeriodRange(initialPeriod)
+  const initialData = getCachedPageData('/reports', {
+    period: initialPeriod,
+    fromDate: initialRange.from,
+    toDate: initialRange.to,
+  })
+  const [period, setPeriod] = useState(initialPeriod)
   const [fromDate, setFromDate] = useState(initialRange.from)
   const [toDate, setToDate] = useState(initialRange.to)
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(() => initialData?.data || null)
+  const [loading, setLoading] = useState(!initialData)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
 
@@ -163,14 +173,26 @@ function Reports() {
     setToDate(to)
   }
 
-  const loadReports = useCallback(async () => {
+  const loadReports = useCallback(async ({ force = false } = {}) => {
+    if (!force) {
+      const cached = getCachedPageData('/reports', { period, fromDate, toDate })
+      if (cached) {
+        setData(cached.data)
+        setLoading(false)
+        setError('')
+        return
+      }
+    }
+
     setLoading(true)
     setError('')
     try {
-      const { data: res } = await api.get('/reports/dashboard', {
-        params: { from: fromDate, to: toDate, period },
-      })
-      setData(res)
+      const prefetched = await loadPageData(
+        '/reports',
+        { period, fromDate, toDate },
+        { force }
+      )
+      setData(prefetched.data)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load reports')
       setData(null)
@@ -180,7 +202,13 @@ function Reports() {
   }, [fromDate, toDate, period])
 
   useEffect(() => {
-    loadReports()
+    let cancelled = false
+    Promise.resolve().then(() => {
+      if (!cancelled) loadReports()
+    })
+    return () => {
+      cancelled = true
+    }
   }, [loadReports])
 
   const reportParams = { from: fromDate, to: toDate, period }
@@ -275,7 +303,11 @@ function Reports() {
 
       <ModuleHeader
         title="Reporting & Analytics"
-        subtitle="Trip completion, route performance, and fuel trends from live operations data"
+        subtitle={
+          user?.role === ROLES.SUPERADMINISTRATOR
+            ? 'Global reports across all depots, including trip completion, route performance, and fuel trends'
+            : 'Trip completion, route performance, and fuel trends from live operations data'
+        }
         action={
           <div className="glass-panel flex flex-wrap items-center gap-3 p-2">
             <div>
@@ -566,7 +598,7 @@ function Reports() {
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={loadReports}
+              onClick={() => loadReports({ force: true })}
               className="flex items-center gap-1 text-sm font-semibold text-depot-navy hover:text-depot-blue-light"
             >
               Refresh report

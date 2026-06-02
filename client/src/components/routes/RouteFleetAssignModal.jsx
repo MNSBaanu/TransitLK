@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import api from '../../services/api'
 import Icon from '../Icon'
 import RouteFleetAssignment from './RouteFleetAssignment'
@@ -9,22 +9,16 @@ import {
 } from '../../utils/fleetHelpers'
 
 function routeCode(route) {
+  if (route?.routeNo) return route.routeNo
   if (!route?._id) return '—'
   return route._id.slice(-6).toUpperCase()
 }
 
 function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
-  const [busId, setBusId] = useState('')
-  const [driverId, setDriverId] = useState('')
+  const [busId, setBusId] = useState(() => route?.busId?._id || route?.busId || '')
+  const [driverId, setDriverId] = useState(() => route?.driverId?._id || route?.driverId || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!route) return
-    setBusId(route.busId?._id || route.busId || '')
-    setDriverId(route.driverId?._id || route.driverId || '')
-    setError('')
-  }, [route])
 
   const serviceType = route?.serviceType || 'ordinary'
   const minCapacity = defaultMinCapacityForService(serviceType)
@@ -71,10 +65,12 @@ function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
     setSaving(true)
     try {
       const payload = {
+        routeNo: route.routeNo,
         routeName: route.routeName,
         distance: route.distance,
         startPoint: route.startPoint,
         endPoint: route.endPoint,
+        viaDescription: route.viaDescription,
         stops: route.stops || [],
         serviceType: route.serviceType,
         status: route.status || 'active',
@@ -115,7 +111,7 @@ function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
               Assign bus &amp; driver
             </h3>
             <p className="text-sm text-on-surface-variant">
-              {route.routeName} · ID {routeCode(route)}
+              {route.routeName} · Route No {routeCode(route)}
             </p>
           </div>
           <button

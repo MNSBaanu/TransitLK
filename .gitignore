@@ -11,10 +11,15 @@ node_modules/
 # Build output
 /client/build
 /client/dist
+diagrams/
 
 # Logs
 *.log
 npm-debug.log*
+
+# One-off maintenance scripts (local use only)
+server/scripts/backfill*.js
+server/scripts/check*.mjs
 
 # OS files
 .DS_Store

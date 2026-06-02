@@ -39,12 +39,14 @@ function RouteEditView({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className={labelClass}>Route ID</span>
+                <span className={labelClass}>Route No</span>
                 <input
-                  type="text"
-                  readOnly
-                  value={routeCode}
-                  className={`${inputClass} bg-surface-container-low font-mono tabular-nums text-on-surface-variant`}
+                  name="routeNo"
+                  value={form.routeNo}
+                  onChange={onFormChange}
+                  required
+                  className={`${inputClass} font-mono tabular-nums`}
+                  placeholder="8 / 593 / 636/1"
                 />
               </label>
               <label className="block">
@@ -65,6 +67,16 @@ function RouteEditView({
                 required
                 className={inputClass}
                 placeholder="Colombo — Kandy"
+              />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Via</span>
+              <input
+                name="viaDescription"
+                value={form.viaDescription}
+                onChange={onFormChange}
+                className={inputClass}
+                placeholder="via Warakamura"
               />
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -176,7 +188,7 @@ function RouteEditView({
           <div className="absolute bottom-4 left-4 right-4 z-10">
             <div className="flex flex-wrap gap-4 rounded-xl border border-outline-variant bg-white/95 p-3 text-sm shadow-md backdrop-blur">
               <div>
-                <p className={labelClass}>Route ID</p>
+                <p className={labelClass}>Route No</p>
                 <p className="font-bold font-mono tabular-nums">{routeCode}</p>
               </div>
               <div>

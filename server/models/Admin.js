@@ -1,5 +1,6 @@
 import mongoose from 'mongoose'
 import bcrypt from 'bcryptjs'
+import { ROLES } from '../utils/roles.js'
 
 const adminSchema = new mongoose.Schema(
   {
@@ -22,8 +23,8 @@ const adminSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      default: 'administrator',
-      immutable: true,
+      enum: [ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR],
+      default: ROLES.ADMINISTRATOR,
     },
     depotId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -36,6 +37,14 @@ const adminSchema = new mongoose.Schema(
     },
   },
   { timestamps: true, collection: 'admins' }
+)
+
+adminSchema.index(
+  { userId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { userId: { $type: 'objectId' } },
+  }
 )
 
 adminSchema.pre('save', async function (next) {
