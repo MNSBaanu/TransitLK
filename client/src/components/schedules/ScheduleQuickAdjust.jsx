@@ -2,6 +2,7 @@ import Icon from '../Icon'
 import {
   ADJUSTMENT_REASON_LABELS,
   formatAdjustmentChange,
+  formatRouteStopsLabel,
   requiresAdjustmentNotes,
   scheduleCode,
 } from '../../utils/scheduleHelpers'
@@ -128,6 +129,24 @@ function ScheduleQuickAdjust({
 
         <div className="mb-4 rounded-lg border border-depot-navy/10 bg-depot-navy/5 p-4">
           <p className={`${labelClass} mb-2`}>Selected trip</p>
+          {selected?.routeId && (
+            <div className="mb-3 border-b border-depot-navy/10 pb-3">
+              <p className="text-sm font-semibold text-neutral-900">
+                {selected.routeId.routeName || 'Route'}
+              </p>
+              {selected.routeId.startPoint && selected.routeId.endPoint ? (
+                <p className="mt-0.5 text-xs text-on-surface-variant">
+                  {selected.routeId.startPoint} → {selected.routeId.endPoint}
+                  {selected.routeId.distance != null ? ` · ${selected.routeId.distance} km` : ''}
+                </p>
+              ) : null}
+              {formatRouteStopsLabel(selected.routeId) ? (
+                <p className="mt-0.5 text-xs text-on-surface-variant">
+                  Stops: {formatRouteStopsLabel(selected.routeId)}
+                </p>
+              ) : null}
+            </div>
+          )}
           <div className="space-y-2 text-sm">
             <div className="flex justify-between gap-2">
               <span className="font-medium text-on-surface-variant">Vehicle:</span>

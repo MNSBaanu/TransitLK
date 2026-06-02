@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
 import {
   detectPeriodConflicts,
+  detectTimetableConflicts,
   formatPeriodLabel,
   formatTripDate,
   buildTimetableRows,
@@ -67,8 +68,8 @@ function SchedulesPage() {
   const [timetablePeriod, setTimetablePeriod] = useState('daily')
   const [timetableAnchor, setTimetableAnchor] = useState(() => toDateInputValue(new Date()))
   const [timetableRows, setTimetableRows] = useState([])
-  const [timetableConflicts, setTimetableConflicts] = useState(null)
-  const [checkingTimetableConflicts, setCheckingTimetableConflicts] = useState(false)
+  const [timetableRangeSchedules, setTimetableRangeSchedules] = useState([])
+  const [loadingTimetableRange, setLoadingTimetableRange] = useState(false)
   const [timetableRefreshing, setTimetableRefreshing] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
   const [emergencyMode, setEmergencyMode] = useState(false)
@@ -142,7 +143,6 @@ function SchedulesPage() {
 
   const handleTimetableRefresh = useCallback(async () => {
     setTimetableRefreshing(true)
-    setTimetableConflicts(null)
     setError('')
     try {
       const data = await loadPageData('/schedules', { viewMode, viewDate }, { force: true })
@@ -151,12 +151,20 @@ function SchedulesPage() {
       setBuses(data.buses)
       setDrivers(data.drivers)
       setTimetableRows(buildTimetableRows(data.routes, data.schedules, timetableAnchor))
+
+      const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+      if (dates.length) {
+        const { data: rangeSchedules } = await api.get('/schedules', {
+          params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
+        })
+        setTimetableRangeSchedules(Array.isArray(rangeSchedules) ? rangeSchedules : [])
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to refresh timetable data')
     } finally {
       setTimetableRefreshing(false)
     }
-  }, [timetableAnchor, viewDate, viewMode])
+  }, [timetableAnchor, timetablePeriod, viewDate, viewMode])
 
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
@@ -266,58 +274,70 @@ function SchedulesPage() {
 
   const timetableReady = useMemo(() => isTimetableReady(timetableRows), [timetableRows])
 
-  const timetableRowConflicts = useMemo(
-    () => groupTimetableConflictsByRoute(timetableConflicts?.issues),
-    [timetableConflicts]
-  )
-
   useEffect(() => {
     if (!showTimetable) {
-      const resetTimer = window.setTimeout(() => {
-        setTimetableConflicts(null)
-        setCheckingTimetableConflicts(false)
-      }, 0)
-      return () => window.clearTimeout(resetTimer)
+      setTimetableRangeSchedules([])
+      return undefined
+    }
+
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+    if (!dates.length) return undefined
+
+    let cancelled = false
+    setLoadingTimetableRange(true)
+    api
+      .get('/schedules', {
+        params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
+      })
+      .then(({ data }) => {
+        if (!cancelled) {
+          setTimetableRangeSchedules(Array.isArray(data) ? data : [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTimetableRangeSchedules([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTimetableRange(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [showTimetable, timetablePeriod, timetableAnchor])
+
+  const timetableConflicts = useMemo(() => {
+    if (!showTimetable) return null
+
+    const validationErrors = validateTimetableRows(timetableRows)
+    if (validationErrors.length) {
+      return {
+        hasConflict: true,
+        issues: [
+          {
+            routeId: '',
+            routeName: 'Validation',
+            tripDate: '',
+            conflicts: validationErrors.map((message) => ({ type: 'validation', message })),
+          },
+        ],
+        conflictCount: validationErrors.length,
+      }
     }
 
     const included = timetableRows.filter((r) => r.included)
     if (!included.length) {
-      const emptyTimer = window.setTimeout(() => {
-        setTimetableConflicts({ hasConflict: false, issues: [], conflictCount: 0 })
-      }, 0)
-      return () => window.clearTimeout(emptyTimer)
-    }
-
-    const rowErrors = validateTimetableRows(timetableRows)
-    if (rowErrors.length) {
-      const validationTimer = window.setTimeout(() => {
-        setTimetableConflicts({
-          hasConflict: true,
-          issues: [{ routeId: '', routeName: 'Validation', tripDate: '', conflicts: rowErrors.map((message) => ({ type: 'validation', message })) }],
-          conflictCount: rowErrors.length,
-        })
-      }, 0)
-      return () => window.clearTimeout(validationTimer)
+      return { hasConflict: false, issues: [], conflictCount: 0 }
     }
 
     const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-    const timer = setTimeout(async () => {
-      setCheckingTimetableConflicts(true)
-      try {
-        const { data } = await api.post('/schedules/conflicts/timetable', {
-          dates,
-          rows: included,
-        })
-        setTimetableConflicts(data)
-      } catch {
-        setTimetableConflicts(null)
-      } finally {
-        setCheckingTimetableConflicts(false)
-      }
-    }, 400)
+    return detectTimetableConflicts(dates, included, timetableRangeSchedules)
+  }, [showTimetable, timetableRows, timetablePeriod, timetableAnchor, timetableRangeSchedules])
 
-    return () => clearTimeout(timer)
-  }, [showTimetable, timetableRows, timetablePeriod, timetableAnchor])
+  const timetableRowConflicts = useMemo(
+    () => groupTimetableConflictsByRoute(timetableConflicts?.issues),
+    [timetableConflicts]
+  )
 
   const [adjustConflict, setAdjustConflict] = useState(null)
 
@@ -383,7 +403,6 @@ function SchedulesPage() {
     setTimetablePeriod(viewMode)
     setTimetableAnchor(viewDate)
     setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
-    setTimetableConflicts(null)
     setError('')
     setShowTimetable(true)
   }
@@ -549,7 +568,6 @@ function SchedulesPage() {
         dates,
         rows: included,
       })
-      setTimetableConflicts(precheck)
       if (precheck.hasConflict) {
         setError(
           `Cannot create timetable: ${precheck.conflictCount || precheck.issues?.length} conflict(s) detected. Resolve overlaps before saving.`
@@ -1035,7 +1053,6 @@ function SchedulesPage() {
         open={showTimetable}
         onClose={() => {
           setShowTimetable(false)
-          setTimetableConflicts(null)
           setError('')
         }}
         period={timetablePeriod}
@@ -1052,13 +1069,15 @@ function SchedulesPage() {
         onSubmit={handleCreateTimetable}
         tripCount={timetableTripCount}
         conflictPreview={timetableConflicts}
-        checkingConflicts={checkingTimetableConflicts}
         rowConflictHints={timetableRowConflicts}
         canCreateTimetable={
-          timetableReady && !checkingTimetableConflicts && !timetableConflicts?.hasConflict
+          timetableReady &&
+          !loadingTimetableRange &&
+          !timetableConflicts?.hasConflict
         }
         onRefresh={handleTimetableRefresh}
         refreshing={timetableRefreshing}
+        checkingConflicts={loadingTimetableRange}
       />
     </div>
   )

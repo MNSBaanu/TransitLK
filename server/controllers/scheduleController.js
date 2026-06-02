@@ -23,7 +23,10 @@ import {
   requireUserDepot,
 } from '../utils/depotAccess.js'
 
-const routePopulate = { path: 'routeId', select: 'routeName startPoint endPoint distance serviceType' }
+const routePopulate = {
+  path: 'routeId',
+  select: 'routeName startPoint endPoint distance serviceType stops viaDescription',
+}
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
 const driverPopulate = { path: 'driverId', select: 'name licenseNo contactNo workingHours status' }
 
@@ -221,6 +224,25 @@ function compareTripOverlap(proposed, other, conflicts, { otherLabel = 'another 
   }
 }
 
+function mergeTimetableIssue(issues, trip, dateStr, newConflicts) {
+  if (!newConflicts.length) return
+  let block = issues.find((i) => String(i.routeId) === String(trip.routeId) && i.tripDate === dateStr)
+  if (!block) {
+    block = {
+      routeId: trip.routeId,
+      routeName: trip.routeName,
+      tripDate: dateStr,
+      conflicts: [],
+    }
+    issues.push(block)
+  }
+  for (const c of newConflicts) {
+    if (!block.conflicts.some((x) => x.type === c.type && x.message === c.message)) {
+      block.conflicts.push(c)
+    }
+  }
+}
+
 async function analyzeTimetableConflicts({ dates, rows }) {
   const included = (rows || []).filter(
     (r) =>
@@ -259,26 +281,27 @@ async function analyzeTimetableConflicts({ dates, rows }) {
 
     const existingForDay = existing.filter((e) => isSameCalendarDay(e.tripDate, dateStr))
 
+    for (let i = 0; i < proposedForDay.length; i++) {
+      for (let j = i + 1; j < proposedForDay.length; j++) {
+        const a = proposedForDay[i]
+        const b = proposedForDay[j]
+        const forward = []
+        compareTripOverlap(a, b, forward, { otherLabel: b.routeName })
+        if (forward.length) {
+          mergeTimetableIssue(issues, a, dateStr, forward)
+          const reverse = []
+          compareTripOverlap(b, a, reverse, { otherLabel: a.routeName })
+          mergeTimetableIssue(issues, b, dateStr, reverse)
+        }
+      }
+    }
+
     for (const trip of proposedForDay) {
       const conflicts = []
-
-      for (const other of proposedForDay) {
-        if (other.routeId === trip.routeId) continue
-        compareTripOverlap(trip, other, conflicts, { otherLabel: other.routeName })
-      }
-
       for (const ex of existingForDay) {
         compareTripOverlap(trip, ex, conflicts, { otherLabel: 'existing schedule' })
       }
-
-      if (conflicts.length) {
-        issues.push({
-          routeId: trip.routeId,
-          routeName: trip.routeName,
-          tripDate: dateStr,
-          conflicts,
-        })
-      }
+      mergeTimetableIssue(issues, trip, dateStr, conflicts)
     }
   }
 
