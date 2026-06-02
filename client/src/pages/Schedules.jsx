@@ -447,52 +447,34 @@ function SchedulesPage() {
     }))
   }
 
-  const handleMaintenanceSwap = () => {
-    if (!selected) return
-    const currentBusId = String(selected.busId?._id || selected.busId)
-    const serviceType = selected.routeId?.serviceType
-    const minCap = defaultMinCapacityForService(serviceType)
-    const alternate = buses.find(
-      (b) =>
-        String(b._id) !== currentBusId &&
-        isBusAssignable(b, serviceType, minCap)
-    )
-    if (!alternate) {
-      setError('No alternate bus matches route service type and capacity')
-      return
-    }
+  const handlePickMaintenanceBus = (bus) => {
+    if (!selected || !bus) return
     setAdjustForm((prev) => ({
       ...prev,
-      busId: alternate._id,
+      busId: bus._id,
       reason: 'maintenance',
       status: reasonToStatus('maintenance', prev.status),
-      notes: prev.notes || `Maintenance swap from ${selected.busId?.regNumber || 'vehicle'} to ${alternate.regNumber}`,
+      notes:
+        prev.notes?.trim() ||
+        `Maintenance swap from ${selected.busId?.regNumber || 'vehicle'} to ${bus.regNumber}`,
     }))
     setError('')
-    showToast(`Suggested swap: ${alternate.regNumber} — apply to save`)
+    showToast(`Selected ${bus.regNumber} — review and apply to save`)
   }
 
-  const handleDriverAbsenceSwap = () => {
-    if (!selected) return
-    const currentDriverId = String(selected.driverId?._id || selected.driverId)
-    const alternate = drivers.find(
-      (d) =>
-        (d.status === 'available' || !d.status) &&
-        String(d._id) !== currentDriverId
-    )
-    if (!alternate) {
-      setError('No alternate available driver for reassignment')
-      return
-    }
+  const handlePickCoverDriver = (driver) => {
+    if (!selected || !driver) return
     setAdjustForm((prev) => ({
       ...prev,
-      driverId: alternate._id,
+      driverId: driver._id,
       reason: 'absence',
       status: reasonToStatus('absence', prev.status),
-      notes: prev.notes || `Cover driver for ${selected.driverId?.name || 'assigned driver'}: ${alternate.name}`,
+      notes:
+        prev.notes?.trim() ||
+        `Cover driver for ${selected.driverId?.name || 'assigned driver'}: ${driver.name}`,
     }))
     setError('')
-    showToast(`Suggested driver: ${alternate.name} — apply to save`)
+    showToast(`Selected ${driver.name} — review and apply to save`)
   }
 
   const handleMaintenanceOffline = async () => {
@@ -799,7 +781,13 @@ function SchedulesPage() {
             </ModulePrimaryButton>
             <ModuleSecondaryButton
               icon="tune"
-              onClick={() => setShowAdjustDrawer(true)}
+              onClick={() => {
+                if (selected) {
+                  setShowAdjustDrawer(true)
+                } else {
+                  showToast('Select a trip on the timetable to adjust it')
+                }
+              }}
             >
               Adjust
             </ModuleSecondaryButton>
@@ -1017,8 +1005,9 @@ function SchedulesPage() {
         onEmergencyToggle={handleEmergencyToggle}
         adjustForm={adjustForm}
         onAdjustChange={handleAdjustChange}
-        drivers={drivers.filter((d) => d.status === 'available' || !d.status)}
+        drivers={drivers}
         buses={adjustBuses}
+        allBuses={buses}
         conflicts={conflicts}
         eventLog={eventLog}
         showConflictPanel={showConflictPanel}
@@ -1033,9 +1022,9 @@ function SchedulesPage() {
           user?.role === ROLES.ADMINISTRATOR
         }
         adjustConflict={adjustConflict}
-        onMaintenanceSwap={handleMaintenanceSwap}
+        onPickMaintenanceBus={handlePickMaintenanceBus}
         onMaintenanceOffline={() => setMaintenanceConfirm(true)}
-        onDriverAbsenceSwap={handleDriverAbsenceSwap}
+        onPickCoverDriver={handlePickCoverDriver}
       />
 
       <ConfirmDialog
