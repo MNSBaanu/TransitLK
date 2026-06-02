@@ -12,6 +12,7 @@ import {
 } from './nav/NavHubPanels'
 import { useAuth } from '../context/AuthContext'
 import { NAV_ITEMS, ROLE_LABELS, homePathForRole } from '../config/roles'
+import TransitLKBrand, { getUserDepotCode } from './TransitLKBrand'
 
 const PROFILE_ROLE_BADGES = {
   superadministrator: 'Super Admin',
@@ -117,9 +118,9 @@ function Navbar() {
       <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         <NavLink
           to={user ? homePathForRole(user.role) : '/login'}
-          className="relative z-10 shrink-0 font-sans text-lg font-bold tracking-tight text-white hover:opacity-90 sm:text-xl"
+          className="relative z-10 shrink-0 text-white hover:opacity-90"
         >
-          TransitLK
+          <TransitLKBrand depotCode={getUserDepotCode(user)} variant="nav" />
         </NavLink>
 
         <nav

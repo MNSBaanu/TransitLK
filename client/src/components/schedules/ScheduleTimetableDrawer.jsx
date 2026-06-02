@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon'
 import {
+  buildTimetableFeedbackCards,
   formatTimeRange,
   formatRouteStopsLabel,
   getTimetableDates,
@@ -12,6 +13,43 @@ import {
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-900'
 const labelClass = 'text-[10px] font-bold uppercase tracking-wide text-on-surface-variant'
+
+function groupConsecutiveIndices(indices) {
+  if (!indices.length) return []
+  const sorted = [...indices].sort((a, b) => a - b)
+  const groups = [[sorted[0]]]
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (sorted[i] === sorted[i - 1] + 1) {
+      groups[groups.length - 1].push(sorted[i])
+    } else {
+      groups.push([sorted[i]])
+    }
+  }
+  return groups
+}
+
+function getFocusedRowHighlight(rowIndex, focusedIndices, kind) {
+  if (!focusedIndices.includes(rowIndex)) return null
+  const group = groupConsecutiveIndices(focusedIndices).find((g) => g.includes(rowIndex))
+  if (!group) return null
+
+  const isConflict = kind === 'conflict'
+  const single = group.length === 1
+  const isFirst = rowIndex === group[0]
+  const isLast = rowIndex === group[group.length - 1]
+
+  if (isConflict) {
+    if (single) return 'bg-red-50 ring-2 ring-inset ring-red-600 rounded-sm'
+    if (isFirst) return 'bg-red-50 ring-2 ring-inset ring-red-600 rounded-t-md ring-b-0'
+    if (isLast) return 'bg-red-50 ring-2 ring-inset ring-red-600 rounded-b-md ring-t-0'
+    return 'bg-red-50 ring-x-2 ring-inset ring-red-600 ring-y-0'
+  }
+
+  if (single) return 'bg-amber-50 ring-2 ring-inset ring-amber-500 rounded-sm'
+  if (isFirst) return 'bg-amber-50 ring-2 ring-inset ring-amber-500 rounded-t-md ring-b-0'
+  if (isLast) return 'bg-amber-50 ring-2 ring-inset ring-amber-500 rounded-b-md ring-t-0'
+  return 'bg-amber-50 ring-x-2 ring-inset ring-amber-500 ring-y-0'
+}
 
 function ScheduleTimetableDrawer({
   open,
@@ -36,19 +74,35 @@ function ScheduleTimetableDrawer({
   onRefresh,
   refreshing = false,
 }) {
-  const [focusedRouteId, setFocusedRouteId] = useState(null)
+  const [focusedRouteIds, setFocusedRouteIds] = useState([])
   const [feedbackOpen, setFeedbackOpen] = useState(false)
 
-  const focusRouteRow = useCallback(
-    (routeId) => {
-      const id = String(routeId)
-      setFocusedRouteId(id)
+  const focusRouteRows = useCallback(
+    (routeIds) => {
+      const ids = (Array.isArray(routeIds) ? routeIds : [routeIds])
+        .map(String)
+        .filter(Boolean)
+      if (!ids.length) return
+      setFocusedRouteIds(ids)
       window.requestAnimationFrame(() => {
-        const rowEl = document.getElementById(`timetable-row-${id}`)
-        rowEl?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const rowEls = ids
+          .map((id) => document.getElementById(`timetable-row-${id}`))
+          .filter(Boolean)
+        rowEls[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (rowEls.length > 1) {
+          const last = rowEls[rowEls.length - 1]
+          const container = rowEls[0]?.closest('.overflow-auto')
+          if (container && last) {
+            const firstTop = rowEls[0].offsetTop
+            const lastBottom = last.offsetTop + last.offsetHeight
+            if (lastBottom - firstTop > container.clientHeight) {
+              last.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }
+          }
+        }
         const focusField =
-          rowEl?.querySelector('[data-focus-priority]') ||
-          rowEl?.querySelector('select:not([disabled]), input:not([disabled])')
+          rowEls[0]?.querySelector('[data-focus-priority]') ||
+          rowEls[0]?.querySelector('select:not([disabled]), input:not([disabled])')
         focusField?.focus({ preventScroll: true })
       })
     },
@@ -56,10 +110,10 @@ function ScheduleTimetableDrawer({
   )
 
   useEffect(() => {
-    if (!focusedRouteId) return undefined
-    const timer = window.setTimeout(() => setFocusedRouteId(null), 4500)
+    if (!focusedRouteIds.length) return undefined
+    const timer = window.setTimeout(() => setFocusedRouteIds([]), 4500)
     return () => window.clearTimeout(timer)
-  }, [focusedRouteId])
+  }, [focusedRouteIds])
 
   useEffect(() => {
     if (!open) {
@@ -78,52 +132,27 @@ function ScheduleTimetableDrawer({
   const dates = getTimetableDates(period, anchorDate)
   const dateFieldLabel =
     period === 'daily' ? 'Trip date' : period === 'weekly' ? 'Week of' : 'Month'
-  const validationBlock = (conflictPreview?.issues || []).find(
-    (issue) => issue.routeName === 'Validation'
+  const { conflictCards, validationCards } = buildTimetableFeedbackCards(
+    rows,
+    conflictPreview?.issues || []
   )
-  const validationMessages = (validationBlock?.conflicts || []).map((c) => c.message)
-  const overlapIssues =
-    validationMessages.length === 0 ? conflictPreview?.issues || [] : []
-
-  const routeIssueCards = (() => {
-    const cards = new Map()
-    const ensure = (routeId, routeName) => {
-      const key = String(routeId || routeName)
-      if (!cards.has(key)) {
-        cards.set(key, { routeId, routeName: routeName || 'Route', items: [] })
-      }
-      return cards.get(key)
-    }
-
-    for (const row of rows.filter((r) => r.included)) {
-      const card = ensure(row.routeId, row.routeName)
-      for (const text of getTimetableRowValidationIssues(row)) {
-        card.items.push({ kind: 'validation', text })
-      }
-      for (const text of rowConflictHints?.get?.(String(row.routeId)) || []) {
-        card.items.push({ kind: 'conflict', text })
-      }
-    }
-
-    for (const issue of overlapIssues) {
-      const card = ensure(issue.routeId, issue.routeName)
-      for (const c of issue.conflicts || []) {
-        const text = issue.tripDate ? `${issue.tripDate}: ${c.message}` : c.message
-        card.items.push({ kind: 'conflict', text })
-      }
-    }
-
-    return [...cards.values()].filter((card) => card.items.length > 0)
-  })()
+  const feedbackCards = [...conflictCards, ...validationCards]
 
   const hasStatusPanel =
-    Boolean(error) || checkingConflicts || routeIssueCards.length > 0 || canCreateTimetable
+    Boolean(error) || checkingConflicts || feedbackCards.length > 0 || canCreateTimetable
 
-  const issueCount = routeIssueCards.length
-  const hasConflictIssues = routeIssueCards.some((card) =>
-    card.items.some((item) => item.kind === 'conflict')
-  )
+  const issueCount = feedbackCards.length
+  const hasConflictIssues = conflictCards.length > 0
   const showIssueBadge = issueCount > 0 || Boolean(error) || checkingConflicts
+
+  const focusedRowIndices = focusedRouteIds
+    .map((id) => rows.findIndex((r) => String(r.routeId) === String(id)))
+    .filter((i) => i >= 0)
+    .sort((a, b) => a - b)
+
+  const primaryFocusRouteId = focusedRowIndices.length
+    ? String(rows[focusedRowIndices[0]]?.routeId)
+    : null
 
   const feedbackPanel = (
       <aside
@@ -182,79 +211,83 @@ function ScheduleTimetableDrawer({
                 </div>
               )}
 
-              {!checkingConflicts && routeIssueCards.length > 0 && (
+              {!checkingConflicts && feedbackCards.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-                    {routeIssueCards.length} route{routeIssueCards.length !== 1 ? 's' : ''} need
-                    attention
-                  </p>
-                  {routeIssueCards.map((card) => {
-                    const isConflict = card.items.some((item) => item.kind === 'conflict')
-                    return (
-                      <div
-                        key={String(card.routeId)}
-                        className={`rounded-lg border border-l-4 px-4 py-3 text-sm shadow-lg ${
-                          isConflict
-                            ? 'border-red-200 border-l-red-600 bg-red-50'
-                            : 'border-amber-200 border-l-amber-500 bg-amber-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
-                                isConflict ? 'text-red-700' : 'text-amber-800'
-                              }`}
-                            >
-                              <Icon
-                                name="warning"
-                                size={16}
-                                className={isConflict ? 'text-red-600' : 'text-amber-600'}
-                              />
-                              {isConflict ? 'Route conflict' : 'Incomplete'}
-                            </p>
-                            <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
-                            {(() => {
-                              const meta = rows.find(
-                                (r) => String(r.routeId) === String(card.routeId)
-                              )
-                              const stopsLabel = formatRouteStopsLabel(meta)
-                              return stopsLabel ? (
-                                <p className="mt-0.5 text-xs text-on-surface-variant">
-                                  Stops: {stopsLabel}
-                                </p>
-                              ) : null
-                            })()}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => focusRouteRow(card.routeId)}
-                            className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                              isConflict
-                                ? 'border-red-300 bg-white text-red-700 hover:bg-red-100'
-                                : 'border-amber-300 bg-white text-amber-900 hover:bg-amber-100'
-                            }`}
-                          >
-                            {isConflict ? 'Fix conflict' : 'Complete'}
-                          </button>
+                  {conflictCards.length > 0 && (
+                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                      {conflictCards.length} scheduling conflict
+                      {conflictCards.length !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                  {validationCards.length > 0 && conflictCards.length === 0 && (
+                    <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                      {validationCards.length} route{validationCards.length !== 1 ? 's' : ''} need
+                      attention
+                    </p>
+                  )}
+                  {conflictCards.map((card) => (
+                    <div
+                      key={card.id}
+                      className="rounded-lg border border-l-4 border-red-200 border-l-red-600 bg-red-50 px-4 py-3 text-sm shadow-lg"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                            <Icon name="warning" size={16} className="text-red-600" />
+                            Schedule conflict
+                          </p>
                         </div>
-                        <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-900">
-                          {card.items.map((item, i) => (
-                            <li
-                              key={i}
-                              className={`rounded-md border bg-white/60 px-2.5 py-1.5 ${
-                                item.kind === 'conflict'
-                                  ? 'border-red-200/80 text-red-800'
-                                  : 'border-amber-200/80 text-amber-900'
-                              }`}
-                            >
-                              {item.text}
-                            </li>
-                          ))}
-                        </ul>
+                        <button
+                          type="button"
+                          onClick={() => focusRouteRows(card.involvedRouteIds || [card.routeId])}
+                          className="shrink-0 rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+                        >
+                          Fix conflict
+                        </button>
                       </div>
-                    )
-                  })}
+                      <p className="mt-2 rounded-md border border-red-200/80 bg-white/60 px-2.5 py-1.5 text-xs leading-relaxed text-red-800">
+                        {card.items[0]?.text}
+                      </p>
+                    </div>
+                  ))}
+                  {validationCards.map((card) => (
+                    <div
+                      key={String(card.routeId)}
+                      className="rounded-lg border border-l-4 border-amber-200 border-l-amber-500 bg-amber-50 px-4 py-3 text-sm shadow-lg"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                            <Icon name="warning" size={16} className="text-amber-600" />
+                            Incomplete
+                          </p>
+                          <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
+                          {card.stopsLabel ? (
+                            <p className="mt-0.5 text-xs text-on-surface-variant">
+                              Stops: {card.stopsLabel}
+                            </p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => focusRouteRows(card.routeId)}
+                          className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+                        >
+                          Complete
+                        </button>
+                      </div>
+                      <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-900">
+                        {card.items.map((item, i) => (
+                          <li
+                            key={i}
+                            className="rounded-md border border-amber-200/80 bg-white/60 px-2.5 py-1.5 text-amber-900"
+                          >
+                            {item.text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -437,7 +470,7 @@ function ScheduleTimetableDrawer({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
-                  {rows.map((row) => {
+                  {rows.map((row, rowIndex) => {
                     const timeErr = row.included
                       ? validateTimeRange(row.departureTime, row.arrivalTime)
                       : null
@@ -453,7 +486,15 @@ function ScheduleTimetableDrawer({
                     const rowDrivers = drivers.filter(
                       (d) => d.status === 'available' || !d.status
                     )
-                    const isFocused = String(row.routeId) === focusedRouteId
+                    const isFocused = focusedRowIndices.includes(rowIndex)
+                    const isPrimaryFocus = String(row.routeId) === primaryFocusRouteId
+                    const focusHighlight = isFocused
+                      ? getFocusedRowHighlight(
+                          rowIndex,
+                          focusedRowIndices,
+                          rowStatus === 'conflict' ? 'conflict' : 'incomplete'
+                        )
+                      : null
                     const stopsLabel = formatRouteStopsLabel(row)
                     const focusField =
                       missingBus ? 'bus' : missingDriver ? 'driver' : timeErr ? 'departure' : 'bus'
@@ -464,17 +505,12 @@ function ScheduleTimetableDrawer({
                         className={`transition-colors duration-300 ${
                           row.included ? '' : 'opacity-50'
                         } ${
-                          isFocused
-                            ? rowStatus === 'conflict'
-                              ? 'bg-red-50 ring-2 ring-inset ring-red-600'
-                              : rowStatus === 'incomplete'
-                                ? 'bg-amber-50 ring-2 ring-inset ring-amber-500'
-                                : 'bg-depot-blue-light/15 ring-2 ring-inset ring-depot-blue-light'
-                            : rowStatus === 'conflict'
-                              ? 'bg-red-50/60'
-                              : rowStatus === 'incomplete'
-                                ? 'bg-amber-50/60'
-                                : ''
+                          focusHighlight ??
+                          (rowStatus === 'conflict'
+                            ? 'bg-red-50/60'
+                            : rowStatus === 'incomplete'
+                              ? 'bg-amber-50/60'
+                              : '')
                         }`}
                       >
                         <td className="py-3 pr-2 align-top">
@@ -509,7 +545,7 @@ function ScheduleTimetableDrawer({
                             disabled={!row.included}
                             required={row.included}
                             data-field="departure"
-                            {...(focusField === 'departure' ? { 'data-focus-priority': true } : {})}
+                            {...(isPrimaryFocus && focusField === 'departure' ? { 'data-focus-priority': true } : {})}
                             className={inputClass}
                           />
                         </td>
@@ -543,7 +579,7 @@ function ScheduleTimetableDrawer({
                             disabled={!row.included}
                             required={row.included}
                             data-field="bus"
-                            {...(focusField === 'bus' ? { 'data-focus-priority': true } : {})}
+                            {...(isPrimaryFocus && focusField === 'bus' ? { 'data-focus-priority': true } : {})}
                             className={`${inputClass}${missingBus ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select bus</option>
@@ -563,7 +599,7 @@ function ScheduleTimetableDrawer({
                             disabled={!row.included}
                             required={row.included}
                             data-field="driver"
-                            {...(focusField === 'driver' ? { 'data-focus-priority': true } : {})}
+                            {...(isPrimaryFocus && focusField === 'driver' ? { 'data-focus-priority': true } : {})}
                             className={`${inputClass}${missingDriver ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select driver</option>
