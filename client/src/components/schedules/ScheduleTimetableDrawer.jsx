@@ -4,6 +4,7 @@ import {
   formatTimeRange,
   getTimetableDates,
   getTimetableRowValidationIssues,
+  getTimetableRowStatus,
   validateTimeRange,
 } from '../../utils/scheduleHelpers'
 
@@ -40,88 +41,185 @@ function ScheduleTimetableDrawer({
     (issue) => issue.routeName === 'Validation'
   )
   const validationMessages = (validationBlock?.conflicts || []).map((c) => c.message)
+  const overlapIssues =
+    validationMessages.length === 0 ? conflictPreview?.issues || [] : []
+
+  const routeIssueCards = (() => {
+    const cards = new Map()
+    const ensure = (routeId, routeName) => {
+      const key = String(routeId || routeName)
+      if (!cards.has(key)) {
+        cards.set(key, { routeId, routeName: routeName || 'Route', items: [] })
+      }
+      return cards.get(key)
+    }
+
+    for (const row of rows.filter((r) => r.included)) {
+      const card = ensure(row.routeId, row.routeName)
+      for (const text of getTimetableRowValidationIssues(row)) {
+        card.items.push({ kind: 'validation', text })
+      }
+      for (const text of rowConflictHints?.get?.(String(row.routeId)) || []) {
+        card.items.push({ kind: 'conflict', text })
+      }
+    }
+
+    for (const issue of overlapIssues) {
+      const card = ensure(issue.routeId, issue.routeName)
+      for (const c of issue.conflicts || []) {
+        const text = issue.tripDate ? `${issue.tripDate}: ${c.message}` : c.message
+        card.items.push({ kind: 'conflict', text })
+      }
+    }
+
+    return [...cards.values()].filter((card) => card.items.length > 0)
+  })()
+
+  const hasStatusPanel =
+    Boolean(error) || checkingConflicts || routeIssueCards.length > 0 || canCreateTimetable
 
   return (
-    <div className="fixed inset-0 z-[100]">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
-      />
-      <div className="absolute bottom-0 right-0 top-0 flex w-full max-w-5xl flex-col bg-white shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
-          <div>
-            <h3 className="text-lg font-bold text-neutral-900">Create timetable</h3>
-            <p className="text-sm text-on-surface-variant">
-              Each included route needs departure and arrival times, a bus, and a driver before
-              the timetable can be created. Overlaps are checked automatically.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 hover:bg-surface-container"
-          >
-            <Icon name="close" size={22} />
-          </button>
+    <div className="fixed inset-0 z-[100] flex flex-col-reverse lg:flex-row-reverse">
+      <aside
+        className="flex min-h-0 max-h-[42vh] w-full flex-col border-t border-white/10 bg-black/50 backdrop-blur-md lg:max-h-full lg:min-w-0 lg:flex-1 lg:border-l lg:border-t-0"
+        aria-label="Timetable status and errors"
+      >
+        <div className="flex shrink-0 items-center justify-end gap-3 px-4 py-3 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+            Timetable feedback
+          </p>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-6">
+          {!hasStatusPanel ? (
+            <div className="rounded-xl border border-white/20 bg-white/10 px-4 py-6 text-sm text-white/80">
+              <p className="font-semibold text-white">No issues yet</p>
+              <p className="mt-2 leading-relaxed">
+                Validation messages, assignment warnings, and scheduling conflicts appear here as
+                you edit routes in the panel on the left.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <Icon name="error" size={18} className="text-red-600" />
+                    Could not save timetable
+                  </p>
+                  <p className="mt-2 leading-relaxed">{error}</p>
+                </div>
+              )}
+
+              {checkingConflicts && (
+                <div className="rounded-xl border border-white/25 bg-white/95 px-4 py-3 text-sm text-neutral-800 shadow-lg">
+                  <p className="flex items-center gap-2 font-medium">
+                    <Icon name="schedule" size={18} className="animate-pulse text-depot-blue-light" />
+                    Checking bus, driver, and route overlaps...
+                  </p>
+                </div>
+              )}
+
+              {!checkingConflicts && routeIssueCards.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                    {routeIssueCards.length} route{routeIssueCards.length !== 1 ? 's' : ''} need
+                    attention
+                  </p>
+                  {routeIssueCards.map((card) => {
+                    const isConflict = card.items.some((item) => item.kind === 'conflict')
+                    return (
+                      <div
+                        key={String(card.routeId)}
+                        className={`rounded-lg border border-l-4 px-4 py-3 text-sm shadow-lg ${
+                          isConflict
+                            ? 'border-red-200 border-l-red-600 bg-red-50'
+                            : 'border-amber-200 border-l-amber-500 bg-amber-50'
+                        }`}
+                      >
+                        <p
+                          className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide ${
+                            isConflict ? 'text-red-700' : 'text-amber-800'
+                          }`}
+                        >
+                          <Icon
+                            name="warning"
+                            size={16}
+                            className={isConflict ? 'text-red-600' : 'text-amber-600'}
+                          />
+                          {isConflict ? 'Route conflict' : 'Incomplete'}
+                        </p>
+                        <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
+                        <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-900">
+                          {card.items.map((item, i) => (
+                            <li
+                              key={i}
+                              className={`rounded-md border bg-white/60 px-2.5 py-1.5 ${
+                                item.kind === 'conflict'
+                                  ? 'border-red-200/80 text-red-800'
+                                  : 'border-amber-200/80 text-amber-900'
+                              }`}
+                            >
+                              {item.text}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {!checkingConflicts && canCreateTimetable && (
+                <div className="rounded-xl border border-emerald-300/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-lg">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <Icon name="check_circle" size={18} />
+                    Ready to create
+                  </p>
+                  <p className="mt-2 leading-relaxed">
+                    All included routes have a bus and driver assigned with no overlaps detected.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex h-[58vh] min-h-0 w-full shrink-0 flex-col bg-white shadow-2xl lg:h-auto lg:max-w-5xl">
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 space-y-4 border-b border-outline-variant px-5 py-4">
-            {error && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-            )}
-
-            {checkingConflicts && (
-              <p className="flex items-center gap-2 text-sm text-on-surface-variant">
-                <Icon name="schedule" size={18} className="animate-pulse" />
-                Checking bus, driver, and route overlaps...
-              </p>
-            )}
-
-            {!checkingConflicts && validationMessages.length > 0 && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-                <p className="flex items-center gap-2 font-semibold">
-                  <Icon name="warning" size={18} />
-                  Assign a bus and driver for every included route — save blocked
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-outline-variant px-5 py-4">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-0.5 shrink-0 rounded-lg p-2 hover:bg-surface-container"
+                aria-label="Back to schedule"
+              >
+                <Icon name="arrow_back" size={22} />
+              </button>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-neutral-900">Create timetable</h3>
+                <p className="text-sm text-on-surface-variant">
+                  {periodLabel} · {tripCount} trip{tripCount !== 1 ? 's' : ''}
                 </p>
-                <ul className="mt-2 max-h-28 list-inside list-disc overflow-y-auto text-xs">
-                  {validationMessages.slice(0, 8).map((message, i) => (
-                    <li key={i}>{message}</li>
-                  ))}
-                </ul>
               </div>
-            )}
-
-            {!checkingConflicts &&
-              conflictPreview?.hasConflict &&
-              validationMessages.length === 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                <p className="flex items-center gap-2 font-semibold">
-                  <Icon name="warning" size={18} />
-                  {conflictPreview.conflictCount || conflictPreview.issues?.length} scheduling
-                  conflict(s) — save blocked
-                </p>
-                <ul className="mt-2 max-h-28 list-inside list-disc overflow-y-auto text-xs">
-                  {(conflictPreview.issues || []).slice(0, 8).map((issue, i) => (
-                    <li key={i}>
-                      <span className="font-medium">{issue.routeName}</span>
-                      {issue.tripDate ? ` (${issue.tripDate})` : ''}:{' '}
-                      {(issue.conflicts || []).map((c) => c.message).join('; ')}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {!checkingConflicts && canCreateTimetable && (
-              <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                <Icon name="check_circle" size={18} />
-                Ready to create — all routes assigned with no overlaps
-              </p>
-            )}
-
+            </div>
+            <button
+              type="submit"
+              disabled={
+                saving ||
+                rows.length === 0 ||
+                tripCount === 0 ||
+                checkingConflicts ||
+                !canCreateTimetable
+              }
+              className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+          <div className="shrink-0 border-b border-outline-variant px-5 py-4">
             <div className="flex flex-wrap items-end gap-4">
               <div>
                 <span className={`${labelClass} mb-2 block`}>Timetable period</span>
@@ -198,9 +296,7 @@ function ScheduleTimetableDrawer({
                       ? validateTimeRange(row.departureTime, row.arrivalTime)
                       : null
                     const rowHints = rowConflictHints?.get?.(String(row.routeId)) || []
-                    const rowValidation = row.included ? getTimetableRowValidationIssues(row) : []
-                    const hasRowConflict =
-                      row.included && (timeErr || rowHints.length > 0 || rowValidation.length > 0)
+                    const rowStatus = getTimetableRowStatus(row, { overlapHints: rowHints })
                     const missingBus = row.included && !row.busId
                     const missingDriver = row.included && !row.driverId
                     const rowBuses = buses.filter(
@@ -215,7 +311,11 @@ function ScheduleTimetableDrawer({
                       <tr
                         key={row.routeId}
                         className={`${row.included ? '' : 'opacity-50'} ${
-                          hasRowConflict ? 'bg-red-50/60' : ''
+                          rowStatus === 'conflict'
+                            ? 'bg-red-50/60'
+                            : rowStatus === 'incomplete'
+                              ? 'bg-amber-50/60'
+                              : ''
                         }`}
                       >
                         <td className="py-3 pr-2 align-top">
@@ -305,30 +405,23 @@ function ScheduleTimetableDrawer({
                           </select>
                         </td>
                         <td className="py-3 align-top">
-                          {hasRowConflict ? (
-                            <div className="max-w-[140px]">
-                              <span className="flex items-center gap-1 text-xs font-semibold text-red-700">
-                                <Icon name="warning" size={14} />
-                                {rowValidation.length && !timeErr && !rowHints.length
-                                  ? 'Incomplete'
-                                  : 'Conflict'}
-                              </span>
-                              <ul className="mt-1 list-disc pl-3 text-[10px] text-red-600">
-                                {rowValidation.map((issue, vi) => (
-                                  <li key={`v-${vi}`}>{issue}</li>
-                                ))}
-                                {rowHints.slice(0, 2).map((hint, hi) => (
-                                  <li key={hi}>{hint}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : row.included ? (
-                            <span className="flex items-center gap-1 text-xs text-emerald-700">
+                          {rowStatus === 'conflict' ? (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-red-700">
+                              <Icon name="warning" size={14} className="text-red-600" />
+                              Conflict
+                            </span>
+                          ) : rowStatus === 'incomplete' ? (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-amber-800">
+                              <Icon name="warning" size={14} className="text-amber-600" />
+                              Incomplete
+                            </span>
+                          ) : rowStatus === 'clear' ? (
+                            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-700">
                               <Icon name="check_circle" size={14} />
                               Clear
                             </span>
                           ) : (
-                            <span className="text-xs text-on-surface-variant">—</span>
+                            <span className="text-xs text-on-surface-variant">Excluded</span>
                           )}
                         </td>
                       </tr>
@@ -337,27 +430,6 @@ function ScheduleTimetableDrawer({
                 </tbody>
               </table>
             )}
-          </div>
-
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-outline-variant bg-white px-5 py-4">
-            <p className="text-xs text-on-surface-variant">
-              Every included route needs a bus and driver. Trips with overlaps cannot be saved.
-            </p>
-            <button
-              type="submit"
-              disabled={
-                saving ||
-                rows.length === 0 ||
-                tripCount === 0 ||
-                checkingConflicts ||
-                !canCreateTimetable
-              }
-              className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving
-                ? 'Creating timetable...'
-                : `Create ${period} timetable (${tripCount} trips)`}
-            </button>
           </div>
         </form>
       </div>
