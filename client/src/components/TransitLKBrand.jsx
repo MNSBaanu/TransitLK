@@ -1,6 +1,9 @@
 export function getUserDepotCode(user) {
-  if (!user?.depotId || typeof user.depotId !== 'object') return null
-  return user.depotId.depotCode || null
+  if (!user?.depotId) return null
+  if (typeof user.depotId === 'object') {
+    return user.depotId.depotCode || null
+  }
+  return null
 }
 
 function TransitLKBrand({ depotCode, variant = 'nav', className = '' }) {
