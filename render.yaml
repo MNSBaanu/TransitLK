@@ -1,0 +1,22 @@
+# Render Blueprint — free web service (no credit card on free tier).
+# MongoDB: use Atlas M0 (free, no card) and set MONGO_URI in the Render dashboard.
+# https://dashboard.render.com/blueprints → New Blueprint Instance → connect this repo
+
+services:
+  - type: web
+    name: transitlk-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false

@@ -43,15 +43,19 @@ export function ModuleSecondaryButton({ children, onClick, icon, type = 'button'
 
 export function ModuleStats({ items }) {
   return (
-    <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
       {items.map((item) => (
-        <div key={item.label} className="pro-stat-card p-4">
+        <div key={item.label} className="rounded-xl border border-outline-variant bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="label-caps">{item.label}</p>
-            {item.icon && <Icon name={item.icon} size={18} className="text-fleet-ink-muted" />}
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              {item.label}
+            </p>
+            {item.icon && <Icon name={item.icon} size={18} className="text-outline" />}
           </div>
-          <p className="text-2xl font-bold tracking-tight text-fleet-ink">{item.value}</p>
-          {item.hint && <p className="mt-1 text-xs text-fleet-ink-muted">{item.hint}</p>}
+          <p className="text-2xl font-bold text-neutral-900">{item.value}</p>
+          {item.hint && (
+            <p className={`mt-1 text-xs ${item.hintClass || 'text-on-surface-variant'}`}>{item.hint}</p>
+          )}
         </div>
       ))}
     </div>

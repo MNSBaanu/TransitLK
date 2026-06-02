@@ -37,7 +37,7 @@ export const login = async (req, res) => {
     const admin = await Admin.findOne({ email: normalizedEmail })
     if (admin && (await admin.matchPassword(password))) {
       return res.json(
-        buildAuthResponse(admin, ROLES.ADMINISTRATOR, 'admin', {
+        buildAuthResponse(admin, admin.role, 'admin', {
           depotId: admin.depotId,
         })
       )
@@ -76,6 +76,10 @@ export const register = async (req, res) => {
   const { name, email, password, role, depotId } = req.body
 
   try {
+    if (!depotId) {
+      return res.status(400).json({ message: 'Depot assignment is required' })
+    }
+
     const exists =
       (await Admin.findOne({ email })) ||
       (await User.findOne({ email })) ||
@@ -101,13 +105,15 @@ export const getMe = async (req, res) => {
     const { id, role, accountType, driverId } = req.user
 
     if (accountType === 'admin') {
-      const admin = await Admin.findById(id).select('-password').populate('depotId', 'depotName')
+      const admin = await Admin.findById(id)
+        .select('-password')
+        .populate('depotId', 'depotCode depotName region')
       if (!admin) return res.status(404).json({ message: 'Account not found' })
       return res.json({
         _id: admin._id,
         name: admin.name,
         email: admin.email,
-        role: ROLES.ADMINISTRATOR,
+        role: admin.role,
         accountType: 'admin',
         depotId: admin.depotId,
       })
@@ -128,7 +134,9 @@ export const getMe = async (req, res) => {
       })
     }
 
-    const user = await User.findById(id).select('-password').populate('depotId', 'depotName')
+    const user = await User.findById(id)
+      .select('-password')
+      .populate('depotId', 'depotCode depotName region')
     if (!user) return res.status(404).json({ message: 'Account not found' })
     res.json({
       _id: user._id,

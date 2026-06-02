@@ -45,7 +45,7 @@ function busRequirementItems(bus, serviceType, minCapacity) {
   if (!bus) {
     return [
       { label: 'Status: available', ok: null },
-      { label: `Service type: ${formatServiceType(serviceType)}`, ok: null },
+      { label: `Assigned service type: ${formatServiceType(serviceType)}`, ok: null },
       { label: `Minimum capacity: ${minCapacity} seats`, ok: null },
     ]
   }
@@ -55,8 +55,8 @@ function busRequirementItems(bus, serviceType, minCapacity) {
       ok: bus.status === 'available',
     },
     {
-      label: `Service type: ${formatServiceType(serviceType)} (bus: ${formatServiceType(bus.serviceType)})`,
-      ok: !bus.serviceType || bus.serviceType === serviceType,
+      label: `Assigned service type: ${formatServiceType(serviceType)} (current bus: ${formatServiceType(bus.serviceType)})`,
+      ok: true,
     },
     {
       label: `Minimum capacity: ${minCapacity} seats (bus: ${bus.capacity})`,
@@ -153,6 +153,11 @@ function RouteFleetAssignment({
           {selectedBus && !isBusAssignable(selectedBus, serviceType, minCapacity) && (
             <p className="mt-1 text-xs text-red-600">
               {busUnassignableReason(selectedBus, serviceType, minCapacity)}
+            </p>
+          )}
+          {selectedBus && isBusAssignable(selectedBus, serviceType, minCapacity) && (
+            <p className="mt-1 text-xs text-on-surface-variant">
+              Saving will align this bus to the route service type.
             </p>
           )}
         </label>

@@ -55,7 +55,7 @@ function RouteView({
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <ReadOnlyField label="Route ID" value={routeCode} className="font-mono tabular-nums" />
+              <ReadOnlyField label="Route No" value={routeCode} className="font-mono tabular-nums" />
               <div>
                 <p className={labelClass}>Route status</p>
                 <span
@@ -67,6 +67,7 @@ function RouteView({
             </div>
 
             <ReadOnlyField label="Route name" value={form.routeName} />
+            <ReadOnlyField label="Via" value={form.viaDescription} />
 
             <div className="grid grid-cols-2 gap-3">
               <ReadOnlyField label="Service type" value={formatServiceType(form.serviceType)} />
@@ -151,7 +152,7 @@ function RouteView({
           <div className="absolute bottom-4 left-4 right-4 z-10">
             <div className="flex flex-wrap gap-4 rounded-xl border border-outline-variant bg-white/95 p-3 text-sm shadow-md backdrop-blur">
               <div>
-                <p className={labelClass}>Route ID</p>
+                <p className={labelClass}>Route No</p>
                 <p className="font-bold font-mono tabular-nums">{routeCode}</p>
               </div>
               <div>

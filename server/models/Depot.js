@@ -2,12 +2,33 @@ import mongoose from 'mongoose'
 
 const depotSchema = new mongoose.Schema(
   {
+    depotCode: {
+      type: String,
+      required: [true, 'Depot code is required'],
+      unique: true,
+      trim: true,
+      uppercase: true,
+    },
+    region: {
+      type: String,
+      required: [true, 'Region is required'],
+      trim: true,
+      index: true,
+    },
     depotName: {
       type: String,
       required: [true, 'Depot name is required'],
       trim: true,
     },
     location: {
+      type: String,
+      trim: true,
+    },
+    directContactNo: {
+      type: String,
+      trim: true,
+    },
+    mobileContactNo: {
       type: String,
       trim: true,
     },

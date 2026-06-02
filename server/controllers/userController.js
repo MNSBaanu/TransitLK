@@ -1,28 +1,32 @@
 import Admin from '../models/Admin.js'
 import User from '../models/User.js'
-import Driver from '../models/Driver.js'
 import { STAFF_ROLES } from '../utils/roles.js'
+import { emailInUse } from '../utils/accountEmails.js'
+import {
+  assertDepotAccess,
+  isSuperadministrator,
+  requireUserDepot,
+  resolveWriteDepotId,
+} from '../utils/depotAccess.js'
 
 const populateDepot = (query) => query.populate('depotId', 'depotName location')
-
-async function emailInUse(email, exclude = {}) {
-  const normalized = email.trim().toLowerCase()
-  const filters = [
-    Admin.findOne({ email: normalized, ...exclude }),
-    User.findOne({ email: normalized, ...exclude }),
-    Driver.findOne({ email: normalized }),
-  ]
-  const [admin, user, driver] = await Promise.all(filters)
-  return !!(admin || user || driver)
-}
 
 // @desc    List depot workspace accounts (admins + staff; no drivers)
 // @route   GET /api/users
 export const listWorkspaceUsers = async (req, res) => {
   try {
+    const adminFilter = {}
+    const staffFilter = {}
+
+    if (!isSuperadministrator(req.user)) {
+      const depotId = requireUserDepot(req.user)
+      adminFilter.depotId = depotId
+      staffFilter.depotId = depotId
+    }
+
     const [admins, staff] = await Promise.all([
-      populateDepot(Admin.find().select('-password').sort({ name: 1 })),
-      populateDepot(User.find().select('-password').sort({ name: 1 })),
+      populateDepot(Admin.find(adminFilter).select('-password').sort({ name: 1 })),
+      populateDepot(User.find(staffFilter).select('-password').sort({ name: 1 })),
     ])
 
     const accounts = [
@@ -30,7 +34,7 @@ export const listWorkspaceUsers = async (req, res) => {
         _id: a._id,
         name: a.name,
         email: a.email,
-        role: 'administrator',
+        role: a.role,
         accountType: 'admin',
         isActive: true,
         depotId: a.depotId,
@@ -70,12 +74,14 @@ export const createStaffUser = async (req, res) => {
       return res.status(400).json({ message: 'Email already in use' })
     }
 
+    const assignedDepotId = resolveWriteDepotId(req.user, depotId)
+
     const user = await User.create({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password,
       role,
-      depotId: depotId || undefined,
+      depotId: assignedDepotId,
     })
 
     const populated = await populateDepot(User.findById(user._id).select('-password'))
@@ -93,7 +99,8 @@ export const createStaffUser = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Email already in use' })
     }
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
@@ -103,13 +110,14 @@ export const updateStaffUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
     if (!user) return res.status(404).json({ message: 'Staff user not found' })
+    assertDepotAccess(req.user, user.depotId, 'Not allowed to manage users outside your depot')
 
     const { name, email, role, depotId, isActive, password } = req.body
 
     if (name?.trim()) user.name = name.trim()
     if (email?.trim()) {
       const nextEmail = email.trim().toLowerCase()
-      if (nextEmail !== user.email && (await emailInUse(nextEmail))) {
+      if (nextEmail !== user.email && (await emailInUse(nextEmail, { userId: user._id }))) {
         return res.status(400).json({ message: 'Email already in use' })
       }
       user.email = nextEmail
@@ -120,7 +128,9 @@ export const updateStaffUser = async (req, res) => {
       }
       user.role = role
     }
-    if (depotId !== undefined) user.depotId = depotId || undefined
+    if (depotId !== undefined || !isSuperadministrator(req.user)) {
+      user.depotId = resolveWriteDepotId(req.user, depotId)
+    }
     if (typeof isActive === 'boolean') user.isActive = isActive
     if (password) user.password = password
 
@@ -140,7 +150,8 @@ export const updateStaffUser = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Email already in use' })
     }
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
@@ -148,10 +159,13 @@ export const updateStaffUser = async (req, res) => {
 // @route   DELETE /api/users/:id
 export const deleteStaffUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id)
+    const user = await User.findById(req.params.id)
     if (!user) return res.status(404).json({ message: 'Staff user not found' })
+    assertDepotAccess(req.user, user.depotId, 'Not allowed to manage users outside your depot')
+    await user.deleteOne()
     res.json({ message: 'User removed', id: user._id })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }

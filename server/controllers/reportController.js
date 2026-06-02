@@ -1,19 +1,22 @@
 import Schedule from '../models/Schedule.js'
+import Route from '../models/Route.js'
 import { buildDashboardAnalytics, parseReportRange } from '../services/reportAnalytics.js'
+import { isSuperadministrator, requireUserDepot } from '../utils/depotAccess.js'
 
 export const getReportsDashboard = async (req, res) => {
   try {
-    const data = await buildDashboardAnalytics(req.query)
+    const data = await buildDashboardAnalytics(req.query, req.user)
     res.json(data)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
 export const exportReportsPdf = async (req, res) => {
   try {
     const PDFDocument = (await import('pdfkit')).default
-    const data = await buildDashboardAnalytics(req.query)
+    const data = await buildDashboardAnalytics(req.query, req.user)
     const report = data.autoReport
 
     res.setHeader('Content-Type', 'application/pdf')
@@ -51,14 +54,23 @@ export const exportReportsPdf = async (req, res) => {
 
     doc.end()
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
 export const exportReportsCsv = async (req, res) => {
   try {
     const { start, end } = parseReportRange(req.query)
-    const schedules = await Schedule.find({ tripDate: { $gte: start, $lte: end } })
+    const scheduleFilter = { tripDate: { $gte: start, $lte: end } }
+
+    if (!isSuperadministrator(req.user)) {
+      const depotId = requireUserDepot(req.user)
+      const routeIds = await Route.find({ depotId }).distinct('_id')
+      scheduleFilter.routeId = { $in: routeIds }
+    }
+
+    const schedules = await Schedule.find(scheduleFilter)
       .populate('routeId', 'routeName distance status')
       .populate('busId', 'regNumber')
       .populate('driverId', 'name')
@@ -89,6 +101,7 @@ export const exportReportsCsv = async (req, res) => {
     )
     res.send([header, ...rows].join('\n'))
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
