@@ -169,6 +169,14 @@ export function isTimetableReady(rows) {
   return validateTimetableRows(rows).length === 0
 }
 
+/** included row: excluded | incomplete (missing fields) | conflict (overlap) | clear */
+export function getTimetableRowStatus(row, { overlapHints = [] } = {}) {
+  if (row.included === false) return 'excluded'
+  if (overlapHints.length > 0) return 'conflict'
+  if (getTimetableRowValidationIssues(row).length > 0) return 'incomplete'
+  return 'clear'
+}
+
 export function getViewDateRange(viewMode, anchorDate) {
   if (viewMode === 'weekly') {
     return { from: startOfWeekDate(anchorDate), to: endOfWeekDate(anchorDate) }

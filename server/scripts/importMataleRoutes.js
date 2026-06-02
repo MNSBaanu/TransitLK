@@ -7,22 +7,21 @@ import { inferRouteServiceType } from '../utils/routeServiceType.js'
 
 dotenv.config()
 
-/** Curated set: trunk intercity routes + selected locals; via routes include intermediary stops. */
+/** Curated set: Matale depot routes only (30); via routes include intermediary stops. */
 const MATALALE_ROUTES = [
   ['8', 'Matale', 'via Warakamura', 'Colombo', 141.3],
   ['8/1', 'Matale', 'via Kumbiyangoda', 'Colombo', 140.2],
-  ['41/2', 'Kandy', 'via Dambulla', 'Pollonnaruwa', 145.4],
   ['41/3', 'Matale', '', 'Minneriya', 115.0],
-  ['42/2', 'Kandy', 'via Talawa', 'Anuradhapura', 148.9],
   ['42/3', 'Matale', 'via Talawa', 'Anuradhapura', 122.7],
-  ['43', 'Kandy', 'via Maradankadawela', 'Anuradhapura', 141.1],
   ['43/1', 'Matale', 'via Maradankadawela', 'Anuradhapura', 114.9],
   ['45/1', 'Matale', '', 'Tricomalee', 155.2],
   ['52/4', 'Matale', '', 'Pansalgodella', 115.0],
   ['556', 'Matale', '', 'Kurunegala', 51.0],
   ['556/1', 'Matale', '', 'Dodangaslanda', 28.3],
   ['579', 'Matale', 'via Owilikanda', 'Halgolla', 30.8],
+  ['579/1', 'Matale', 'via Owilikanda', 'Galhinna', 28.2],
   ['580', 'Matale', 'via Hettipola', 'Hasalaka', 126.8],
+  ['580/1', 'Matale', '', 'Hadungamuwa', 109.5],
   ['581', 'Matale', 'via Elahera', 'Kaduruwela', 119.5],
   ['581/1', 'Matale', '', 'Giritale', 93.1],
   ['582/1', 'Matale', '', 'Sigiriya', 65.2],
@@ -30,6 +29,7 @@ const MATALALE_ROUTES = [
   ['585/1', 'Matale', 'via Akuramboda', 'Galewela', 39.1],
   ['588/2', 'Matale', 'via Leliambe', 'Wehigala', 17.7],
   ['589', 'Matale', 'Kumbiyangoda (town service)', 'Matale', 17.2],
+  ['589/4', 'Matale', 'via Weteke Workshop', 'Wehigala', 15.3],
   ['560/5', 'Matale', '', 'Rattota', 11.6],
   ['583', 'Matale', '', 'Nayakumbura', 38.0],
   ['587', 'Matale', '', 'Ilukkumbura', 38.0],
