@@ -45,10 +45,26 @@ import { useLayout } from '../context/LayoutContext'
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
+const SCHEDULES_VIEW_KEY = 'transitlk.schedulesView'
+
+function readPersistedScheduleView() {
+  try {
+    const raw = sessionStorage.getItem(SCHEDULES_VIEW_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed?.viewMode && parsed?.viewDate) return parsed
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
 function SchedulesPage() {
-  const initialViewDate = toDateInputValue(new Date())
+  const persistedView = readPersistedScheduleView()
+  const initialViewDate = persistedView?.viewDate || toDateInputValue(new Date())
+  const initialViewMode = persistedView?.viewMode || 'daily'
   const initialData = getCachedPageData('/schedules', {
-    viewMode: 'daily',
+    viewMode: initialViewMode,
     viewDate: initialViewDate,
   })
   const { user } = useAuth()
@@ -62,7 +78,7 @@ function SchedulesPage() {
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
-  const [viewMode, setViewMode] = useState('daily')
+  const [viewMode, setViewMode] = useState(initialViewMode)
   const [selected, setSelected] = useState(null)
   const [showTimetable, setShowTimetable] = useState(false)
   const [timetablePeriod, setTimetablePeriod] = useState('daily')
@@ -98,9 +114,12 @@ function SchedulesPage() {
     invalidatePageData('/reports')
   }, [])
 
-  const loadData = useCallback(async ({ force = false, keepContent = false } = {}) => {
+  const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, viewDate: viewDateOverride } = {}) => {
+    const activeViewMode = viewModeOverride ?? viewMode
+    const activeViewDate = viewDateOverride ?? viewDate
+
     if (!force) {
-      const cached = getCachedPageData('/schedules', { viewMode, viewDate })
+      const cached = getCachedPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate })
       if (cached) {
         setSchedules(cached.schedules)
         setRoutes(cached.routes)
@@ -115,7 +134,7 @@ function SchedulesPage() {
     if (!keepContent) setLoading(true)
     setError('')
     try {
-      const data = await loadPageData('/schedules', { viewMode, viewDate }, { force })
+      const data = await loadPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate }, { force })
       setSchedules(data.schedules)
       setRoutes(data.routes)
       setBuses(data.buses)
@@ -126,6 +145,14 @@ function SchedulesPage() {
       setLoading(false)
     }
   }, [viewDate, viewMode])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SCHEDULES_VIEW_KEY, JSON.stringify({ viewMode, viewDate }))
+    } catch {
+      /* ignore */
+    }
+  }, [viewMode, viewDate])
 
   useEffect(() => {
     let cancelled = false
@@ -590,7 +617,12 @@ function SchedulesPage() {
             skipped.length ? `, ${skipped.length} skipped` : ''
           }`
         )
-        loadData({ force: true, keepContent: true })
+        await loadData({
+          force: true,
+          keepContent: true,
+          viewMode: timetablePeriod,
+          viewDate: timetableAnchor,
+        })
       }
       if (skipped.length) {
         setError(`Some trips could not be scheduled: ${skipped.slice(0, 5).join(' | ')}${skipped.length > 5 ? ` (+${skipped.length - 5} more)` : ''}`)

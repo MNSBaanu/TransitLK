@@ -10,6 +10,7 @@ import {
   endOfWeek,
   startOfMonth,
   endOfMonth,
+  normalizeTripDate,
   validateTimeRange,
   validateTimetableRows,
   requiresAdjustmentNotes,
@@ -474,8 +475,10 @@ export const createSchedule = async (req, res) => {
       routeDepotId: route.depotId,
     })
 
+    const normalizedTripDate = normalizeTripDate(tripDate)
+
     const conflicts = await findConflicts({
-      tripDate,
+      tripDate: normalizedTripDate,
       routeId,
       busId,
       driverId,
@@ -492,7 +495,7 @@ export const createSchedule = async (req, res) => {
       driverId,
       departureTime,
       arrivalTime,
-      tripDate,
+      tripDate: normalizedTripDate,
       status: status || 'draft',
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
@@ -521,6 +524,8 @@ export const updateSchedule = async (req, res) => {
     const departureTime = data.departureTime ?? existing.departureTime
     const arrivalTime = data.arrivalTime ?? existing.arrivalTime
     const tripDate = data.tripDate ?? existing.tripDate
+    const normalizedTripDate = normalizeTripDate(tripDate)
+    if (data.tripDate !== undefined) data.tripDate = normalizedTripDate
 
     const timeError = validateTimeRange(departureTime, arrivalTime)
     if (timeError) return res.status(400).json({ message: timeError })
@@ -564,7 +569,7 @@ export const updateSchedule = async (req, res) => {
       })
 
       const conflicts = await findConflicts({
-        tripDate,
+        tripDate: normalizedTripDate,
         routeId,
         busId,
         driverId,
