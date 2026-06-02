@@ -108,6 +108,8 @@ export function buildTimetableRows(routes, schedules = [], anchorDate) {
       endPoint: route.endPoint,
       distance: route.distance,
       serviceType: route.serviceType,
+      stops: route.stops?.length ? [...route.stops] : [],
+      viaDescription: route.viaDescription || '',
       included: true,
       departureTime: existing?.departureTime || '08:00',
       arrivalTime: existing?.arrivalTime || '12:00',
@@ -209,6 +211,15 @@ export function formatTimeRange(departureTime, arrivalTime) {
   return `${departureTime || '—'} – ${arrivalTime || '—'}`
 }
 
+/** Via text or intermediary stops for display on schedule views */
+export function formatRouteStopsLabel(route = {}) {
+  const via = route.viaDescription?.trim()
+  if (via) return via
+  const stops = Array.isArray(route.stops) ? route.stops.filter(Boolean) : []
+  if (stops.length) return stops.join(' · ')
+  return ''
+}
+
 export function validateTimeRange(departureTime, arrivalTime) {
   const dep = timeToMinutes(departureTime)
   const arr = timeToMinutes(arrivalTime)
@@ -284,36 +295,178 @@ export function detectDayConflicts(schedules) {
     for (let j = i + 1; j < schedules.length; j++) {
       const a = schedules[i]
       const b = schedules[j]
-      if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
-        continue
-      }
-      if (String(a.busId?._id || a.busId) === String(b.busId?._id || b.busId)) {
-        conflicts.push({
-          type: 'bus',
-          a,
-          b,
-          message: `Bus overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
-        })
-      }
-      if (String(a.driverId?._id || a.driverId) === String(b.driverId?._id || b.driverId)) {
-        conflicts.push({
-          type: 'driver',
-          a,
-          b,
-          message: `Driver overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
-        })
-      }
-      if (String(a.routeId?._id || a.routeId) === String(b.routeId?._id || b.routeId)) {
-        conflicts.push({
-          type: 'route',
-          a,
-          b,
-          message: `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
-        })
-      }
+      appendOverlapConflicts(a, b, conflicts)
     }
   }
   return conflicts
+}
+
+function appendOverlapConflicts(a, b, conflicts) {
+  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    return
+  }
+  const busA = String(a.busId?._id || a.busId)
+  const busB = String(b.busId?._id || b.busId)
+  const driverA = String(a.driverId?._id || a.driverId)
+  const driverB = String(b.driverId?._id || b.driverId)
+  const routeA = String(a.routeId?._id || a.routeId)
+  const routeB = String(b.routeId?._id || b.routeId)
+
+  if (busA === busB) {
+    conflicts.push({
+      type: 'bus',
+      a,
+      b,
+      message: `Bus overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+    })
+  }
+  if (driverA === driverB) {
+    conflicts.push({
+      type: 'driver',
+      a,
+      b,
+      message: `Driver overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+    })
+  }
+  if (routeA === routeB) {
+    conflicts.push({
+      type: 'route',
+      a,
+      b,
+      message: `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+    })
+  }
+}
+
+function pushTripOverlapConflicts(conflicts, type, message) {
+  if (!conflicts.some((c) => c.type === type && c.message === message)) {
+    conflicts.push({ type, message })
+  }
+}
+
+function compareTripOverlap(proposed, other, conflicts, { otherLabel = 'another trip' } = {}) {
+  if (
+    !timesOverlap(
+      proposed.departureTime,
+      proposed.arrivalTime,
+      other.departureTime,
+      other.arrivalTime
+    )
+  ) {
+    return
+  }
+  if (String(proposed.busId) === String(other.busId)) {
+    pushTripOverlapConflicts(
+      conflicts,
+      'bus',
+      `Bus overlap with ${otherLabel} (${other.departureTime}–${other.arrivalTime})`
+    )
+  }
+  if (String(proposed.driverId) === String(other.driverId)) {
+    pushTripOverlapConflicts(
+      conflicts,
+      'driver',
+      `Driver overlap with ${otherLabel} (${other.departureTime}–${other.arrivalTime})`
+    )
+  }
+  if (proposed.routeId && String(proposed.routeId) === String(other.routeId)) {
+    pushTripOverlapConflicts(
+      conflicts,
+      'route',
+      `Route overlap with ${otherLabel} (${other.departureTime}–${other.arrivalTime})`
+    )
+  }
+}
+
+function mergeTimetableIssue(issues, trip, dateStr, newConflicts) {
+  if (!newConflicts.length) return
+  let block = issues.find((i) => i.routeId === trip.routeId && i.tripDate === dateStr)
+  if (!block) {
+    block = {
+      routeId: trip.routeId,
+      routeName: trip.routeName,
+      tripDate: dateStr,
+      conflicts: [],
+    }
+    issues.push(block)
+  }
+  for (const c of newConflicts) {
+    if (!block.conflicts.some((x) => x.type === c.type && x.message === c.message)) {
+      block.conflicts.push(c)
+    }
+  }
+}
+
+/** Detect bus, driver, and route overlaps for a draft timetable (client-side, instant). */
+export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
+  const included = (rows || []).filter(
+    (r) =>
+      r.included !== false &&
+      r.routeId &&
+      r.busId &&
+      r.driverId &&
+      r.departureTime &&
+      r.arrivalTime &&
+      !validateTimeRange(r.departureTime, r.arrivalTime)
+  )
+
+  if (!included.length || !dates?.length) {
+    return { hasConflict: false, issues: [], conflictCount: 0 }
+  }
+
+  const activeExisting = (existingSchedules || []).filter((s) => s.status !== 'cancelled')
+  const issues = []
+
+  for (const dateStr of dates) {
+    const proposedForDay = included.map((r) => ({
+      routeId: String(r.routeId),
+      routeName: r.routeName || 'Route',
+      busId: String(r.busId),
+      driverId: String(r.driverId),
+      departureTime: r.departureTime,
+      arrivalTime: r.arrivalTime,
+    }))
+
+    const existingForDay = activeExisting.filter((s) => tripDateKey(s) === dateStr)
+
+    for (let i = 0; i < proposedForDay.length; i++) {
+      for (let j = i + 1; j < proposedForDay.length; j++) {
+        const a = proposedForDay[i]
+        const b = proposedForDay[j]
+        const forward = []
+        compareTripOverlap(a, b, forward, { otherLabel: b.routeName })
+        if (forward.length) {
+          mergeTimetableIssue(issues, a, dateStr, forward)
+          const reverse = []
+          compareTripOverlap(b, a, reverse, { otherLabel: a.routeName })
+          mergeTimetableIssue(issues, b, dateStr, reverse)
+        }
+      }
+    }
+
+    for (const trip of proposedForDay) {
+      const conflicts = []
+      for (const ex of existingForDay) {
+        compareTripOverlap(
+          trip,
+          {
+            routeId: ex.routeId?._id || ex.routeId,
+            routeName: ex.routeId?.routeName || 'Route',
+            busId: ex.busId?._id || ex.busId,
+            driverId: ex.driverId?._id || ex.driverId,
+            departureTime: ex.departureTime,
+            arrivalTime: ex.arrivalTime,
+          },
+          conflicts,
+          { otherLabel: 'existing schedule' }
+        )
+      }
+      mergeTimetableIssue(issues, trip, dateStr, conflicts)
+    }
+  }
+
+  const conflictCount = issues.reduce((n, i) => n + i.conflicts.length, 0)
+  return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
 export const SCHEDULE_STATUS_STYLES = {

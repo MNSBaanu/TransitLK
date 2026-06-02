@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon'
 import {
   formatTimeRange,
+  formatRouteStopsLabel,
   getTimetableDates,
   getTimetableRowValidationIssues,
   getTimetableRowStatus,
@@ -213,13 +214,21 @@ function ScheduleTimetableDrawer({
                               {isConflict ? 'Route conflict' : 'Incomplete'}
                             </p>
                             <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
+                            {(() => {
+                              const meta = rows.find(
+                                (r) => String(r.routeId) === String(card.routeId)
+                              )
+                              const stopsLabel = formatRouteStopsLabel(meta)
+                              return stopsLabel ? (
+                                <p className="mt-0.5 text-xs text-on-surface-variant">
+                                  Stops: {stopsLabel}
+                                </p>
+                              ) : null
+                            })()}
                           </div>
                           <button
                             type="button"
-                            onClick={() => {
-                              setFeedbackOpen(false)
-                              focusRouteRow(card.routeId)
-                            }}
+                            onClick={() => focusRouteRow(card.routeId)}
                             className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
                               isConflict
                                 ? 'border-red-300 bg-white text-red-700 hover:bg-red-100'
@@ -445,6 +454,7 @@ function ScheduleTimetableDrawer({
                       (d) => d.status === 'available' || !d.status
                     )
                     const isFocused = String(row.routeId) === focusedRouteId
+                    const stopsLabel = formatRouteStopsLabel(row)
                     const focusField =
                       missingBus ? 'bus' : missingDriver ? 'driver' : timeErr ? 'departure' : 'bus'
                     return (
@@ -483,6 +493,11 @@ function ScheduleTimetableDrawer({
                             {row.startPoint} → {row.endPoint}
                             {row.distance != null ? ` · ${row.distance} km` : ''}
                           </p>
+                          {stopsLabel ? (
+                            <p className="mt-0.5 text-xs text-on-surface-variant">
+                              Stops: {stopsLabel}
+                            </p>
+                          ) : null}
                         </td>
                         <td className="py-3 pr-2 align-top">
                           <input
