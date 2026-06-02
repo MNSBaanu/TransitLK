@@ -20,7 +20,7 @@ export const listWorkspaceUsers = async (req, res) => {
 
     if (!isSuperadministrator(req.user)) {
       const depotId = requireUserDepot(req.user)
-      adminFilter._id = req.user.id
+      adminFilter.depotId = depotId
       staffFilter.depotId = depotId
     }
 
