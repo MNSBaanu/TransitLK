@@ -543,6 +543,9 @@ export const updateSchedule = async (req, res) => {
       data.status = reasonToStatus(data.adjustmentReason, existing.status)
     }
 
+    const nextStatus = data.status ?? existing.status
+    const isCancellation = nextStatus === 'cancelled'
+
     if (data.routeId) {
       await getAccessibleRoute(req.user, routeId)
     }
@@ -551,25 +554,27 @@ export const updateSchedule = async (req, res) => {
       ? await getAccessibleRoute(req.user, routeId)
       : scopedRoute
 
-    await validateAssignment({
-      busId,
-      driverId,
-      departureTime,
-      routeId,
-      routeDepotId: assignmentRoute?.depotId,
-    })
+    if (!isCancellation) {
+      await validateAssignment({
+        busId,
+        driverId,
+        departureTime,
+        routeId,
+        routeDepotId: assignmentRoute?.depotId,
+      })
 
-    const conflicts = await findConflicts({
-      tripDate,
-      routeId,
-      busId,
-      driverId,
-      departureTime,
-      arrivalTime,
-      excludeId: req.params.id,
-    })
-    if (conflicts.length) {
-      return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
+      const conflicts = await findConflicts({
+        tripDate,
+        routeId,
+        busId,
+        driverId,
+        departureTime,
+        arrivalTime,
+        excludeId: req.params.id,
+      })
+      if (conflicts.length) {
+        return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
+      }
     }
 
     appendAdjustmentHistory(existing, data, req.user?.id)

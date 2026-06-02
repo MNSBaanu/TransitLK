@@ -45,7 +45,6 @@ function ScheduleQuickAdjust({
   buses,
   allBuses = [],
   conflicts,
-  eventLog = [],
   showConflictPanel,
   onToggleConflictPanel,
   onClose,
@@ -218,33 +217,6 @@ function ScheduleQuickAdjust({
                   View {conflicts.length} scheduling conflict{conflicts.length !== 1 ? 's' : ''}
                 </button>
               )}
-            </div>
-
-            <div className="shrink-0 border-t border-outline-variant pt-5">
-              <span className={`${labelClass} mb-2 block`}>Active alerts &amp; event log</span>
-              <div className={`max-h-48 space-y-2 overflow-y-auto ${sectionClass} p-2`}>
-                {eventLog.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-on-surface-variant">
-                    No active alerts for this period
-                  </p>
-                ) : (
-                  eventLog.map((entry, i) => (
-                    <div
-                      key={i}
-                      className={`border-l-2 p-2.5 text-[11px] ${
-                        entry.type === 'error'
-                          ? 'border-red-600 bg-red-50'
-                          : entry.type === 'warning'
-                            ? 'border-amber-500 bg-amber-50'
-                            : 'border-neutral-700 bg-white'
-                      }`}
-                    >
-                      <p className="font-bold text-neutral-900">{entry.title}</p>
-                      <p className="text-on-surface-variant">{entry.body}</p>
-                    </div>
-                  ))
-                )}
-              </div>
             </div>
           </div>
         ) : (
@@ -488,33 +460,6 @@ function ScheduleQuickAdjust({
             </div>
           </div>
         )}
-
-        <div className="mt-5 border-t border-outline-variant pt-5">
-          <span className={`${labelClass} mb-2 block`}>Active alerts &amp; event log</span>
-          <div className={`max-h-36 space-y-2 overflow-y-auto ${sectionClass} p-2`}>
-            {eventLog.length === 0 ? (
-              <p className="py-4 text-center text-xs text-on-surface-variant">
-                No active alerts for this period
-              </p>
-            ) : (
-              eventLog.map((entry, i) => (
-                <div
-                  key={i}
-                  className={`border-l-2 p-2.5 text-[11px] ${
-                    entry.type === 'error'
-                      ? 'border-red-600 bg-red-50'
-                      : entry.type === 'warning'
-                        ? 'border-amber-500 bg-amber-50'
-                        : 'border-neutral-700 bg-white'
-                  }`}
-                >
-                  <p className="font-bold text-neutral-900">{entry.title}</p>
-                  <p className="text-on-surface-variant">{entry.body}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
 
         {adjustConflict?.hasConflict && (
           <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">

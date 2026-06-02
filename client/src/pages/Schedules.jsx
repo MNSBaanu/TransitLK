@@ -1,7 +1,7 @@
 // Assigned to: Baanu
 // Module: Schedule Management
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
 import { getCachedPageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
@@ -86,6 +86,7 @@ function SchedulesPage() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
+  const maintenanceOfflineTripRef = useRef(null)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -138,7 +139,7 @@ function SchedulesPage() {
 
   useAutoRefresh(
     () => loadData({ force: true, keepContent: true }),
-    { enabled: !showTimetable && !showAdjustDrawer && !saving }
+    { enabled: !showTimetable && !showAdjustDrawer && !saving && !maintenanceConfirm }
   )
 
   const handleTimetableRefresh = useCallback(async () => {
@@ -187,53 +188,21 @@ function SchedulesPage() {
     })
   }, [schedules, scheduleSearch, routeFilter, driverFilter, viewMode, viewDate])
 
-  const conflicts = useMemo(
-    () => detectPeriodConflicts(filteredSchedules),
+  const displaySchedules = useMemo(
+    () => filteredSchedules.filter((s) => s.status !== 'cancelled'),
     [filteredSchedules]
   )
 
-  const scheduleStats = useMemo(() => {
-    const active = filteredSchedules.filter((s) => s.status !== 'cancelled').length
-    const delayed = filteredSchedules.filter((s) => s.status === 'delayed').length
-    return { trips: filteredSchedules.length, active, delayed, conflicts: conflicts.length }
-  }, [filteredSchedules, conflicts])
+  const conflicts = useMemo(
+    () => detectPeriodConflicts(displaySchedules),
+    [displaySchedules]
+  )
 
-  const eventLog = useMemo(() => {
-    const entries = []
-    if (emergencyMode) {
-      entries.push({
-        type: 'error',
-        title: 'Emergency mode active',
-        body: 'Priority adjustments enabled for depot officers',
-      })
-    }
-    conflicts.forEach((c) => {
-      entries.push({
-        type: 'error',
-        title: `${c.type === 'bus' ? 'Vehicle' : c.type === 'route' ? 'Route' : 'Driver'} conflict`,
-        body: c.message,
-      })
-    })
-    filteredSchedules
-      .filter((s) => s.status === 'delayed')
-      .forEach((s) => {
-        entries.push({
-          type: 'warning',
-          title: `${scheduleCode(s)} delay`,
-          body: `${s.routeId?.routeName || 'Route'} — ${s.departureTime}–${s.arrivalTime}`,
-        })
-      })
-    buses
-      .filter((b) => b.status === 'maintenance')
-      .forEach((b) => {
-        entries.push({
-          type: 'error',
-          title: 'Maintenance alert',
-          body: `${b.regNumber} is offline for service`,
-        })
-      })
-    return entries
-  }, [conflicts, filteredSchedules, buses, emergencyMode])
+  const scheduleStats = useMemo(() => {
+    const active = displaySchedules.filter((s) => s.status !== 'cancelled').length
+    const delayed = displaySchedules.filter((s) => s.status === 'delayed').length
+    return { trips: displaySchedules.length, active, delayed, conflicts: conflicts.length }
+  }, [displaySchedules, conflicts])
 
   const adjustBuses = useMemo(() => {
     const serviceType = selected?.routeId?.serviceType
@@ -250,7 +219,7 @@ function SchedulesPage() {
   }, [buses, selected, adjustForm.busId])
 
   const ganttRows = useMemo(() => {
-    const dayTrips = filteredSchedules.filter((s) => tripDateKey(s) === viewDate)
+    const dayTrips = displaySchedules.filter((s) => tripDateKey(s) === viewDate)
     const byBus = new Map()
     for (const trip of dayTrips) {
       const busId = String(trip.busId?._id || trip.busId || 'unknown')
@@ -265,7 +234,7 @@ function SchedulesPage() {
       byBus.get(busId).trips.push(trip)
     }
     return [...byBus.values()].sort((a, b) => a.regNumber.localeCompare(b.regNumber))
-  }, [filteredSchedules, viewDate])
+  }, [displaySchedules, viewDate])
 
   const timetableTripCount = useMemo(() => {
     const included = timetableRows.filter((r) => r.included).length
@@ -477,50 +446,67 @@ function SchedulesPage() {
     showToast(`Selected ${driver.name} — review and apply to save`)
   }
 
+  const closeMaintenanceOfflineUi = useCallback(() => {
+    maintenanceOfflineTripRef.current = null
+    setMaintenanceConfirm(false)
+    setShowAdjustDrawer(false)
+    setShowConflictPanel(false)
+    setSelected(null)
+    setAdjustForm({
+      departureTime: '08:00',
+      arrivalTime: '12:00',
+      busId: '',
+      driverId: '',
+      status: 'scheduled',
+      reason: 'maintenance',
+      notes: '',
+    })
+  }, [])
+
   const handleMaintenanceOffline = async () => {
-    if (!selected) return
-    const busId = selected.busId?._id || selected.busId
-    if (!busId) return
+    const trip = maintenanceOfflineTripRef.current || selected
+    if (!trip) {
+      setMaintenanceConfirm(false)
+      return
+    }
+    const busId = trip.busId?._id || trip.busId
+    if (!busId) {
+      setError('No vehicle assigned to this trip')
+      setMaintenanceConfirm(false)
+      return
+    }
 
     setSaving(true)
     setError('')
     const notes =
       adjustForm.notes?.trim() ||
-      `Emergency maintenance offline — trip ${scheduleCode(selected)} cancelled`
+      `Emergency maintenance offline — trip ${scheduleCode(trip)} cancelled`
 
     try {
-      await api.post('/maintenance', {
-        bus_id: busId,
-        service_date: selected.tripDate || new Date().toISOString(),
-        description: notes,
-        cost: 0,
-      })
-      await api.put(`/buses/${busId}`, { status: 'maintenance' })
-      await api.put(`/schedules/${selected._id}`, {
+      const { data: updatedTrip } = await api.put(`/schedules/${trip._id}`, {
         status: 'cancelled',
         adjustmentReason: 'maintenance',
         adjustmentNotes: notes,
-        routeId: selected.routeId?._id || selected.routeId,
+        routeId: trip.routeId?._id || trip.routeId,
         busId,
-        driverId: selected.driverId?._id || selected.driverId,
-        departureTime: selected.departureTime,
-        arrivalTime: selected.arrivalTime,
-        tripDate: selected.tripDate,
+        driverId: trip.driverId?._id || trip.driverId,
+        departureTime: trip.departureTime,
+        arrivalTime: trip.arrivalTime,
+        tripDate: trip.tripDate,
       })
-      setMaintenanceConfirm(false)
-      setSelected(null)
-      setAdjustForm({
-        departureTime: '08:00',
-        arrivalTime: '12:00',
-        busId: '',
-        driverId: '',
-        status: 'scheduled',
-        reason: 'maintenance',
-        notes: '',
+      await api.post('/maintenance', {
+        bus_id: busId,
+        service_date: trip.tripDate || new Date().toISOString(),
+        description: notes,
+        cost: 0,
       })
+      setSchedules((prev) =>
+        prev.map((s) => (String(s._id) === String(updatedTrip._id) ? updatedTrip : s))
+      )
+      closeMaintenanceOfflineUi()
       invalidateRelatedPages()
       showToast('Maintenance logged; vehicle offline; trip cancelled')
-      loadData({ force: true, keepContent: true })
+      await loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Maintenance offline action failed')
     } finally {
@@ -685,7 +671,7 @@ function SchedulesPage() {
     setSaving(true)
     setError('')
     try {
-      await api.put(`/schedules/${selected._id}`, {
+      const { data: updatedTrip } = await api.put(`/schedules/${selected._id}`, {
         status: 'cancelled',
         adjustmentReason: cancelReason,
         adjustmentNotes:
@@ -698,10 +684,14 @@ function SchedulesPage() {
         departureTime: selected.departureTime,
         arrivalTime: selected.arrivalTime,
       })
+      setSchedules((prev) =>
+        prev.map((s) => (String(s._id) === String(updatedTrip._id) ? updatedTrip : s))
+      )
       invalidateRelatedPages()
       showToast('Trip cancelled')
       setSelected(null)
-      loadData({ force: true, keepContent: true })
+      setShowAdjustDrawer(false)
+      await loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to cancel trip')
     } finally {
@@ -968,7 +958,7 @@ function SchedulesPage() {
               </div>
             ) : viewMode === 'weekly' ? (
               <ScheduleWeekTimetable
-                schedules={filteredSchedules}
+                schedules={displaySchedules}
                 routes={routes}
                 anchorDate={viewDate}
                 selectedId={selected?._id}
@@ -976,7 +966,7 @@ function SchedulesPage() {
               />
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
-                schedules={filteredSchedules}
+                schedules={displaySchedules}
                 anchorDate={viewDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
@@ -999,6 +989,8 @@ function SchedulesPage() {
         onClose={() => {
           setShowAdjustDrawer(false)
           setShowConflictPanel(false)
+          maintenanceOfflineTripRef.current = null
+          setMaintenanceConfirm(false)
         }}
         selected={selected}
         emergencyMode={emergencyMode}
@@ -1009,7 +1001,6 @@ function SchedulesPage() {
         buses={adjustBuses}
         allBuses={buses}
         conflicts={conflicts}
-        eventLog={eventLog}
         showConflictPanel={showConflictPanel}
         onToggleConflictPanel={() => setShowConflictPanel((v) => !v)}
         saving={saving}
@@ -1023,7 +1014,10 @@ function SchedulesPage() {
         }
         adjustConflict={adjustConflict}
         onPickMaintenanceBus={handlePickMaintenanceBus}
-        onMaintenanceOffline={() => setMaintenanceConfirm(true)}
+        onMaintenanceOffline={() => {
+          maintenanceOfflineTripRef.current = selected
+          setMaintenanceConfirm(true)
+        }}
         onPickCoverDriver={handlePickCoverDriver}
       />
 
@@ -1035,7 +1029,10 @@ function SchedulesPage() {
         variant="danger"
         loading={saving}
         onConfirm={handleMaintenanceOffline}
-        onCancel={() => setMaintenanceConfirm(false)}
+        onCancel={() => {
+          maintenanceOfflineTripRef.current = null
+          setMaintenanceConfirm(false)
+        }}
       />
 
       <ScheduleTimetableDrawer
