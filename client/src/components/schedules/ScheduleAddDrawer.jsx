@@ -1,5 +1,5 @@
 import Icon from '../Icon'
-import { formatTimeRange, validateTimeRange } from '../../utils/scheduleHelpers'
+import { formatTimeRange, formatRouteStopsLabel, validateTimeRange } from '../../utils/scheduleHelpers'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
@@ -87,6 +87,11 @@ function ScheduleAddDrawer({
                 <p className="text-on-surface-variant">
                   {selectedRoute.startPoint} → {selectedRoute.endPoint} · {selectedRoute.distance} km
                 </p>
+                {formatRouteStopsLabel(selectedRoute) ? (
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    Stops: {formatRouteStopsLabel(selectedRoute)}
+                  </p>
+                ) : null}
               </div>
             )}
 

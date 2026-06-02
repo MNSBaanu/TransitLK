@@ -12,9 +12,16 @@ import {
 } from './nav/NavHubPanels'
 import { useAuth } from '../context/AuthContext'
 import { NAV_ITEMS, ROLE_LABELS, homePathForRole } from '../config/roles'
+import TransitLKBrand, { getUserDepotCode } from './TransitLKBrand'
 
-const AVATAR_URL =
-  'https://lh3.googleusercontent.com/aida-public/AB6AXuDMfCMQyea5MKzlWGY1ZKUohvHWFhuFZFG1KyqV0zerTOD3Wpr34zT6cnK1HPQNynynyJbjSLHH5gt24H3wrzkiko1Ets1cHJIbZTanpfT6-iNv2uwRr4aA5Blcq2LrJkPmCX0ZTShfLnsIiEOsmCP5mzv9iUoxDwWd5Cq5bNdrxWxZeEnrsWuRgbJM4itb6nn_eJaQ26eAeVeMhUqTZwmdnsL94pH0qi77pZd_Rw1smHa9KR6tLO213AQznW8jKk15jhtuY2Cbbp4'
+const PROFILE_ROLE_BADGES = {
+  superadministrator: 'Super Admin',
+  administrator: 'Admin',
+  transport_scheduler: 'Scheduler',
+  fleet_manager: 'Fleet Manager',
+  depot_manager: 'Depot Manager',
+  driver: 'Driver',
+}
 
 function NavBadge({ count }) {
   if (!count) return null
@@ -32,6 +39,9 @@ function Navbar() {
 
   const navItems = NAV_ITEMS.filter((item) => user && item.roles.includes(user.role))
   const hub = useNavHub()
+  const profileRoleBadge = user
+    ? PROFILE_ROLE_BADGES[user.role] || ROLE_LABELS[user.role] || 'Account'
+    : 'Account'
 
   const [openPanel, setOpenPanel] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -108,9 +118,9 @@ function Navbar() {
       <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         <NavLink
           to={user ? homePathForRole(user.role) : '/login'}
-          className="relative z-10 shrink-0 font-sans text-lg font-bold tracking-tight text-white hover:opacity-90 sm:text-xl"
+          className="relative z-10 shrink-0 text-white hover:opacity-90"
         >
-          TransitLK
+          <TransitLKBrand depotCode={getUserDepotCode(user)} variant="nav" />
         </NavLink>
 
         <nav
@@ -246,27 +256,28 @@ function Navbar() {
             <button
               type="button"
               onClick={() => togglePanel('profile')}
-              className={`h-10 w-10 overflow-hidden rounded-full border-2 transition-colors ${
-                openPanel === 'profile' ? 'border-white' : 'border-depot-blue-light'
+              className={`rounded-full px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+                openPanel === 'profile'
+                  ? 'bg-white text-depot-navy'
+                  : 'bg-white/15 text-white hover:bg-white/25'
               }`}
               aria-label="Profile menu"
               aria-expanded={openPanel === 'profile'}
             >
-              <img src={AVATAR_URL} alt="" className="h-full w-full object-cover" />
+              {profileRoleBadge}
             </button>
             <NavDropdownPanel
               open={openPanel === 'profile'}
               onClose={closePanel}
               anchorRef={profileAnchorRef}
-              title="My account"
-              subtitle="Workspace & preferences"
+              title="Profile menu"
+              hideHeader
               width="w-[320px]"
             >
               <NavProfilePanel
                 hub={hub}
                 onClose={closePanel}
                 user={user}
-                roleLabel={user ? ROLE_LABELS[user.role] : ''}
                 onLogout={() => {
                   logout()
                   closePanel()
