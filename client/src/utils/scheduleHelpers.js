@@ -49,8 +49,16 @@ export function toDateInputValue(date) {
   return `${y}-${m}-${day}`
 }
 
+function parseLocalDateInput(dateStr) {
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+  return new Date(dateStr)
+}
+
 export function startOfWeekDate(dateStr) {
-  const d = new Date(dateStr)
+  const d = parseLocalDateInput(dateStr)
   const day = d.getDay()
   const diff = day === 0 ? -6 : 1 - day
   d.setDate(d.getDate() + diff)
@@ -58,16 +66,17 @@ export function startOfWeekDate(dateStr) {
 }
 
 export function endOfWeekDate(dateStr) {
-  const d = new Date(startOfWeekDate(dateStr))
+  const d = parseLocalDateInput(startOfWeekDate(dateStr))
   d.setDate(d.getDate() + 6)
   return toDateInputValue(d)
 }
 
 export function getWeekDayDates(anchorDate) {
   const start = startOfWeekDate(anchorDate)
+  const base = parseLocalDateInput(start)
   const days = []
   for (let i = 0; i < 7; i++) {
-    const d = new Date(start)
+    const d = new Date(base)
     d.setDate(d.getDate() + i)
     days.push(toDateInputValue(d))
   }
@@ -75,7 +84,7 @@ export function getWeekDayDates(anchorDate) {
 }
 
 export function getMonthDayDates(anchorDate) {
-  const d = new Date(anchorDate)
+  const d = parseLocalDateInput(anchorDate)
   const year = d.getFullYear()
   const month = d.getMonth()
   const last = new Date(year, month + 1, 0).getDate()
@@ -293,7 +302,7 @@ export function getViewDateRange(viewMode, anchorDate) {
     return { from: startOfWeekDate(anchorDate), to: endOfWeekDate(anchorDate) }
   }
   if (viewMode === 'monthly') {
-    const d = new Date(anchorDate)
+    const d = parseLocalDateInput(anchorDate)
     const from = toDateInputValue(new Date(d.getFullYear(), d.getMonth(), 1))
     const to = toDateInputValue(new Date(d.getFullYear(), d.getMonth() + 1, 0))
     return { from, to }
@@ -313,7 +322,17 @@ export function formatPeriodLabel(viewMode, anchorDate) {
 
 export function tripDateKey(trip) {
   if (!trip?.tripDate) return ''
-  return toDateInputValue(new Date(trip.tripDate))
+  const raw = trip.tripDate
+  if (typeof raw === 'string') {
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (match) return match[1]
+  }
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export function formatTimeRange(departureTime, arrivalTime) {
