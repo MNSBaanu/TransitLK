@@ -11,6 +11,7 @@ import {
   startOfMonth,
   endOfMonth,
   validateTimeRange,
+  validateTimetableRows,
   requiresAdjustmentNotes,
   reasonToStatus,
 } from '../utils/scheduleHelpers.js'
@@ -682,11 +683,32 @@ export const checkScheduleConflicts = async (req, res) => {
   }
 }
 
+function timetableValidationResult(rows) {
+  const validationErrors = validateTimetableRows(rows)
+  if (!validationErrors.length) return null
+  return {
+    hasConflict: true,
+    issues: [
+      {
+        routeId: '',
+        routeName: 'Validation',
+        tripDate: '',
+        conflicts: validationErrors.map((message) => ({ type: 'validation', message })),
+      },
+    ],
+    conflictCount: validationErrors.length,
+  }
+}
+
 export const checkTimetableConflicts = async (req, res) => {
   try {
     const { dates, rows } = req.body
     if (!Array.isArray(dates) || !Array.isArray(rows)) {
       return res.status(400).json({ message: 'dates and rows arrays are required' })
+    }
+    const validationBlock = timetableValidationResult(rows)
+    if (validationBlock) {
+      return res.json(validationBlock)
     }
     if (!isSuperadministrator(req.user)) {
       for (const row of rows) {

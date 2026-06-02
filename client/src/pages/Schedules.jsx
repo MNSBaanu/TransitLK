@@ -25,6 +25,7 @@ import {
   reasonToStatus,
   requiresAdjustmentNotes,
   validateTimetableRows,
+  isTimetableReady,
   scheduleCode,
   toDateInputValue,
   tripDateKey,
@@ -237,6 +238,8 @@ function SchedulesPage() {
     const included = timetableRows.filter((r) => r.included).length
     return included * getTimetableDates(timetablePeriod, timetableAnchor).length
   }, [timetableRows, timetablePeriod, timetableAnchor])
+
+  const timetableReady = useMemo(() => isTimetableReady(timetableRows), [timetableRows])
 
   const timetableRowConflicts = useMemo(
     () => groupTimetableConflictsByRoute(timetableConflicts?.issues),
@@ -507,7 +510,9 @@ function SchedulesPage() {
     e.preventDefault()
     const validationErrors = validateTimetableRows(timetableRows)
     if (validationErrors.length) {
-      setError(validationErrors.join('. '))
+      setError(
+        `Cannot create timetable: every included route needs a bus and driver. ${validationErrors.join('. ')}`
+      )
       return
     }
 
@@ -1024,6 +1029,9 @@ function SchedulesPage() {
         conflictPreview={timetableConflicts}
         checkingConflicts={checkingTimetableConflicts}
         rowConflictHints={timetableRowConflicts}
+        canCreateTimetable={
+          timetableReady && !checkingTimetableConflicts && !timetableConflicts?.hasConflict
+        }
       />
     </div>
   )

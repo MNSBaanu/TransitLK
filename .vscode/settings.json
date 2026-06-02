@@ -1,5 +1,10 @@
 {
   "css.validate": false,
   "scss.validate": false,
-  "less.validate": false
+  "less.validate": false,
+  "builder.serverUrl": "http://localhost:5173/",
+  "builder.command": "npm run dev\n",
+  "builder.runDevServer": true,
+  "builder.autoDetectDevServer": false,
+  "builder.launchType": "editor"
 }
