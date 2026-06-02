@@ -84,3 +84,33 @@ export function validateTimeRange(departureTime, arrivalTime) {
   }
   return null
 }
+
+export function getTimetableRowValidationIssues(row) {
+  if (row.included === false) return []
+  const issues = []
+  if (!row.departureTime || !row.arrivalTime) {
+    issues.push('Departure and arrival times are required')
+  } else {
+    const timeErr = validateTimeRange(row.departureTime, row.arrivalTime)
+    if (timeErr) issues.push(timeErr)
+  }
+  if (!row.busId) issues.push('Assign a bus')
+  if (!row.driverId) issues.push('Assign a driver')
+  return issues
+}
+
+export function validateTimetableRows(rows) {
+  const errors = []
+  const included = (rows || []).filter((r) => r.included !== false)
+  if (included.length === 0) {
+    return ['Select at least one route for the timetable']
+  }
+  for (const row of included) {
+    const label = row.routeName || 'Route'
+    for (const issue of getTimetableRowValidationIssues(row)) {
+      const detail = issue.charAt(0).toLowerCase() + issue.slice(1)
+      errors.push(`${label}: ${detail}`)
+    }
+  }
+  return errors
+}
