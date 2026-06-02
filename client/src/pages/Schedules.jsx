@@ -335,8 +335,8 @@ function SchedulesPage() {
   }, [showTimetable, timetableRows, timetablePeriod, timetableAnchor, timetableRangeSchedules])
 
   const timetableRowConflicts = useMemo(
-    () => groupTimetableConflictsByRoute(timetableConflicts?.issues),
-    [timetableConflicts]
+    () => groupTimetableConflictsByRoute(timetableConflicts?.issues, timetableRows),
+    [timetableConflicts, timetableRows]
   )
 
   const [adjustConflict, setAdjustConflict] = useState(null)

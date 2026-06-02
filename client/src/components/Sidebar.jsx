@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import Icon from './Icon'
+import { useAuth } from '../context/AuthContext'
+import TransitLKBrand, { getUserDepotCode } from './TransitLKBrand'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -11,13 +13,17 @@ const navItems = [
 ]
 
 function Sidebar() {
+  const { user } = useAuth()
+
   return (
     <aside
       className="flex h-screen w-64 shrink-0 flex-col border-r border-[#3d4246] px-2 py-4"
       style={{ backgroundColor: 'var(--sidebar-bg)' }}
     >
       <div className="mb-6 px-4">
-        <h1 className="text-lg font-bold tracking-tight text-[var(--sidebar-text)]">TransitLK</h1>
+        <h1>
+          <TransitLKBrand depotCode={getUserDepotCode(user)} variant="sidebar" />
+        </h1>
         <p className="mt-0.5 text-xs text-[var(--sidebar-text-muted)]">SRMSS Depot</p>
       </div>
 
