@@ -76,6 +76,10 @@ export const register = async (req, res) => {
   const { name, email, password, role, depotId } = req.body
 
   try {
+    if (!depotId) {
+      return res.status(400).json({ message: 'Depot assignment is required' })
+    }
+
     const exists =
       (await Admin.findOne({ email })) ||
       (await User.findOne({ email })) ||
