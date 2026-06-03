@@ -49,6 +49,22 @@ export const exportReportsPdf = async (req, res) => {
       doc.fontSize(12).text(section.title, { underline: true })
       doc.fontSize(9).text(section.narrative || '')
       ;(section.metrics || []).forEach((m) => doc.text(`${m.label}: ${m.value}`))
+      if (section.routeDelayAnalysis?.length) {
+        doc.moveDown(0.25)
+        doc.text('Route delay analysis:')
+        section.routeDelayAnalysis.forEach((row) => {
+          doc.text(
+            `  ${row.routeName}: ${row.delayed} delayed, ${row.cancelled} cancelled (${row.shareOfDelays}% of delays)`
+          )
+        })
+      }
+      if (section.recommendations?.length) {
+        doc.moveDown(0.25)
+        doc.text('Recommendations:')
+        section.recommendations.forEach((rec) => {
+          doc.text(`  [${rec.priority}] ${rec.text}`)
+        })
+      }
       doc.moveDown(0.5)
     }
 
