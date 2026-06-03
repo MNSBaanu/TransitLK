@@ -356,6 +356,147 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
     weeklyCompletion[0] || null
   )
 
+  const routesWithTrips = routesAnalytics.filter((r) => r.tripCount > r.cancelled)
+  const routeCompletionRate =
+    routesWithTrips.length > 0
+      ? Math.round(
+          (routesWithTrips.reduce((s, r) => s + r.completionRate, 0) / routesWithTrips.length) * 10
+        ) / 10
+      : tripCompletionRate
+
+  const routeFuelLiters = Math.round(fuelByRoute.reduce((s, r) => s + r.liters, 0) * 10) / 10
+
+  const rankByCompletion = [...routesWithTrips].sort((a, b) => {
+    if (b.completionRate !== a.completionRate) return b.completionRate - a.completionRate
+    return b.completed - a.completed
+  })
+  const bestPerformingRoute = rankByCompletion[0]
+    ? {
+        routeName: rankByCompletion[0].routeName,
+        routeId: rankByCompletion[0].routeId,
+        completionRate: rankByCompletion[0].completionRate,
+        tripCount: rankByCompletion[0].tripCount,
+        delayed: rankByCompletion[0].delayed,
+        operationalHours: rankByCompletion[0].operationalHours,
+      }
+    : null
+  const worstPerformingRoute = rankByCompletion.length
+    ? {
+        routeName: rankByCompletion[rankByCompletion.length - 1].routeName,
+        routeId: rankByCompletion[rankByCompletion.length - 1].routeId,
+        completionRate: rankByCompletion[rankByCompletion.length - 1].completionRate,
+        tripCount: rankByCompletion[rankByCompletion.length - 1].tripCount,
+        delayed: rankByCompletion[rankByCompletion.length - 1].delayed,
+        cancelled: rankByCompletion[rankByCompletion.length - 1].cancelled,
+      }
+    : null
+
+  const highestFuelRoute = fuelByRoute[0]
+    ? {
+        routeName: fuelByRoute[0].routeName,
+        liters: fuelByRoute[0].liters,
+        litersPerKm: fuelByRoute[0].litersPerKm,
+      }
+    : null
+
+  const routeDelayAnalysis = [...routesWithTrips]
+    .filter((r) => r.delayed > 0)
+    .sort((a, b) => b.delayed - a.delayed || b.cancelled - a.cancelled)
+    .map((r) => ({
+      routeName: r.routeName,
+      delayed: r.delayed,
+      cancelled: r.cancelled,
+      tripCount: r.tripCount,
+      completionRate: r.completionRate,
+      shareOfDelays:
+        delayed.length > 0 ? Math.round((r.delayed / delayed.length) * 1000) / 10 : 0,
+    }))
+
+  const recommendations = []
+  if (!hasData) {
+    recommendations.push({
+      priority: 'info',
+      icon: 'info',
+      text: 'No trips in this period. Create schedules in Schedule Management to unlock analytics.',
+    })
+  } else {
+    if (worstPerformingRoute && worstPerformingRoute.completionRate < 85) {
+      recommendations.push({
+        priority: 'high',
+        icon: 'warning',
+        text: `Prioritize ${worstPerformingRoute.routeName}: ${worstPerformingRoute.completionRate}% completion, ${worstPerformingRoute.delayed} delayed trip(s). Review staffing and timing.`,
+      })
+    }
+    if (delayed.length >= 3) {
+      recommendations.push({
+        priority: 'high',
+        icon: 'schedule',
+        text: `${delayed.length} delayed incidents in period — use Schedule Adjust for cover drivers or rescheduled departures.`,
+      })
+    }
+    if (vehicleUtilizationRate < 65 && buses.length > 0) {
+      recommendations.push({
+        priority: 'medium',
+        icon: 'directions_bus',
+        text: `Fleet utilization is ${vehicleUtilizationRate}% (${busesUsed.size}/${buses.length} buses). Consider consolidating trips or redeploying idle vehicles.`,
+      })
+    }
+    if (highestFuelRoute && totalLiters > 0) {
+      const fuelShare = Math.round((highestFuelRoute.liters / totalLiters) * 100)
+      if (fuelShare >= 35) {
+        recommendations.push({
+          priority: 'medium',
+          icon: 'local_gas_station',
+          text: `${highestFuelRoute.routeName} accounts for ~${fuelShare}% of fuel (${highestFuelRoute.liters} L). Review distance, load, and maintenance for buses on this route.`,
+        })
+      }
+    }
+    if (monthlySummary.filter((r) => r.status === 'AT RISK').length > 0) {
+      recommendations.push({
+        priority: 'high',
+        icon: 'report',
+        text: `${monthlySummary.filter((r) => r.status === 'AT RISK').length} route(s) marked at risk — align with depot managers on incident reduction targets.`,
+      })
+    }
+    if (routeDelayAnalysis.length > 0 && routeDelayAnalysis[0].delayed >= 2) {
+      recommendations.push({
+        priority: 'medium',
+        icon: 'timeline',
+        text: `Most delays on ${routeDelayAnalysis[0].routeName} (${routeDelayAnalysis[0].delayed} incidents, ${routeDelayAnalysis[0].shareOfDelays}% of depot delays).`,
+      })
+    }
+    if (bestPerformingRoute && bestPerformingRoute.completionRate >= 90) {
+      recommendations.push({
+        priority: 'low',
+        icon: 'thumb_up',
+        text: `${bestPerformingRoute.routeName} is best performing at ${bestPerformingRoute.completionRate}% — use as a benchmark for other routes.`,
+      })
+    }
+    if (recommendations.length === 0) {
+      recommendations.push({
+        priority: 'low',
+        icon: 'check_circle',
+        text: 'Operations are within normal thresholds for this period. Continue monitoring weekly completion and fuel trends.',
+      })
+    }
+  }
+
+  const operationalInsights = {
+    bestPerformingRoute,
+    worstPerformingRoute,
+    highestFuelConsumingRoute: highestFuelRoute,
+    fleetUtilization: {
+      rate: vehicleUtilizationRate,
+      busesUsed: busesUsed.size,
+      busesTotal: buses.length,
+      driversOnDuty,
+      driversTotal,
+      onDutyPct,
+    },
+    routeDelayAnalysis,
+    recommendations,
+  }
+
   const autoReport = {
     generatedAt: new Date().toISOString(),
     title: `${periodLabel} Operations Report`,
@@ -377,6 +518,7 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
         title: 'Trip completion rates',
         icon: 'check_circle',
         metrics: [
+          { label: 'Total trips', value: String(schedules.length) },
           { label: 'Completion rate', value: `${tripCompletionRate}%` },
           { label: 'Completed trips', value: String(completed.length) },
           { label: 'Delayed', value: String(delayed.length) },
@@ -396,9 +538,13 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
         title: 'Route performance',
         icon: 'map',
         metrics: [
-          { label: 'Routes tracked', value: String(routes.length) },
-          { label: 'Active routes', value: String(routes.filter((r) => r.status === 'active').length) },
-          { label: 'At-risk routes', value: String(monthlySummary.filter((r) => r.status === 'AT RISK').length) },
+          { label: 'Total routes tracked', value: String(routes.length) },
+          { label: 'Route completion rate', value: `${routeCompletionRate}%` },
+          { label: 'Delayed incidents', value: String(delayed.length) },
+          {
+            label: 'Fuel consumption by route',
+            value: routeFuelLiters > 0 ? `${routeFuelLiters} L` : '—',
+          },
         ],
         routes: topRoutes.map((r) => ({
           routeName: r.routeName,
@@ -416,6 +562,42 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
           : monthlySummary.some((r) => r.status === 'AT RISK')
             ? `${monthlySummary.filter((r) => r.status === 'AT RISK').length} route(s) marked at risk from actual delayed/cancelled counts.`
             : `All ${routesAnalytics.filter((r) => r.tripCount > 0).length} active routes performing within thresholds from live data.`,
+      },
+      {
+        id: 'operational-insights',
+        title: 'Operational Insights',
+        icon: 'psychology',
+        metrics: [
+          {
+            label: 'Best performing route',
+            value: bestPerformingRoute
+              ? `${bestPerformingRoute.routeName} · ${bestPerformingRoute.completionRate}%`
+              : '—',
+          },
+          {
+            label: 'Worst performing route',
+            value: worstPerformingRoute
+              ? `${worstPerformingRoute.routeName} · ${worstPerformingRoute.completionRate}%`
+              : '—',
+          },
+          {
+            label: 'Highest fuel consuming route',
+            value: highestFuelRoute
+              ? `${highestFuelRoute.routeName} · ${highestFuelRoute.liters} L`
+              : '—',
+          },
+          {
+            label: 'Fleet utilization',
+            value:
+              buses.length > 0
+                ? `${vehicleUtilizationRate}% (${busesUsed.size}/${buses.length} buses)`
+                : '—',
+          },
+        ],
+        routeDelayAnalysis: routeDelayAnalysis.slice(0, 8),
+        recommendations,
+        narrative:
+          'Data-driven insights from live schedules, routes, and fuel logs to support operational decision-making.',
       },
       {
         id: 'fuel-trends',
@@ -459,6 +641,7 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
     },
     summary: {
       tripCompletionRate,
+      routeCompletionRate,
       vehicleUtilizationRate,
       driversOnDuty,
       driversTotal,
@@ -467,10 +650,14 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
       activeTrips,
       completedTrips: completed.length,
       delayedTrips: delayed.length,
+      delayedIncidents: delayed.length,
       cancelledTrips: cancelled.length,
       totalRoutes: routes.length,
+      routesTracked: routes.length,
+      routeFuelLiters,
       activeRoutes: routes.filter((r) => r.status === 'active').length,
     },
+    operationalInsights,
     scheduleBreakdown: {
       completed: completed.length,
       delayed: delayed.length,
