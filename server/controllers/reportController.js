@@ -1,7 +1,18 @@
 import Schedule from '../models/Schedule.js'
 import Route from '../models/Route.js'
+import Depot from '../models/Depot.js'
 import { buildDashboardAnalytics, parseReportRange } from '../services/reportAnalytics.js'
-import { isSuperadministrator, requireUserDepot } from '../utils/depotAccess.js'
+import { createOperationsReportPdfStream } from '../services/reportPdf.js'
+import { getUserDepotId, isSuperadministrator, requireUserDepot } from '../utils/depotAccess.js'
+
+async function resolveDepotLabel(user) {
+  if (isSuperadministrator(user)) return 'All depots (network-wide)'
+  if (user?.depotId?.depotName) return user.depotId.depotName
+  const depotId = getUserDepotId(user)
+  if (!depotId) return 'Unassigned'
+  const depot = await Depot.findById(depotId).select('depotName')
+  return depot?.depotName || 'Depot'
+}
 
 export const getReportsDashboard = async (req, res) => {
   try {
@@ -15,9 +26,8 @@ export const getReportsDashboard = async (req, res) => {
 
 export const exportReportsPdf = async (req, res) => {
   try {
-    const PDFDocument = (await import('pdfkit')).default
     const data = await buildDashboardAnalytics(req.query, req.user)
-    const report = data.autoReport
+    const depotLabel = await resolveDepotLabel(req.user)
 
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
@@ -25,34 +35,8 @@ export const exportReportsPdf = async (req, res) => {
       `attachment; filename="transitlk-${data.period.mode}-report-${data.period.from}-${data.period.to}.pdf"`
     )
 
-    const doc = new PDFDocument({ margin: 48, size: 'A4' })
+    const doc = createOperationsReportPdfStream(data, { depotLabel })
     doc.pipe(res)
-
-    doc.fontSize(16).text(report?.title || 'TransitLK Operations Report', { underline: true })
-    doc.fontSize(9).fillColor('#555555')
-    doc.text(`Period: ${data.period.from} to ${data.period.to}`)
-    doc.text(`Generated: ${new Date(report?.generatedAt || Date.now()).toLocaleString('en-GB')}`)
-    doc.text(`Data source: ${data.dataSource || 'live database'}`)
-    doc.fillColor('#000000')
-    doc.moveDown()
-
-    if (!data.hasData) {
-      doc.fontSize(11).text('No operational records in this date range.')
-      doc.end()
-      return
-    }
-
-    ;(report?.highlights || []).forEach((h) => doc.fontSize(9).text(`• ${h}`))
-    doc.moveDown()
-
-    for (const section of report?.sections || []) {
-      doc.fontSize(12).text(section.title, { underline: true })
-      doc.fontSize(9).text(section.narrative || '')
-      ;(section.metrics || []).forEach((m) => doc.text(`${m.label}: ${m.value}`))
-      doc.moveDown(0.5)
-    }
-
-    doc.end()
   } catch (error) {
     const status = error.statusCode || 500
     res.status(status).json({ message: error.message })

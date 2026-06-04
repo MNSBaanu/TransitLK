@@ -912,8 +912,8 @@ function SchedulesPage() {
       {/* Workspace card */}
       <div className="pro-card flex min-h-[560px] flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-5 py-4">
-            <div className="pro-segmented">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-outline-variant bg-surface-container/50 px-5 py-4">
+            <div className="pro-segmented shrink-0 bg-white/50">
               {['daily', 'weekly', 'monthly'].map((mode) => (
                 <button
                   key={mode}
@@ -922,64 +922,78 @@ function SchedulesPage() {
                     setViewMode(mode)
                     setSelected(null)
                   }}
-                  className={`rounded-md px-4 py-2 text-sm capitalize transition-colors ${
+                  className={`rounded-md border px-4 py-2 text-sm capitalize transition-colors ${
                     viewMode === mode
-                      ? 'pro-segmented-active'
-                      : 'text-fleet-ink-muted hover:text-fleet-ink'
+                      ? 'border-outline-variant bg-white font-semibold text-fleet-ink shadow-sm'
+                      : 'border-transparent bg-transparent text-fleet-ink-muted hover:text-fleet-ink'
                   }`}
                 >
                   {mode}
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-                Filter
-              </span>
-              <select
-                value={routeFilter}
-                onChange={(e) => setRouteFilter(e.target.value)}
-                className={`${inputClass} w-auto min-w-[120px] py-1.5`}
+            <div className="flex flex-wrap items-end justify-end gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  Route filter
+                </span>
+                <select
+                  value={routeFilter}
+                  onChange={(e) => setRouteFilter(e.target.value)}
+                  aria-label="Route filter"
+                  className={`${inputClass} w-full min-w-[9.5rem] py-2`}
+                >
+                  <option value="">All routes</option>
+                  {routes.map((r) => (
+                    <option key={r._id} value={r._id}>
+                      {r.routeName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  Driver filter
+                </span>
+                <select
+                  value={driverFilter}
+                  onChange={(e) => setDriverFilter(e.target.value)}
+                  aria-label="Driver filter"
+                  className={`${inputClass} w-full min-w-[9.5rem] py-2`}
+                >
+                  <option value="">All drivers</option>
+                  {drivers.map((d) => (
+                    <option key={d._id} value={d._id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div
+                className="flex items-center rounded-lg border border-outline-variant bg-white"
+                role="group"
+                aria-label="Date navigation"
               >
-                <option value="">All routes</option>
-                {routes.map((r) => (
-                  <option key={r._id} value={r._id}>
-                    {r.routeName}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={driverFilter}
-                onChange={(e) => setDriverFilter(e.target.value)}
-                className={`${inputClass} w-auto min-w-[120px] py-1.5`}
-              >
-                <option value="">All drivers</option>
-                {drivers.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <div className="mx-1 hidden h-6 w-px bg-outline-variant sm:block" />
-              <button
-                type="button"
-                onClick={() => shiftDate(-1)}
-                className="rounded-lg border border-outline-variant p-1.5 hover:bg-surface-container"
-                aria-label="Previous period"
-              >
-                <Icon name="chevron_left" size={18} />
-              </button>
-              <span className="min-w-[120px] text-center text-sm font-semibold text-neutral-900">
-                {dateLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => shiftDate(1)}
-                className="rounded-lg border border-outline-variant p-1.5 hover:bg-surface-container"
-                aria-label="Next period"
-              >
-                <Icon name="chevron_right" size={18} />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => shiftDate(-1)}
+                  className="rounded-l-lg px-2.5 py-2 text-fleet-ink-muted transition-colors hover:bg-surface-container hover:text-fleet-ink"
+                  aria-label="Previous period"
+                >
+                  <Icon name="chevron_left" size={18} />
+                </button>
+                <span className="min-w-[11.5rem] border-x border-outline-variant px-3 py-2 text-center text-sm font-semibold text-fleet-ink sm:min-w-[13rem]">
+                  {dateLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => shiftDate(1)}
+                  className="rounded-r-lg px-2.5 py-2 text-fleet-ink-muted transition-colors hover:bg-surface-container hover:text-fleet-ink"
+                  aria-label="Next period"
+                >
+                  <Icon name="chevron_right" size={18} />
+                </button>
+              </div>
             </div>
           </div>
 
