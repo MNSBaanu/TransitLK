@@ -5,14 +5,6 @@ import { detectPeriodConflicts, toDateInputValue } from '../utils/scheduleHelper
 
 const MESSAGES_KEY = 'transitlk_nav_messages'
 const READ_NOTIFS_KEY = 'transitlk_nav_read_notifications'
-const PROFILE_KEY = 'transitlk_nav_profile'
-
-const DEFAULT_PROFILE = {
-  name: 'Baanu M.',
-  email: 'baanu@transitlk.lk',
-  role: 'Operations — Routes & Schedules',
-  depot: 'Colombo Central Depot',
-}
 
 const SEED_MESSAGES = [
   {
@@ -66,7 +58,6 @@ export function useNavHub() {
   const [notifications, setNotifications] = useState([])
   const [messages, setMessages] = useState(() => loadJson(MESSAGES_KEY, SEED_MESSAGES))
   const [readNotifIds, setReadNotifIds] = useState(() => loadJson(READ_NOTIFS_KEY, []))
-  const [profile, setProfile] = useState(() => loadJson(PROFILE_KEY, DEFAULT_PROFILE))
   const [loadingAlerts, setLoadingAlerts] = useState(true)
   const [activeMessageId, setActiveMessageId] = useState(null)
 
@@ -77,10 +68,6 @@ export function useNavHub() {
   useEffect(() => {
     localStorage.setItem(READ_NOTIFS_KEY, JSON.stringify(readNotifIds))
   }, [readNotifIds])
-
-  useEffect(() => {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
-  }, [profile])
 
   useEffect(() => {
     let cancelled = false
@@ -259,15 +246,6 @@ export function useNavHub() {
     )
   }, [])
 
-  const signOut = useCallback(() => {
-    localStorage.removeItem('token')
-    navigate('/dashboard')
-  }, [navigate])
-
-  const updateProfileField = useCallback((field, value) => {
-    setProfile((prev) => ({ ...prev, [field]: value }))
-  }, [])
-
   return {
     loadingAlerts,
     notifications: notificationsWithRead,
@@ -275,7 +253,6 @@ export function useNavHub() {
     messages: messagesWithMeta,
     unreadMessageCount,
     activeMessage,
-    profile,
     markNotificationRead,
     markAllNotificationsRead,
     openNotification,
@@ -284,8 +261,6 @@ export function useNavHub() {
     selectMessage,
     sendQuickReply,
     setActiveMessageId,
-    signOut,
-    updateProfileField,
     formatRelativeTime,
   }
 }
