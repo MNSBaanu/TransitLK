@@ -11,7 +11,7 @@ import {
 } from '../../utils/scheduleHelpers'
 
 const inputClass =
-  'w-full rounded-lg border border-outline-variant bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-900'
+  'w-full rounded-lg border border-outline-variant bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-100'
 const labelClass = 'text-[10px] font-bold uppercase tracking-wide text-on-surface-variant'
 
 function groupConsecutiveIndices(indices) {
@@ -310,7 +310,7 @@ function ScheduleTimetableDrawer({
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex bg-black/30 backdrop-blur-sm ${
+      className={`fixed inset-0 z-[100] flex bg-black/30 ${
         feedbackOpen ? 'flex-col-reverse lg:flex-row' : 'justify-end'
       }`}
     >
@@ -503,8 +503,6 @@ function ScheduleTimetableDrawer({
                         id={`timetable-row-${row.routeId}`}
                         key={row.routeId}
                         className={`transition-colors duration-300 ${
-                          row.included ? '' : 'opacity-50'
-                        } ${
                           focusHighlight ??
                           (rowStatus === 'conflict'
                             ? 'bg-red-50/60'
