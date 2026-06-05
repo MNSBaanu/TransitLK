@@ -275,7 +275,6 @@ function Navbar() {
               width="w-[320px]"
             >
               <NavProfilePanel
-                hub={hub}
                 onClose={closePanel}
                 user={user}
                 onLogout={() => {
