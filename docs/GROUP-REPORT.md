@@ -194,9 +194,52 @@
 
 # Testing
 
-## Testing strategy / Test cases & results / Evaluation summary
+> Full testing documentation: [`Testing.md`](./Testing.md)
 
-<!-- Insert testing content -->
+## Testing approach (Agile)
+
+TransitLK uses **continuous testing** within four Agile sprints — not a single end-phase test window. Each sprint increment is tested before sprint review.
+
+## Testing strategy
+
+<!-- Summarise from Testing.md §3: hybrid black box + white box -->
+
+## Test levels
+
+| Level | Focus |
+|-------|--------|
+| Unit | Helpers, validators, conflict logic |
+| Integration | API, database, UI wiring |
+| System | Full modules and RBAC |
+| Acceptance | Role-based depot workflows |
+
+## Black box testing
+
+<!-- Summarise from Testing.md §5 — techniques and module coverage; test cases TBD -->
+
+## White box testing
+
+<!-- Summarise from Testing.md §6 — validation, conflict detection, auth paths; test cases TBD -->
+
+## Testing by sprint
+
+<!-- Insert sprint test summary table from Testing.md §7 -->
+
+## Test environment and tools
+
+<!-- Insert from Testing.md §8 -->
+
+## Defect management
+
+<!-- Insert severity table; defect log when execution starts -->
+
+## Evaluation summary
+
+<!-- Insert module evaluation matrix and overall outcome from Testing.md §11 when results are available -->
+
+## Test cases and results
+
+<!-- To be added — detailed test case tables per module -->
 
 ---
 
