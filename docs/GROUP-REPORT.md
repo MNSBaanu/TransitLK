@@ -128,35 +128,10 @@
 
 ## Sequence Diagram
 
-See [`diagrams/Sequence & State/SEQUENCE-STATE.md`](../diagrams/Sequence%20&%20State/SEQUENCE-STATE.md).
-
-| Module | `diagrams/sequence/` |
-|--------|------------------------|
-| Login | `01-user-login.drawio` |
-| Route Management | `02-create-route-with-maps.drawio` |
-| Schedule Management | `03-create-schedule-conflict-check.drawio`, `04-schedule-submit-approve.drawio` |
-| Depot Management | `06-dashboard-summary.drawio` |
-| Fuel & Maintenance | `08-log-maintenance.drawio`, `09-log-fuel.drawio` |
-| Driver & Vehicle Management | `12-manage-fleet-driver-vehicle.drawio` |
-| Reporting & Analytics | `05-export-report.drawio` |
-| User Management | `10-create-staff-user.drawio` |
-| My Trips | `07-driver-view-trips.drawio` |
-
 <!-- Insert exported PNG figures -->
 
 ## State Transition Diagram
 
-| Module | `diagrams/state-transition/` |
-|--------|------------------------------|
-| Login | `06-auth-session.drawio` |
-| Route Management | `02-route-status.drawio` |
-| Schedule Management | `01-schedule-trip-status.drawio` |
-| Fuel & Maintenance | `08-bus-maintenance-cycle.drawio` |
-| Driver & Vehicle Management | `03-bus-status.drawio`, `04-driver-status.drawio` |
-| User Management | `05-staff-account-activation.drawio` |
-| My Trips | `07-driver-trip-view.drawio` |
-
-*Depot Management and Reporting & Analytics are read-only — no entity status lifecycle.*
 
 <!-- Insert exported PNG figures -->
 
