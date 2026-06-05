@@ -1,5 +1,5 @@
 import Icon from '../Icon'
-import { GANTT_HOURS, ganttPosition, scheduleCode } from '../../utils/scheduleHelpers'
+import { GANTT_HOURS, ganttPosition, formatRouteStopsLabel, scheduleCode } from '../../utils/scheduleHelpers'
 
 function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
   const conflictIds = new Set()
@@ -71,11 +71,21 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                   if (!pos) return null
                   const isConflict = conflictIds.has(trip._id)
                   const isSelected = selectedId === trip._id
+                  const stopsLabel = formatRouteStopsLabel(trip.routeId)
                   return (
                     <button
                       key={trip._id}
                       type="button"
                       onClick={() => onSelectTrip(trip)}
+                      title={
+                        [
+                          trip.routeId?.routeName,
+                          stopsLabel ? `Stops: ${stopsLabel}` : '',
+                          `${trip.departureTime} – ${trip.arrivalTime}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                      }
                       style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
                       className={`absolute top-2 bottom-2 z-10 rounded p-2 text-left text-white shadow-sm transition-all ${
                         isConflict

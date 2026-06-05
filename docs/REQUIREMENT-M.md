@@ -1,187 +1,225 @@
-# SRMSS — Module-Based Requirements (REQUIREMENT-M)
+# SRMSS — Module-Based Functional Requirements (REQUIREMENT-M)
 
-## Cross-cutting (MOD-XCUT)
+**Product:** TransitLK — Smart Route Management and Scheduling System
 
-| ID | Requirement |
-|----|-------------|
-| MOD-XCUT-01 | The system shall authenticate users via email and password and issue a JWT valid for a bounded session (e.g. 7 days). |
-| MOD-XCUT-02 | Every protected API route and client page shall enforce role-based access so users cannot open modules outside their role. |
-| MOD-XCUT-03 | The client shall redirect unauthenticated users to `/login` and return authenticated users to a role-specific home path after login. |
-| MOD-XCUT-04 | Deactivated staff accounts (`isActive: false`) shall be blocked at login with a clear message. |
-| MOD-XCUT-05 | The workspace shall use consistent module layout (header, tables, modals) and transport-domain terminology. |
-| MOD-XCUT-06 | Operational changes that affect schedules (bus/driver reassignment) shall be traceable via adjustment history on schedule records. |
-| MOD-XCUT-07 | The system shall support in-app notifications/messages for depot alerts (conflicts, delays). |
-| MOD-XCUT-08 | An audit trail shall record permission changes, schedule approvals, and critical overrides with user identity and timestamp. |
-| MOD-XCUT-09 | All date/time displays shall use depot-local conventions; API shall store trip dates in unambiguous form (ISO date). |
-| MOD-XCUT-10 | Sensitive configuration (JWT secret, Mongo URI, map API keys) shall not be committed to source control. |
+This document describes what the system must do, organised by **module**. Within each module, requirements are grouped **by role** so each role is named once, with its functions listed underneath.
 
-## Authentication (MOD-AUTH)
+---
 
-| ID | Requirement |
-|----|-------------|
-| MOD-AUTH-01 | The login module shall accept email and password and resolve accounts from admins, users (staff), then drivers collections. |
-| MOD-AUTH-02 | On successful login, the module shall return user profile fields (name, email, role, depot link, driver id if applicable) and a JWT. |
-| MOD-AUTH-03 | The module shall expose `GET /api/auth/me` for session refresh and profile display in the shell UI. |
-| MOD-AUTH-04 | Staff self-registration via `POST /api/auth/register` shall be restricted to administrators only. |
-| MOD-AUTH-05 | Login failures shall not reveal whether the email exists (generic “invalid email or password”). |
-| MOD-AUTH-06 | Passwords shall be stored hashed (bcrypt) with minimum length policy (≥ 6 characters). |
-| MOD-AUTH-07 | The module shall support password reset / account recovery via email or admin reset. |
-| MOD-AUTH-08 | Optional multi-factor authentication for administrator accounts in production deployments. |
+## Overview — Who uses which module
 
-## Depot dashboard (MOD-DSH)
+| Role | Main responsibility | Modules |
+|------|---------------------|---------|
+| **Superadministrator** | Platform and depots island-wide | Administrator accounts, Depots, Analytics |
+| **Administrator** | Full depot operations | Dashboard, Routes, Schedules, Fleet & Drivers, Users, Maintenance, Analytics |
+| **Transport scheduler** | Routes and timetables | Routes, Schedules, Analytics |
+| **Fleet manager** | Vehicles, drivers, fuel and workshop | Fleet & Drivers, Maintenance |
+| **Depot manager** | Oversight and approval | Dashboard, Schedules, Analytics |
+| **Driver** | Own trips only | My trips |
 
-| ID | Requirement |
-|----|-------------|
-| MOD-DSH-01 | The dashboard shall summarise active routes, fleet availability, driver availability, and today’s trips for the depot. |
-| MOD-DSH-02 | Trip rows shall show operational status: scheduled, on-time, delayed, completed, cancelled. |
-| MOD-DSH-03 | The dashboard shall surface maintenance alerts (vehicles under maintenance or overdue service). |
-| MOD-DSH-04 | The dashboard shall show fuel summary indicators (recent consumption trend or anomaly flags). |
-| MOD-DSH-05 | Summary statistics shall include trip completion rate and vehicle utilisation for the selected period. |
-| MOD-DSH-06 | Data shall auto-refresh periodically (e.g. every 30 seconds) without full page reload. |
-| MOD-DSH-07 | Depot managers shall see only data for their assigned depot when multi-depot mode is enabled. |
-| MOD-DSH-08 | Administrators shall access a system-wide dashboard aggregating all depots. |
-| MOD-DSH-09 | The dashboard API shall be served from a stable endpoint (`GET /api/reports/dashboard` or dedicated `/api/dashboard`). |
+---
 
-## Route planning (MOD-RTE)
+## Key features and functions
 
-| ID | Requirement |
-|----|-------------|
-| MOD-RTE-01 | Users shall create routes with route name, start point, end point, distance (km), and ordered intermediary stops. |
-| MOD-RTE-02 | Routes shall support geocoded locations (lat/lng, address) for start, end, and stop points for map display. |
-| MOD-RTE-03 | The module shall integrate Google Maps (or equivalent) in the browser for route visualisation and point selection. |
-| MOD-RTE-04 | Users shall edit existing routes when not blocked by active published schedules. |
-| MOD-RTE-05 | Users shall delete or archive routes; historical schedules referencing the route must remain readable. |
-| MOD-RTE-06 | Each route shall record service type (e.g. ordinary, semi-luxury, luxury) where applicable for assignment rules. |
-| MOD-RTE-07 | The route list shall support search/filter by name, endpoints, or service type. |
-| MOD-RTE-08 | From the route module, authorised users shall assign default bus and driver to a route where business rules allow. |
-| MOD-RTE-09 | Route records shall optionally link to a depotId when multi-depot scoping is enabled. |
-| MOD-RTE-10 | Import routes from spreadsheet with validation (duplicate names, missing distance). |
+### 1. Route planning module
 
-## Schedule management (MOD-SCH)
+**Administrator and transport scheduler**
 
-| ID | Requirement |
-|----|-------------|
-| MOD-SCH-01 | Users shall create schedules with route, trip date, departure/arrival times, bus, and driver. |
-| MOD-SCH-02 | The module shall support daily trip planning; weekly/monthly timetable templates are desirable. |
-| MOD-SCH-03 | On save, the system shall detect conflicts: same bus overlapping, same driver overlapping, invalid working hours. |
-| MOD-SCH-04 | Conflict results shall list actionable reasons so the scheduler can correct assignments. |
-| MOD-SCH-05 | Schedules shall follow a lifecycle: draft → pending → approved → scheduled → on-time / delayed / completed / cancelled. |
-| MOD-SCH-06 | Schedulers shall submit draft schedules for approval. |
-| MOD-SCH-07 | Depot managers (or admins) shall approve pending schedules only when conflict-free. |
-| MOD-SCH-08 | Depot managers shall reject pending schedules with a mandatory reason; record remains for audit. |
-| MOD-SCH-09 | Authorised users shall edit schedules before trip start subject to re-validation. |
-| MOD-SCH-10 | Users shall cancel trips with reason; cancelled trips remain visible in history. |
-| MOD-SCH-11 | Reassignment of bus or driver on an existing schedule shall re-run conflict checks and append adjustment history. |
-| MOD-SCH-12 | Emergency override by depot manager shall require justification and preserve original assignment in history. |
-| MOD-SCH-13 | Assignment shall be blocked if bus status is maintenance or driver is unavailable / off-duty. |
-| MOD-SCH-14 | Assignment shall be blocked if driver license expiry date is in the past. |
-| MOD-SCH-15 | Published/approved schedule changes shall trigger notifications to affected drivers. |
-| MOD-SCH-16 | Bulk timetable conflict check across a date range. |
-| MOD-SCH-17 | Schedule list shall support date-range filter and search. |
+- Create, modify, and manage routes with a defined start point, end point, intermediary stops, and total distance (kilometres).
+- Set route names, service type (express, ordinary, semi-luxury), and draft or active status so only operational routes are used in timetables.
+- Assign buses and drivers to specific routes based on vehicle capacity, availability, service type, and driver working hours; the system warns when a bus or driver does not meet the rules.
+- Use visual route mapping through online map services (e.g. Google Maps) to see the path clearly and pick stops on the map when the service is configured.
+- Search and review the route catalogue, edit existing routes, and cannot delete a route when trips already depend on it.
+- Mark routes inactive when they are no longer run, while history remains available for records and reports.
 
-## Fleet & drivers (MOD-FLT)
+---
 
-| ID | Requirement |
-|----|-------------|
-| MOD-FLT-01 | The module shall provide a Fleet Inventory tab to register buses: registration number, capacity, mileage, depot, service type, status. |
-| MOD-FLT-02 | Bus registration numbers shall be unique within the system. |
-| MOD-FLT-03 | Users shall update bus details and set status: available, in-service, maintenance. |
-| MOD-FLT-04 | The module shall provide a Driver Personnel tab for driver name, license number, contact, working hours, status. |
-| MOD-FLT-05 | Driver license numbers shall be unique. |
-| MOD-FLT-06 | Users shall create and edit driver records and optional login credentials (email/password) for the driver portal. |
-| MOD-FLT-07 | Driver status shall include available, on-leave, off-duty and affect schedule assignment. |
-| MOD-FLT-08 | Vehicles and drivers shall support optional depotId assignment. |
-| MOD-FLT-09 | The module shall display fleet health summaries (counts by status). |
-| MOD-FLT-10 | License validity/expiry date shall be stored and surfaced before assignment. |
-| MOD-FLT-11 | Vehicles failing compliance (expired inspection, open critical maintenance) shall be blocked from schedule assignment. |
-| MOD-FLT-12 | Paginated lists and modal forms for add/edit with validation errors shown inline. |
-| MOD-FLT-13 | Legacy `/drivers` URL shall redirect to Fleet & Drivers unified page. |
+### 2. Schedule management module
 
-## Users & access (MOD-USR)
+**Transport scheduler**
 
-| ID | Requirement |
-|----|-------------|
-| MOD-USR-01 | Only administrators shall access the Users module. |
-| MOD-USR-02 | The module shall list workspace accounts: administrators and staff (scheduler, fleet manager, depot manager). |
-| MOD-USR-03 | Administrators shall create staff users with name, email, password, role, optional depot. |
-| MOD-USR-04 | Administrators shall edit staff details, role, depot, and active flag; optional password reset on save. |
-| MOD-USR-05 | Administrators shall deactivate staff to revoke login without deleting history. |
-| MOD-USR-06 | Administrators shall remove staff accounts when appropriate. |
-| MOD-USR-07 | The UI shall display system access modules per role. |
-| MOD-USR-08 | Permission model is role-based (fixed role → module set). |
-| MOD-USR-09 | Administrator accounts shall be view-only in this module. |
-| MOD-USR-10 | Email addresses shall be unique across admins, staff, and drivers. |
-| MOD-USR-11 | The module shall not create or list driver operational accounts (drivers are managed under Fleet & Drivers). |
-| MOD-USR-12 | Administrators shall be able to create additional administrator accounts. |
-| MOD-USR-13 | Audit log of role/permission changes. |
+- Create daily, weekly, and monthly timetables, with each trip having a chosen route, calendar date, departure time, arrival time, bus, and driver.
+- Build timetables in a visual grid (including Gantt-style views) for day, week, and month planning.
+- Receive automatic detection and prevention of overlapping or conflicting schedules when planning trips (same bus or driver double-booked, invalid times, bus in maintenance, driver unavailable), with clear messages to correct plans before publication.
+- Prepare timetables as drafts and submit them for depot approval.
+- Plan trips in bulk across a date range (including repeat-for-week on single entries and multi-route timetable creation), with warnings when individual trips cannot be placed.
+- Remove draft or unneeded schedule entries when plans change before they go live.
+- Adjust schedules for emergencies, maintenance work, or unexpected events (including delay, cancellation, bus or driver change), with notes where required and a recorded history of changes.
 
-## Maintenance & fuel (MOD-MNT)
+**Depot manager and administrator**
 
-| ID | Requirement |
-|----|-------------|
-| MOD-MNT-01 | Users shall log maintenance events per bus: date, description/service type, cost. |
-| MOD-MNT-02 | Users shall log fuel entries per bus: date, liters, amount, optional odometer. |
-| MOD-MNT-03 | When maintenance is open, the bus status should reflect maintenance and block new schedule assignment. |
-| MOD-MNT-04 | Fuel entries shall reject odometer lower than previous unless override authorised. |
-| MOD-MNT-05 | Users shall schedule future servicing based on mileage or date thresholds with reminders. |
-| MOD-MNT-06 | The module shall present maintenance history and fuel trend per vehicle. |
-| MOD-MNT-07 | Summary fuel report endpoint for analytics integration. |
-| MOD-MNT-08 | Duplicate fuel events for same bus/date shall be prevented or warned. |
-| MOD-MNT-09 | Transport schedulers may have read access to maintenance status for planning. |
+- Approve submitted timetables only when plans are still conflict-free, or return work to the scheduler with a stated reason.
+- Track trip status through the working day (e.g. scheduled, on-time, delayed, completed, cancelled) for depot visibility and reporting.
+- Adjust schedules for emergencies, maintenance work, or unexpected events, with notes where required and a recorded history of changes.
 
-## Analytics & reporting (MOD-ANL)
+**Driver**
 
-| ID | Requirement |
-|----|-------------|
-| MOD-ANL-01 | The module shall provide trip completion rate for a selected date range. |
-| MOD-ANL-02 | The module shall provide route performance metrics (trips per route, delays, cancellations). |
-| MOD-ANL-03 | The module shall provide fuel consumption trends over time. |
-| MOD-ANL-04 | Users shall filter reports by week, month, or custom date range. |
-| MOD-ANL-05 | Users shall export CSV of report data. |
-| MOD-ANL-06 | Users shall export PDF for management review. |
-| MOD-ANL-07 | Administrators shall access user activity / system audit reports. |
-| MOD-ANL-08 | Depot-level performance data shall respect depot scope when multi-depot is active. |
-| MOD-ANL-09 | Reports shall use finalized or approved trip data where policy requires. |
-| MOD-ANL-10 | Vehicle utilisation and maintenance downtime summaries. |
+- View approved and scheduled trips assigned to them through the My trips area (read-only).
 
-## My trips — driver portal (MOD-TRP)
+---
 
-| ID | Requirement |
-|----|-------------|
-| MOD-TRP-01 | Drivers shall sign in and land on My trips. |
-| MOD-TRP-02 | The module shall list assigned trips for the logged-in driver only. |
-| MOD-TRP-03 | Each trip shall show route name, date, times, vehicle, and status. |
-| MOD-TRP-04 | Drivers shall see schedule updates (reschedule/cancel) after approval. |
-| MOD-TRP-05 | Drivers shall acknowledge assignment before trip start. |
-| MOD-TRP-06 | Drivers shall report issues (delay, breakdown, obstruction) with type and remarks. |
-| MOD-TRP-07 | Drivers shall view duty history and working-hour summary. |
-| MOD-TRP-08 | Drivers shall confirm trip completion when service ends. |
-| MOD-TRP-09 | Mobile-friendly layout for smartphone browsers. |
+### 3. Depot management dashboard module
 
-## Multi-depot & master data (MOD-MDP)
+**Administrator and depot manager**
 
-| ID | Requirement |
-|----|-------------|
-| MOD-MDP-01 | The system shall maintain a Depot master entity (name, location). |
-| MOD-MDP-02 | Staff users, buses, and drivers may reference depotId. |
-| MOD-MDP-03 | Routes and schedules shall reference depotId and API shall filter by caller’s depot. |
-| MOD-MDP-04 | Depot managers shall see dashboard, schedules (approve), and analytics scoped to their depot only. |
-| MOD-MDP-05 | Administrators shall manage depots via CRUD. |
-| MOD-MDP-06 | Master data categories (route categories, vehicle types, fuel types) shall be configurable. |
-| MOD-MDP-07 | Data migration import from spreadsheets with validation. |
-| MOD-MDP-08 | Seed script for default depot for demos. |
+- Use a centralized control panel showing active routes, buses available or in maintenance, drivers on duty, and recent trips.
+- See trip status such as on-time, delayed, scheduled, or completed, with colour cues for operational visibility during the day.
+- View summary statistics on total active routes, trip completion rate, and how buses are distributed across available, in-service, and maintenance states.
+- Receive highlights of recent maintenance-related situations when a bus is in the workshop.
+- Rely on automatic periodic refresh of key figures and the trip list so the dashboard stays current during the working day (without live vehicle tracking).
 
-## System & infrastructure (MOD-SYS)
+---
 
-| ID | Requirement |
-|----|-------------|
-| MOD-SYS-01 | Web application accessible via modern browsers over HTTPS in production. |
-| MOD-SYS-02 | Three-tier deployment: React client, Express API, MongoDB database. |
-| MOD-SYS-03 | Centralised server model synchronising data for all depot users. |
-| MOD-SYS-04 | Database transactions for critical writes (schedule save, status updates). |
-| MOD-SYS-05 | Indexed queries for routes, schedules, and reports. |
-| MOD-SYS-06 | Backup and restore of database and configuration by administrators. |
-| MOD-SYS-07 | Hosting on Vercel (client) and Render (API) or equivalent with env-based config. |
-| MOD-SYS-08 | Google Maps API used from client; core scheduling works if maps unavailable. |
-| MOD-SYS-09 | Performance sizing for concurrent schedulers, dashboard polling, and report export. |
-| MOD-SYS-10 | Application updates with minimal downtime; rollback support. |
+### 4. Fuel and maintenance log module
+
+**Fleet manager and administrator**
+
+- Maintain a record of fuel consumption per vehicle (date, litres, cost), supporting identification of high-usage vehicles and inefficient patterns when used with reporting.
+- Log routine and corrective maintenance activities (service date, description, cost per bus), so each vehicle’s workshop history is kept in one place.
+- Edit or remove fuel and maintenance entries when corrections are needed.
+- Review fuel entries and maintenance jobs separately in the workspace.
+
+**Fleet manager**
+
+- Set bus status on the Fleet screen when a vehicle is off the road, in line with maintenance records.
+
+**Administrator, depot manager, and transport scheduler**
+
+- Access fuel and maintenance summaries through analytics to support cost-effective and more sustainable operations (where their role permits).
+
+---
+
+### 5. Driver and vehicle management database module
+
+**Fleet manager and administrator**
+
+- Store comprehensive driver details, including name, contact information, licence number, optional licence expiry, working hours, status (available, on-leave, off-duty), depot, and optional login for the driver portal.
+- Maintain a database of vehicles, including registration number, seating capacity, mileage, service type, depot, and status (available, in-service, maintenance).
+- Remove bus or driver records that are no longer required, subject to system rules when linked data exists.
+- Keep registration and licence numbers unique when creating or updating records.
+- Review maintenance history per vehicle together with the fuel and maintenance log.
+
+**Transport scheduler and administrator**
+
+- See whether a driver is eligible for assignment (available and within working hours) before trips are confirmed.
+- See who and what is assigned to each service through route and trip planning linked to drivers and buses.
+
+---
+
+### 6. Reporting and analytics module
+
+**Superadministrator, administrator, transport scheduler, and depot manager**
+
+- View automated weekly and monthly reports (and custom date ranges) on trip completion rates, route performance (delays, cancellations, risk indicators), and fuel consumption trends.
+- Download exportable reports in PDF and CSV for management review, sustainability reporting, depot meetings, and further analysis in spreadsheets.
+
+**Administrator and depot manager**
+
+- Monitor summary KPIs and narrative insights on screen without building spreadsheets manually.
+- Export trip data for further analysis in external tools.
+- Use data-driven insights into operational efficiency, including which routes are performing well or need attention.
+
+**Superadministrator**
+
+- View network-wide analytics across depots where the platform scope applies.
+
+---
+
+## Supporting modules
+
+### Authentication
+
+**All users (superadministrator, administrator, transport scheduler, fleet manager, depot manager, driver)**
+
+- Sign in with email and password; the system recognises administrators, depot staff, and drivers in turn.
+- Receive a general error message when credentials are wrong, without revealing whether the email exists.
+- See name, role, and depot (where relevant) in the application after sign-in, with session restored when they return.
+
+**Deactivated depot staff (transport scheduler, fleet manager, depot manager)**
+
+- Cannot sign in while their account is marked inactive.
+
+**Administrator**
+
+- Create depot staff accounts with role and depot assignment.
+
+---
+
+### Users and access
+
+**Administrator**
+
+- Manage depot staff accounts (transport scheduler, fleet manager, depot manager): create, edit, deactivate, or remove, with role and depot assignment.
+- See which parts of the system each staff role may use.
+
+---
+
+### Administrator and depot registry
+
+**Superadministrator**
+
+- Maintain platform administrator accounts.
+- Maintain the register of depots (code, name, region, location) for multi-depot growth.
+
+---
+
+### My trips (driver portal)
+
+**Driver**
+
+- See only their own assigned trips with route, times, bus, and status, on a layout suited to mobile use.
+- Cannot change or approve schedules from this area.
+
+---
+
+### Cross-cutting (all modules)
+
+**All roles**
+
+- May only open modules allowed for their role and are directed to their home area after login.
+- Have account passwords protected by the system.
+
+**Transport scheduler, depot manager, and administrator**
+
+- Have trip schedule changes recorded with history when they edit timetables; trip dates align to calendar days for planning and reports.
+
+---
+
+## Planned later (not in the current system)
+
+**Administrator and other users**
+
+- Password reset and stronger sign-in options.
+
+**Transport scheduler and depot manager**
+
+- In-app alerts when timetables conflict or need approval.
+
+**Superadministrator and administrator**
+
+- Organisation-wide audit log beyond trip adjustment history.
+
+**Driver**
+
+- Confirm trips and report issues from the phone.
+
+**Depot manager and depot staff**
+
+- Strict “one depot only” data views everywhere island-wide.
+
+**Transport scheduler**
+
+- Import routes from spreadsheets.
+
+**Fleet manager**
+
+- Automatic bus status change when a trip is assigned (today status is set manually on the Fleet screen).
+- Create or reset driver portal login credentials from the Fleet screen (driver accounts are supported in the system; staff UI for this is not yet provided).
+
+**Transport scheduler and fleet manager**
+
+- Automatic rejection of trip or route assignment when a driver’s licence is past its expiry date (expiry is recorded today but not yet enforced when scheduling).
+
+---
+
+*End of REQUIREMENT-M*

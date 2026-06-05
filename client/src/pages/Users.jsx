@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import {
   ModuleAlert,
   ModuleHeader,
@@ -291,8 +292,8 @@ function Users() {
   const [modal, setModal] = useState(null)
   const [toast, setToast] = useState('')
 
-  const fetchAccounts = useCallback(async () => {
-    setLoading(true)
+  const fetchAccounts = useCallback(async ({ keepContent = false } = {}) => {
+    if (!keepContent) setLoading(true)
     try {
       const { data } = await api.get('/users')
       setAccounts(data)
@@ -327,6 +328,13 @@ function Users() {
       cancelled = true
     }
   }, [fetchAccounts, fetchDepots])
+
+  const refreshUsers = useCallback(async () => {
+    await fetchAccounts({ keepContent: true })
+    await fetchDepots()
+  }, [fetchAccounts, fetchDepots])
+
+  useAutoRefresh(refreshUsers, { enabled: !modal })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
