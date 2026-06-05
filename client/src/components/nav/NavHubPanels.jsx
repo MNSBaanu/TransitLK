@@ -205,12 +205,11 @@ export function NavMessagesPanel({ hub, replyText, setReplyText, onClose }) {
   )
 }
 
-export function NavProfilePanel({ hub, onClose, user, onLogout }) {
-  const displayName = user?.name || hub.profile.name
-  const displayEmail = user?.email || hub.profile.email
+export function NavProfilePanel({ onClose, user, onLogout }) {
+  const displayName = user?.name || '—'
+  const displayEmail = user?.email || '—'
   const depotId = user?.depotId?._id || user?.depotId || '—'
-  const depotBranch =
-    user?.depotId?.depotName || user?.depotId?.depotCode || hub.profile.depot || '—'
+  const depotBranch = user?.depotId?.depotName || user?.depotId?.depotCode || '—'
   return (
     <div>
       <div className="border-b border-white/40 bg-gradient-to-br from-depot-navy/5 to-depot-blue-light/10 p-4">
@@ -232,8 +231,7 @@ export function NavProfilePanel({ hub, onClose, user, onLogout }) {
         <button
           type="button"
           onClick={() => {
-            if (onLogout) onLogout()
-            else hub.signOut()
+            onLogout?.()
             onClose()
           }}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50/80"

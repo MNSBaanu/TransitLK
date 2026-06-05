@@ -2,16 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
-import { homePathForRole, ROLE_LABELS } from '../config/roles'
-
-const DEMO_ACCOUNTS = [
-  { email: 'superadmin@transitlk.lk', role: 'superadministrator', hint: 'Depots, administrators, monitoring, global reports' },
-  { email: 'admin@transitlk.lk', role: 'administrator', hint: 'Assigned depot administration' },
-  { email: 'scheduler@transitlk.lk', role: 'transport_scheduler', hint: 'Routes & schedules' },
-  { email: 'fleet@transitlk.lk', role: 'fleet_manager', hint: 'Buses, drivers, maintenance' },
-  { email: 'depot@transitlk.lk', role: 'depot_manager', hint: 'Dashboard & approvals' },
-  { email: 'driver@transitlk.lk', role: 'driver', hint: 'Assigned trips only' },
-]
+import { homePathForRole } from '../config/roles'
 
 function Login() {
   const { login } = useAuth()
@@ -33,12 +24,6 @@ function Login() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const fillDemo = (account) => {
-    setEmail(account.email)
-    setPassword('password123')
-    setError('')
   }
 
   return (
@@ -70,7 +55,7 @@ function Login() {
               required
               autoComplete="username"
               className="w-full rounded-lg border border-outline-variant px-3 py-2.5 text-sm outline-none focus:border-depot-navy"
-              placeholder="you@transitlk.lk"
+              placeholder="Enter your email"
             />
           </label>
 
@@ -96,30 +81,6 @@ function Login() {
             {submitting ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
-
-        <div className="mt-8 border-t border-outline-variant pt-6">
-          <p className="mb-3 text-xs font-semibold uppercase text-on-surface-variant">
-            Demo accounts (password: password123)
-          </p>
-          <ul className="space-y-2">
-            {DEMO_ACCOUNTS.map((acc) => (
-              <li key={acc.email}>
-                <button
-                  type="button"
-                  onClick={() => fillDemo(acc)}
-                  className="w-full rounded-lg border border-outline-variant px-3 py-2 text-left text-sm transition-colors hover:bg-surface-container"
-                >
-                  <span className="font-semibold text-neutral-900">
-                    {ROLE_LABELS[acc.role]}
-                  </span>
-                  <span className="block text-xs text-on-surface-variant">
-                    {acc.email} — {acc.hint}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   )
