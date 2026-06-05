@@ -11,7 +11,8 @@ Thus, the **Smart Route Management and Scheduling System (SRMSS)** is proposed a
 > **Group report (draft):** See [`GROUP-REPORT.md`](./GROUP-REPORT.md)  
 > **Agile timeline & Gantt:** See [`AGILE-TIMELINE.md`](./AGILE-TIMELINE.md)  
 > **Requirements specification:** See [`REQUIREMENTS.md`](./REQUIREMENTS.md) for Version 1 functional, non-functional, system, and domain requirements (by **role**).  
-> **Module-based requirements:** See [`REQUIREMENT-M.md`](./REQUIREMENT-M.md) for the same scope organised by **system module**, with implementation status and gaps.
+> **Module-based requirements:** See [`REQUIREMENT-M.md`](./REQUIREMENT-M.md) for the same scope organised by **system module**.  
+> **Testing:** See [`Testing.md`](./Testing.md) for Agile testing strategy, test levels, black/white box approach, and evaluation summary.
 
 ---
 
