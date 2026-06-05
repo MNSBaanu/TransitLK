@@ -46,6 +46,8 @@
 
 ## Methodology & Justification
 
+See [`METHODOLOGY.md`](./METHODOLOGY.md) for the full updated justification, sprint structure, ceremonies, and Agile vs waterfall comparison.
+
 ## Project timeline
 
 
