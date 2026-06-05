@@ -39,9 +39,11 @@ This document describes what the system must do, organised by **module**. Within
 **Transport scheduler**
 
 - Create daily, weekly, and monthly timetables, with each trip having a chosen route, calendar date, departure time, arrival time, bus, and driver.
+- Build timetables in a visual grid (including Gantt-style views) for day, week, and month planning.
 - Receive automatic detection and prevention of overlapping or conflicting schedules when planning trips (same bus or driver double-booked, invalid times, bus in maintenance, driver unavailable), with clear messages to correct plans before publication.
 - Prepare timetables as drafts and submit them for depot approval.
-- Plan trips in bulk across a date range, with warnings when individual trips cannot be placed.
+- Plan trips in bulk across a date range (including repeat-for-week on single entries and multi-route timetable creation), with warnings when individual trips cannot be placed.
+- Remove draft or unneeded schedule entries when plans change before they go live.
 - Adjust schedules for emergencies, maintenance work, or unexpected events (including delay, cancellation, bus or driver change), with notes where required and a recorded history of changes.
 
 **Depot manager and administrator**
@@ -64,7 +66,7 @@ This document describes what the system must do, organised by **module**. Within
 - See trip status such as on-time, delayed, scheduled, or completed, with colour cues for operational visibility during the day.
 - View summary statistics on total active routes, trip completion rate, and how buses are distributed across available, in-service, and maintenance states.
 - Receive highlights of recent maintenance-related situations when a bus is in the workshop.
-- Rely on automatic refresh of key figures and the trip list so the dashboard stays current.
+- Rely on automatic periodic refresh of key figures and the trip list so the dashboard stays current during the working day (without live vehicle tracking).
 
 ---
 
@@ -74,6 +76,7 @@ This document describes what the system must do, organised by **module**. Within
 
 - Maintain a record of fuel consumption per vehicle (date, litres, cost), supporting identification of high-usage vehicles and inefficient patterns when used with reporting.
 - Log routine and corrective maintenance activities (service date, description, cost per bus), so each vehicle’s workshop history is kept in one place.
+- Edit or remove fuel and maintenance entries when corrections are needed.
 - Review fuel entries and maintenance jobs separately in the workspace.
 
 **Fleet manager**
@@ -92,6 +95,7 @@ This document describes what the system must do, organised by **module**. Within
 
 - Store comprehensive driver details, including name, contact information, licence number, optional licence expiry, working hours, status (available, on-leave, off-duty), depot, and optional login for the driver portal.
 - Maintain a database of vehicles, including registration number, seating capacity, mileage, service type, depot, and status (available, in-service, maintenance).
+- Remove bus or driver records that are no longer required, subject to system rules when linked data exists.
 - Keep registration and licence numbers unique when creating or updating records.
 - Review maintenance history per vehicle together with the fuel and maintenance log.
 
@@ -107,7 +111,7 @@ This document describes what the system must do, organised by **module**. Within
 **Superadministrator, administrator, transport scheduler, and depot manager**
 
 - View automated weekly and monthly reports (and custom date ranges) on trip completion rates, route performance (delays, cancellations, risk indicators), and fuel consumption trends.
-- Download exportable reports in PDF for management review, sustainability reporting, and depot meetings.
+- Download exportable reports in PDF and CSV for management review, sustainability reporting, depot meetings, and further analysis in spreadsheets.
 
 **Administrator and depot manager**
 
@@ -210,6 +214,11 @@ This document describes what the system must do, organised by **module**. Within
 **Fleet manager**
 
 - Automatic bus status change when a trip is assigned (today status is set manually on the Fleet screen).
+- Create or reset driver portal login credentials from the Fleet screen (driver accounts are supported in the system; staff UI for this is not yet provided).
+
+**Transport scheduler and fleet manager**
+
+- Automatic rejection of trip or route assignment when a driver’s licence is past its expiry date (expiry is recorded today but not yet enforced when scheduling).
 
 ---
 

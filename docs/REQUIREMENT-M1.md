@@ -94,7 +94,7 @@ Constraints on the services or functions offered by the system, including perfor
 ### 2.1 Performance
 
 - Route planning, schedule saving, conflict checking, and dashboard refresh shall be responsive enough for day-to-day depot decisions.
-- Weekly and monthly reporting and PDF export shall complete within acceptable time during routine and peak use.
+- Weekly and monthly reporting and PDF or CSV export shall complete within acceptable time during routine and peak use.
 
 ### 2.2 Flexibility
 
@@ -121,6 +121,12 @@ Constraints on the services or functions offered by the system, including perfor
 - Only authenticated users shall access the system; each role shall see only permitted functions.
 - Passwords shall be stored securely and production traffic shall be encrypted.
 
+### 2.7 Testing
+
+- Each implemented module shall be tested before release using structured test cases (e.g. black-box testing against role permissions and expected inputs/outputs, and white-box testing of validation and conflict rules where appropriate).
+- Tests shall cover sign-in, role-based access, route and schedule workflows, fleet and maintenance logging, dashboard figures, and report export.
+- Failed tests shall be recorded and corrected before the module is accepted for coursework submission.
+
 ---
 
 ## 3. Domain requirements
@@ -132,7 +138,7 @@ Requirements and constraints that originate from the system's operational domain
 - Scheduling shall prevent overlapping use of the same bus or driver on the same day.
 - Trip planning shall respect vehicle availability (including maintenance) and driver availability and working hours.
 - Each vehicle shall have registration, capacity, and status suitable for assignment.
-- Each driver shall have licence information and availability suitable for assignment.
+- Each driver shall have licence information (including optional expiry date) and availability suitable for assignment; expired licences shall not be assigned once enforcement is enabled.
 - Fuel consumption and maintenance work shall be recorded per vehicle.
 - The depot dashboard shall show operational trip status and fleet summaries for managers.
 - Timetable approval shall follow depot authority: planners prepare; managers approve or return with reason.
@@ -158,8 +164,9 @@ Assumed requirements that are not explicitly stated by stakeholders but are nece
 
 ### 4.3 Data migration from manual records
 
-- Existing paper or spreadsheet data for routes, vehicles, drivers, and schedules shall be transferable without full manual re-entry.
-- Imported data shall be validated for duplicates and errors before entering live use.
+- Existing paper or spreadsheet data for routes, vehicles, drivers, and schedules shall eventually be transferable without full manual re-entry.
+- In the current release, depot staff enter data through the application forms; bulk spreadsheet import by users is planned for a later phase.
+- Any imported or migrated data shall be validated for duplicates and errors before entering live use.
 
 ### 4.4 Historical record retention
 
