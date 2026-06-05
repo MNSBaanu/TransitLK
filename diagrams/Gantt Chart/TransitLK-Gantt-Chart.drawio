@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="TransitLK">
   <diagram id="transitlk-gantt" name="TransitLK-Gantt-Chart">
-    <mxGraphModel dx="1277" dy="957" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="2" pageWidth="1340" pageHeight="1372" math="0" shadow="0">
+    <mxGraphModel dx="1625" dy="1218" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="2" pageWidth="1340" pageHeight="1372" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -362,7 +362,7 @@
           <mxGeometry height="24" width="276" x="280" y="558" as="geometry" />
         </mxCell>
         <mxCell id="82" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontStyle=1;fontSize=9;fontColor=#B91C1C;align=center;" value="v0.1.0" vertex="1">
-          <mxGeometry height="16" width="26" x="742" y="562" as="geometry" />
+          <mxGeometry height="16" width="38" x="730" y="562" as="geometry" />
         </mxCell>
         <mxCell id="83" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#E5E7EB;" value="">
           <mxGeometry relative="1" as="geometry">
@@ -506,7 +506,7 @@
           <mxGeometry height="24" width="276" x="280" y="846" as="geometry" />
         </mxCell>
         <mxCell id="118" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontStyle=1;fontSize=9;fontColor=#B91C1C;align=center;" value="v0.2.0" vertex="1">
-          <mxGeometry height="16" width="26" x="952" y="850" as="geometry" />
+          <mxGeometry height="16" width="38" x="940" y="850" as="geometry" />
         </mxCell>
         <mxCell id="119" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#E5E7EB;" value="">
           <mxGeometry relative="1" as="geometry">
@@ -638,7 +638,7 @@
           <mxGeometry height="24" width="276" x="280" y="1110" as="geometry" />
         </mxCell>
         <mxCell id="151" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontStyle=1;fontSize=9;fontColor=#B91C1C;align=center;" value="v0.3.0" vertex="1">
-          <mxGeometry height="16" width="26" x="1162" y="1114" as="geometry" />
+          <mxGeometry height="16" width="38" x="1150" y="1114" as="geometry" />
         </mxCell>
         <mxCell id="152" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#E5E7EB;" value="">
           <mxGeometry relative="1" as="geometry">
@@ -794,7 +794,7 @@
           <mxGeometry height="24" width="276" x="280" y="1422" as="geometry" />
         </mxCell>
         <mxCell id="190" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontStyle=1;fontSize=9;fontColor=#B91C1C;align=center;" value="v1.0.0" vertex="1">
-          <mxGeometry height="16" width="26" x="1372" y="1426" as="geometry" />
+          <mxGeometry height="16" width="38" x="1360" y="1426" as="geometry" />
         </mxCell>
         <mxCell id="191" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#E5E7EB;" value="">
           <mxGeometry relative="1" as="geometry">
