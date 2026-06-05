@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
 import { getCachedPageData, loadPageData } from '../services/pagePrefetch'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
 import { useAuth } from '../context/AuthContext'
@@ -14,8 +15,16 @@ const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-fleet-in
 const REPORT_SECTIONS = [
   { id: 'trip-completion', title: 'Trip completion rate', icon: 'check_circle' },
   { id: 'route-performance', title: 'Route performance', icon: 'map' },
+  { id: 'operational-insights', title: 'Operational Insights', icon: 'psychology' },
   { id: 'fuel-trends', title: 'Fuel consumption trend', icon: 'local_gas_station' },
 ]
+
+const RECOMMENDATION_STYLES = {
+  high: 'border-red-200/70 bg-red-50/50 text-red-900',
+  medium: 'border-amber-200/70 bg-amber-50/50 text-amber-950',
+  low: 'border-emerald-200/70 bg-emerald-50/50 text-emerald-900',
+  info: 'border-white/50 bg-white/30 text-fleet-ink-muted',
+}
 
 function toInputDate(d) {
   const x = new Date(d)
@@ -95,7 +104,7 @@ function statusBadge(status) {
   )
 }
 
-function ReportSectionHeader({ index, title, icon, periodLabel }) {
+function ReportSectionHeader({ index, title, icon, periodLabel, badge, subtitle }) {
   return (
     <div className="glass-subtle flex flex-wrap items-center justify-between gap-3 border-b border-white/50 px-6 py-4">
       <div className="flex items-center gap-3">
@@ -106,8 +115,208 @@ function ReportSectionHeader({ index, title, icon, periodLabel }) {
           <p className={labelClass}>
             {periodLabel} report · Section {index}
           </p>
-          <h4 className="text-base font-semibold text-fleet-ink">{title}</h4>
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-base font-semibold text-fleet-ink">{title}</h4>
+            {badge && (
+              <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                {badge}
+              </span>
+            )}
+          </div>
+          {subtitle && <p className="mt-0.5 text-xs text-fleet-ink-muted">{subtitle}</p>}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function InsightHighlightCard({ title, icon, tone = 'neutral', children }) {
+  const toneClass = {
+    success: 'border-emerald-300/50 bg-emerald-50/40',
+    danger: 'border-red-300/50 bg-red-50/40',
+    warning: 'border-amber-300/50 bg-amber-50/40',
+    fuel: 'border-depot-blue-light/40 bg-depot-navy/5',
+    neutral: 'border-white/50 bg-white/25',
+  }[tone]
+
+  return (
+    <div className={`glass-subtle rounded-xl border p-4 ${toneClass}`}>
+      <div className="mb-2 flex items-center gap-2">
+        <Icon name={icon} size={18} className="text-depot-navy" />
+        <p className={labelClass}>{title}</p>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function OperationalInsightsSection({ insights }) {
+  if (!insights) return null
+
+  const {
+    bestPerformingRoute,
+    worstPerformingRoute,
+    highestFuelConsumingRoute,
+    fleetUtilization,
+    routeDelayAnalysis = [],
+    recommendations = [],
+  } = insights
+
+  const fleet = fleetUtilization || {}
+  const fleetRate = fleet.rate ?? 0
+
+  return (
+    <div className="space-y-6 p-6">
+      <p className="text-sm text-fleet-ink-muted">
+        Data-driven insights from live schedules, routes, and fuel logs to support operational
+        decision-making.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <InsightHighlightCard title="Best performing route" icon="emoji_events" tone="success">
+          {bestPerformingRoute ? (
+            <>
+              <p className="text-base font-bold text-fleet-ink">{bestPerformingRoute.routeName}</p>
+              <p className="mt-1 text-sm text-fleet-ink-muted">
+                {bestPerformingRoute.completionRate}% completion · {bestPerformingRoute.tripCount}{' '}
+                trips
+              </p>
+              {bestPerformingRoute.operationalHours != null && (
+                <p className="mt-0.5 text-xs text-fleet-ink-muted">
+                  {bestPerformingRoute.operationalHours} operational hrs
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-fleet-ink-muted">No routes with trips in this period.</p>
+          )}
+        </InsightHighlightCard>
+
+        <InsightHighlightCard title="Worst performing route" icon="trending_down" tone="danger">
+          {worstPerformingRoute ? (
+            <>
+              <p className="text-base font-bold text-fleet-ink">{worstPerformingRoute.routeName}</p>
+              <p className="mt-1 text-sm text-fleet-ink-muted">
+                {worstPerformingRoute.completionRate}% completion · {worstPerformingRoute.tripCount}{' '}
+                trips
+              </p>
+              <p className="mt-0.5 text-xs text-fleet-ink-muted">
+                {worstPerformingRoute.delayed} delayed · {worstPerformingRoute.cancelled} cancelled
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-fleet-ink-muted">No routes with trips in this period.</p>
+          )}
+        </InsightHighlightCard>
+
+        <InsightHighlightCard title="Highest fuel consuming route" icon="local_gas_station" tone="fuel">
+          {highestFuelConsumingRoute ? (
+            <>
+              <p className="text-base font-bold text-fleet-ink">
+                {highestFuelConsumingRoute.routeName}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-fleet-ink">
+                {highestFuelConsumingRoute.liters} L
+              </p>
+              {highestFuelConsumingRoute.litersPerKm && (
+                <p className="mt-0.5 text-xs text-fleet-ink-muted">
+                  {highestFuelConsumingRoute.litersPerKm} L/km
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-fleet-ink-muted">No fuel logs attributed to routes.</p>
+          )}
+        </InsightHighlightCard>
+
+        <InsightHighlightCard title="Fleet utilization" icon="directions_bus" tone="warning">
+          <p className="text-2xl font-bold text-fleet-ink">{fleetRate}%</p>
+          <p className="mt-1 text-sm text-fleet-ink-muted">
+            {fleet.busesUsed ?? 0} of {fleet.busesTotal ?? 0} buses on trips
+          </p>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/50">
+            <div
+              className="h-full rounded-full bg-depot-navy transition-all"
+              style={{ width: `${Math.min(fleetRate, 100)}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-fleet-ink-muted">
+            Drivers on duty: {fleet.driversOnDuty ?? 0}/{fleet.driversTotal ?? 0}
+            {fleet.onDutyPct != null ? ` (${fleet.onDutyPct}%)` : ''}
+          </p>
+        </InsightHighlightCard>
+      </div>
+
+      <div className="border-t border-white/40 pt-6">
+        <p className={`${labelClass} mb-3`}>Route delay analysis</p>
+        <div className="overflow-x-auto rounded-xl border border-white/40">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="glass-table-head text-left">
+                {['Route', 'Delayed', 'Cancelled', 'Trips', 'Completion', 'Share of delays'].map(
+                  (h) => (
+                    <th key={h} className={`border-b border-white/40 px-4 py-3 ${labelClass}`}>
+                      {h}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {routeDelayAnalysis.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-fleet-ink-muted">
+                    No delayed trips in this period — strong on-time performance.
+                  </td>
+                </tr>
+              ) : (
+                routeDelayAnalysis.map((row) => (
+                  <tr
+                    key={row.routeName}
+                    className="border-b border-white/30 last:border-0 hover:bg-white/20"
+                  >
+                    <td className="px-4 py-3 font-semibold text-fleet-ink">{row.routeName}</td>
+                    <td className="px-4 py-3 tabular-nums">{row.delayed}</td>
+                    <td className="px-4 py-3 tabular-nums">{row.cancelled}</td>
+                    <td className="px-4 py-3 tabular-nums">{row.tripCount}</td>
+                    <td className="px-4 py-3 font-semibold">{row.completionRate}%</td>
+                    <td className="px-4 py-3 tabular-nums text-fleet-ink-muted">
+                      {row.shareOfDelays}%
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="border-t border-white/40 pt-6">
+        <p className={`${labelClass} mb-3`}>Recommendations</p>
+        <ul className="flex flex-col gap-3">
+          {recommendations.map((rec, i) => (
+            <li
+              key={`${rec.priority}-${i}`}
+              className={`flex gap-3 rounded-xl border px-4 py-3 text-sm ${
+                RECOMMENDATION_STYLES[rec.priority] || RECOMMENDATION_STYLES.info
+              }`}
+            >
+              <Icon name={rec.icon || 'insights'} size={20} className="mt-0.5 shrink-0 opacity-80" />
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                  {rec.priority === 'high'
+                    ? 'High priority'
+                    : rec.priority === 'medium'
+                      ? 'Medium priority'
+                      : rec.priority === 'low'
+                        ? 'Insight'
+                        : 'Info'}
+                </span>
+                <p className="mt-0.5 leading-relaxed">{rec.text}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   )
@@ -173,7 +382,7 @@ function Reports() {
     setToDate(to)
   }
 
-  const loadReports = useCallback(async ({ force = false } = {}) => {
+  const loadReports = useCallback(async ({ force = false, keepContent = false } = {}) => {
     if (!force) {
       const cached = getCachedPageData('/reports', { period, fromDate, toDate })
       if (cached) {
@@ -184,7 +393,7 @@ function Reports() {
       }
     }
 
-    setLoading(true)
+    if (!keepContent) setLoading(true)
     setError('')
     try {
       const prefetched = await loadPageData(
@@ -210,6 +419,8 @@ function Reports() {
       cancelled = true
     }
   }, [loadReports])
+
+  useAutoRefresh(() => loadReports({ force: true, keepContent: true }))
 
   const reportParams = { from: fromDate, to: toDate, period }
 
@@ -265,6 +476,13 @@ function Reports() {
   }, [data])
 
   const periodLabel = period === 'weekly' ? 'Weekly' : 'Monthly'
+  const fuelLitersByRoute = useMemo(() => {
+    const map = new Map()
+    for (const row of data?.fuel?.byRoute || []) {
+      map.set(row.routeName, row.liters)
+    }
+    return map
+  }, [data])
   const routeRows =
     (data?.monthlySummary || []).length > 0
       ? data.monthlySummary
@@ -277,7 +495,7 @@ function Reports() {
               : `${r.delayed} delayed · ${r.cancelled} cancelled`,
           tripCount: r.tripCount,
           completionRate: r.completionRate,
-          fuelLiters: 0,
+          fuelLiters: fuelLitersByRoute.get(r.routeName) ?? 0,
           status:
             r.completionRate >= 85 && r.delayed < 2
               ? 'OPTIMAL'
@@ -397,7 +615,11 @@ function Reports() {
               icon={REPORT_SECTIONS[0].icon}
               periodLabel={periodLabel}
             />
-            <div className="grid gap-4 p-6 md:grid-cols-4">
+            <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-5">
+              <MetricPill
+                label="Total trips"
+                value={String(data.summary?.totalTrips ?? data.totals?.trips ?? 0)}
+              />
               <MetricPill label="Completion rate" value={`${data.tripCompletion.rate}%`} />
               <MetricPill label="Completed" value={String(data.summary?.completedTrips ?? 0)} />
               <MetricPill label="Delayed" value={String(data.summary?.delayedTrips ?? 0)} />
@@ -451,22 +673,33 @@ function Reports() {
               icon={REPORT_SECTIONS[1].icon}
               periodLabel={periodLabel}
             />
-            <div className="grid gap-4 p-6 md:grid-cols-3">
-              <MetricPill label="Routes tracked" value={String(data.summary?.totalRoutes ?? 0)} />
+            <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
               <MetricPill
-                label="Active routes"
-                value={String(data.summary?.activeRoutes ?? 0)}
+                label="Total routes tracked"
+                value={String(data.summary?.routesTracked ?? data.summary?.totalRoutes ?? 0)}
               />
               <MetricPill
-                label="At risk"
-                value={String(routeRows.filter((r) => r.status === 'AT RISK').length)}
+                label="Route completion rate"
+                value={`${data.summary?.routeCompletionRate ?? 0}%`}
+              />
+              <MetricPill
+                label="Delayed incidents"
+                value={String(data.summary?.delayedIncidents ?? data.summary?.delayedTrips ?? 0)}
+              />
+              <MetricPill
+                label="Fuel consumption by route"
+                value={
+                  (data.summary?.routeFuelLiters ?? 0) > 0
+                    ? `${data.summary.routeFuelLiters} L`
+                    : '—'
+                }
               />
             </div>
             <div className="overflow-x-auto border-t border-white/40">
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="glass-table-head text-left">
-                    {['Route', 'Trips', 'Completion', 'Hours', 'Incidents', 'Status'].map((h) => (
+                    {['Route', 'Trips', 'Completion', 'Hours', 'Incidents', 'Fuel', 'Status'].map((h) => (
                       <th
                         key={h}
                         className={`border-b border-white/40 px-6 py-3 ${labelClass} ${
@@ -481,7 +714,7 @@ function Reports() {
                 <tbody>
                   {routeRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-fleet-ink-muted">
+                      <td colSpan={7} className="px-6 py-10 text-center text-fleet-ink-muted">
                         No route activity for this {period} report.
                       </td>
                     </tr>
@@ -498,6 +731,9 @@ function Reports() {
                           {row.operationalHours}
                         </td>
                         <td className="px-6 py-4 text-fleet-ink-muted">{row.incidentsLabel}</td>
+                        <td className="px-6 py-4 tabular-nums text-fleet-ink-muted">
+                          {(row.fuelLiters ?? 0) > 0 ? `${row.fuelLiters} L` : '—'}
+                        </td>
                         <td className="px-6 py-4 text-right">{statusBadge(row.status)}</td>
                       </tr>
                     ))
@@ -507,12 +743,25 @@ function Reports() {
             </div>
           </section>
 
-          {/* 3 — Fuel consumption trend */}
-          <section className="glass-card overflow-hidden">
+          {/* 3 — Operational Insights */}
+          <section className="glass-card overflow-hidden ring-2 ring-amber-400/25">
             <ReportSectionHeader
               index={3}
               title={REPORT_SECTIONS[2].title}
               icon={REPORT_SECTIONS[2].icon}
+              periodLabel={periodLabel}
+              badge="Important"
+              subtitle="Supports decision-making with data-driven operational insights"
+            />
+            <OperationalInsightsSection insights={data.operationalInsights} />
+          </section>
+
+          {/* 4 — Fuel consumption trend */}
+          <section className="glass-card overflow-hidden">
+            <ReportSectionHeader
+              index={4}
+              title={REPORT_SECTIONS[3].title}
+              icon={REPORT_SECTIONS[3].icon}
               periodLabel={periodLabel}
             />
             <div className="grid gap-4 p-6 md:grid-cols-3">

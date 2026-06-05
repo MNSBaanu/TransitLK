@@ -10,6 +10,7 @@ import {
   endOfWeek,
   startOfMonth,
   endOfMonth,
+  normalizeTripDate,
   validateTimeRange,
   validateTimetableRows,
   requiresAdjustmentNotes,
@@ -23,7 +24,10 @@ import {
   requireUserDepot,
 } from '../utils/depotAccess.js'
 
-const routePopulate = { path: 'routeId', select: 'routeName startPoint endPoint distance serviceType' }
+const routePopulate = {
+  path: 'routeId',
+  select: 'routeName startPoint endPoint distance serviceType stops viaDescription',
+}
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
 const driverPopulate = { path: 'driverId', select: 'name licenseNo contactNo workingHours status' }
 
@@ -181,13 +185,25 @@ function isSameCalendarDay(tripDate, dateStr) {
   return a === b
 }
 
-function pushOverlapConflicts(conflicts, type, message) {
-  if (!conflicts.some((c) => c.type === type && c.message === message)) {
-    conflicts.push({ type, message })
-  }
+function pushStructuredOverlap(conflicts, type, proposed, other, { tripDate, otherLabel, otherRouteId }) {
+  const otherRouteName = otherLabel || other.routeName || 'Another trip'
+  const otherId = otherRouteId || other.routeId
+  const dedupeKey = `${tripDate}|${type}|${proposed.routeId}|${otherId}|${proposed.departureTime}|${other.departureTime}`
+  if (conflicts.some((c) => c._dedupeKey === dedupeKey)) return
+  conflicts.push({
+    _dedupeKey: dedupeKey,
+    type,
+    tripDate,
+    departureTime: proposed.departureTime,
+    arrivalTime: proposed.arrivalTime,
+    otherRouteId: otherId,
+    otherRouteName,
+    otherDepartureTime: other.departureTime,
+    otherArrivalTime: other.arrivalTime,
+  })
 }
 
-function compareTripOverlap(proposed, other, conflicts, { otherLabel = 'another trip' }) {
+function compareTripOverlap(proposed, other, conflicts, { tripDate, otherLabel, otherRouteId } = {}) {
   if (
     !timesOverlap(
       proposed.departureTime,
@@ -199,26 +215,53 @@ function compareTripOverlap(proposed, other, conflicts, { otherLabel = 'another 
     return
   }
   if (String(proposed.busId) === String(other.busId)) {
-    pushOverlapConflicts(
-      conflicts,
-      'bus',
-      `Bus overlap with ${otherLabel} (${other.departureTime}–${other.arrivalTime})`
-    )
+    pushStructuredOverlap(conflicts, 'bus', proposed, other, { tripDate, otherLabel, otherRouteId })
   }
   if (String(proposed.driverId) === String(other.driverId)) {
-    pushOverlapConflicts(
-      conflicts,
-      'driver',
-      `Driver overlap with ${otherLabel} (${other.departureTime}–${other.arrivalTime})`
-    )
+    pushStructuredOverlap(conflicts, 'driver', proposed, other, { tripDate, otherLabel, otherRouteId })
   }
   if (proposed.routeId && String(proposed.routeId) === String(other.routeId)) {
-    pushOverlapConflicts(
-      conflicts,
-      'route',
-      `Route overlap with ${otherLabel} (${other.departureTime}–${other.arrivalTime})`
-    )
+    pushStructuredOverlap(conflicts, 'route', proposed, other, { tripDate, otherLabel, otherRouteId })
   }
+}
+
+function mergeTimetableIssue(issues, trip, dateStr, newConflicts) {
+  if (!newConflicts.length) return
+  let block = issues.find((i) => String(i.routeId) === String(trip.routeId) && i.tripDate === dateStr)
+  if (!block) {
+    block = {
+      routeId: trip.routeId,
+      routeName: trip.routeName,
+      tripDate: dateStr,
+      conflicts: [],
+    }
+    issues.push(block)
+  }
+  for (const c of newConflicts) {
+    if (!block.conflicts.some((x) => x._dedupeKey && x._dedupeKey === c._dedupeKey)) {
+      block.conflicts.push(c)
+    }
+  }
+}
+
+function countTimetableConflictSummaries(issues) {
+  const seen = new Set()
+  let count = 0
+  for (const issue of issues) {
+    if (issue.routeName === 'Validation') continue
+    for (const c of issue.conflicts || []) {
+      const routeIdA = String(issue.routeId)
+      const routeIdB = String(c.otherRouteId || c.otherRouteName || 'other')
+      const [idA, idB] = [routeIdA, routeIdB].sort()
+      const tripDate = c.tripDate || issue.tripDate || ''
+      const times = [c.departureTime || '', c.otherDepartureTime || ''].sort().join('|')
+      const pairKey = `${tripDate}|${idA}|${idB}|${times}`
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+      count += 1
+    }
+  }
+  return count
 }
 
 async function analyzeTimetableConflicts({ dates, rows }) {
@@ -259,30 +302,34 @@ async function analyzeTimetableConflicts({ dates, rows }) {
 
     const existingForDay = existing.filter((e) => isSameCalendarDay(e.tripDate, dateStr))
 
+    for (let i = 0; i < proposedForDay.length; i++) {
+      for (let j = i + 1; j < proposedForDay.length; j++) {
+        const a = proposedForDay[i]
+        const b = proposedForDay[j]
+        const pairConflicts = []
+        compareTripOverlap(a, b, pairConflicts, {
+          tripDate: dateStr,
+          otherLabel: b.routeName,
+          otherRouteId: b.routeId,
+        })
+        mergeTimetableIssue(issues, a, dateStr, pairConflicts)
+      }
+    }
+
     for (const trip of proposedForDay) {
       const conflicts = []
-
-      for (const other of proposedForDay) {
-        if (other.routeId === trip.routeId) continue
-        compareTripOverlap(trip, other, conflicts, { otherLabel: other.routeName })
-      }
-
       for (const ex of existingForDay) {
-        compareTripOverlap(trip, ex, conflicts, { otherLabel: 'existing schedule' })
-      }
-
-      if (conflicts.length) {
-        issues.push({
-          routeId: trip.routeId,
-          routeName: trip.routeName,
+        compareTripOverlap(trip, ex, conflicts, {
           tripDate: dateStr,
-          conflicts,
+          otherLabel: ex.routeId?.routeName || 'existing schedule',
+          otherRouteId: ex.routeId,
         })
       }
+      mergeTimetableIssue(issues, trip, dateStr, conflicts)
     }
   }
 
-  const conflictCount = issues.reduce((n, i) => n + i.conflicts.length, 0)
+  const conflictCount = countTimetableConflictSummaries(issues)
   return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
@@ -428,8 +475,10 @@ export const createSchedule = async (req, res) => {
       routeDepotId: route.depotId,
     })
 
+    const normalizedTripDate = normalizeTripDate(tripDate)
+
     const conflicts = await findConflicts({
-      tripDate,
+      tripDate: normalizedTripDate,
       routeId,
       busId,
       driverId,
@@ -446,7 +495,7 @@ export const createSchedule = async (req, res) => {
       driverId,
       departureTime,
       arrivalTime,
-      tripDate,
+      tripDate: normalizedTripDate,
       status: status || 'draft',
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
@@ -475,6 +524,8 @@ export const updateSchedule = async (req, res) => {
     const departureTime = data.departureTime ?? existing.departureTime
     const arrivalTime = data.arrivalTime ?? existing.arrivalTime
     const tripDate = data.tripDate ?? existing.tripDate
+    const normalizedTripDate = normalizeTripDate(tripDate)
+    if (data.tripDate !== undefined) data.tripDate = normalizedTripDate
 
     const timeError = validateTimeRange(departureTime, arrivalTime)
     if (timeError) return res.status(400).json({ message: timeError })
@@ -497,6 +548,9 @@ export const updateSchedule = async (req, res) => {
       data.status = reasonToStatus(data.adjustmentReason, existing.status)
     }
 
+    const nextStatus = data.status ?? existing.status
+    const isCancellation = nextStatus === 'cancelled'
+
     if (data.routeId) {
       await getAccessibleRoute(req.user, routeId)
     }
@@ -505,25 +559,27 @@ export const updateSchedule = async (req, res) => {
       ? await getAccessibleRoute(req.user, routeId)
       : scopedRoute
 
-    await validateAssignment({
-      busId,
-      driverId,
-      departureTime,
-      routeId,
-      routeDepotId: assignmentRoute?.depotId,
-    })
+    if (!isCancellation) {
+      await validateAssignment({
+        busId,
+        driverId,
+        departureTime,
+        routeId,
+        routeDepotId: assignmentRoute?.depotId,
+      })
 
-    const conflicts = await findConflicts({
-      tripDate,
-      routeId,
-      busId,
-      driverId,
-      departureTime,
-      arrivalTime,
-      excludeId: req.params.id,
-    })
-    if (conflicts.length) {
-      return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
+      const conflicts = await findConflicts({
+        tripDate: normalizedTripDate,
+        routeId,
+        busId,
+        driverId,
+        departureTime,
+        arrivalTime,
+        excludeId: req.params.id,
+      })
+      if (conflicts.length) {
+        return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
+      }
     }
 
     appendAdjustmentHistory(existing, data, req.user?.id)

@@ -34,7 +34,10 @@ export const login = async (req, res) => {
   const normalizedEmail = email.trim().toLowerCase()
 
   try {
-    const admin = await Admin.findOne({ email: normalizedEmail })
+    const admin = await Admin.findOne({ email: normalizedEmail }).populate(
+      'depotId',
+      'depotCode depotName region'
+    )
     if (admin && (await admin.matchPassword(password))) {
       return res.json(
         buildAuthResponse(admin, admin.role, 'admin', {
@@ -43,7 +46,10 @@ export const login = async (req, res) => {
       )
     }
 
-    const user = await User.findOne({ email: normalizedEmail })
+    const user = await User.findOne({ email: normalizedEmail }).populate(
+      'depotId',
+      'depotCode depotName region'
+    )
     if (user) {
       if (!user.isActive) {
         return res.status(403).json({ message: 'Account is deactivated' })

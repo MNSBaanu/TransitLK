@@ -53,7 +53,8 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password })
     localStorage.setItem('token', data.token)
-    const profile = {
+    const profile = await refreshSession()
+    return profile || {
       _id: data._id,
       name: data.name,
       email: data.email,
@@ -62,8 +63,6 @@ export function AuthProvider({ children }) {
       driverId: data.driverId,
       depotId: data.depotId,
     }
-    persistUser(profile)
-    return profile
   }
 
   const logout = () => {

@@ -9,6 +9,7 @@ import {
   loadPageData,
   prefetchPageData,
 } from '../services/pagePrefetch'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import RouteListTable from '../components/routes/RouteListTable'
 import RouteEditView from '../components/routes/RouteEditView'
@@ -131,7 +132,13 @@ function RoutesPage() {
   }, [])
 
   const loadRoutes = useCallback(
-    async ({ page = currentPage, limit = pageSize, search: searchTerm = search, force = false } = {}) => {
+    async ({
+      page = currentPage,
+      limit = pageSize,
+      search: searchTerm = search,
+      force = false,
+      keepContent = false,
+    } = {}) => {
     if (!force) {
         const cached = getCachedPageData('/routes', {
           page,
@@ -150,7 +157,7 @@ function RoutesPage() {
       }
     }
 
-    setLoading(true)
+    if (!keepContent) setLoading(true)
     setError('')
     try {
         const data = await loadPageData(
@@ -194,6 +201,21 @@ function RoutesPage() {
       cancelled = true
     }
   }, [currentPage, pageSize, search, loadRoutes])
+
+  useAutoRefresh(
+    () =>
+      loadRoutes({
+        page: currentPage,
+        limit: pageSize,
+        search,
+        force: true,
+        keepContent: true,
+      }),
+    {
+      enabled:
+        pageView === 'list' && !assignRoute && !deleteTargetId && !saving && !isEditPage && !isViewing,
+    }
+  )
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
