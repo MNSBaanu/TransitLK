@@ -325,7 +325,7 @@ function FleetTab({ addTrigger, onAddClose }) {
 // ── Driver Personnel Tab ──────────────────────────────────────────────────────
 function DriverModal({ driver, onClose, onSave }) {
   const [form, setForm] = useState(
-    driver || { name: '', licenseNo: '', contactNo: '', workingHours: '', licenseExpiry: '' }
+    driver || { name: '', licenseNo: '', licenseExpiry: '', email: '', password: '', contactNo: '', workingHours: '' }
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -382,6 +382,20 @@ function DriverModal({ driver, onClose, onSave }) {
             <label className="mb-1 block text-xs font-medium text-neutral-600">Contact Number</label>
             <input name="contactNo" value={form.contactNo} onChange={handle} required
               className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
+              <input name="email" type="email" value={form.email} onChange={handle}
+                placeholder="driver@transitlk.com"
+                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Login Password</label>
+              <input name="password" type="password" value={form.password} onChange={handle}
+                placeholder="Min. 6 characters"
+                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Working Hours</label>
@@ -522,6 +536,7 @@ function DriversTab({ addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Name</th>
               <th className="px-4 py-3 text-left">License No.</th>
               <th className="px-4 py-3 text-left">Expiry</th>
+              <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-left">Contact</th>
               <th className="px-4 py-3 text-left">Working Hours</th>
               <th className="px-4 py-3 text-left">Actions</th>
@@ -529,9 +544,9 @@ function DriversTab({ addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading ? (
-              <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
             ) : paginated.map((d) => (
               <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
@@ -560,8 +575,8 @@ function DriversTab({ addTrigger, onAddClose }) {
                     )
                   })() : <span className="text-xs text-neutral-400">—</span>}
                 </td>
-                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
+                <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
+                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setViewDriver(d)}
@@ -665,6 +680,7 @@ function DriversTab({ addTrigger, onAddClose }) {
                       return `${new Date(viewDriver.licenseExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} — ${s.label}`
                     })()
                   : 'Not set'],
+                ['Email', viewDriver.email || '—'],
                 ['Contact', viewDriver.contactNo],
                 ['Working Hours', viewDriver.workingHours || '—'],
               ].map(([label, value]) => (
