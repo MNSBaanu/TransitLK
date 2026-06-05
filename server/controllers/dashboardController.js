@@ -9,8 +9,32 @@ import Route from '../models/Route.js'
 // @access  Protected
 export const getDashboardSummary = async (req, res) => {
   try {
-    // ── Bus stats ──────────────────────────────────────────────────────────
-    const allBuses = await Bus.find({}).lean()
+    const operationalStatuses = ['scheduled', 'on-time', 'delayed', 'completed', 'cancelled']
+
+    // Run all independent queries in parallel
+    const [
+      allBuses,
+      allDrivers,
+      maintenanceRecords,
+      totalRoutes,
+      totalOperational,
+      completedCount,
+      schedules,
+    ] = await Promise.all([
+      Bus.find({}).lean(),
+      Driver.find({}).lean(),
+      Maintenance.find({}).populate('bus_id', 'regNumber status').sort({ service_date: -1 }).lean(),
+      Route.countDocuments({ status: 'active' }),
+      Schedule.countDocuments({ status: { $in: operationalStatuses } }),
+      Schedule.countDocuments({ status: 'completed' }),
+      Schedule.find({ status: { $in: ['scheduled', 'on-time', 'delayed', 'completed'] } })
+        .populate('routeId', 'routeName startPoint endPoint')
+        .populate('busId', 'regNumber')
+        .populate('driverId', 'name')
+        .sort({ tripDate: -1, departureTime: -1 })
+        .limit(8)
+        .lean(),
+    ])
 
     const buses = {
       total: allBuses.length,
@@ -24,23 +48,12 @@ export const getDashboardSummary = async (req, res) => {
       },
     }
 
-    // ── Driver stats ───────────────────────────────────────────────────────
-    const allDrivers = await Driver.find({}).lean()
-
     const drivers = {
       total: allDrivers.length,
       onDuty: allDrivers.filter((d) => d.status === 'available').length,
     }
 
-    // ── Maintenance alerts (buses currently in maintenance status) ─────────
-    const maintenanceRecords = await Maintenance.find({})
-      .populate('bus_id', 'regNumber status')
-      .sort({ service_date: -1 })
-      .lean()
-
     const totalMaintenanceCost = maintenanceRecords.reduce((sum, r) => sum + (r.cost || 0), 0)
-
-    // alerts = maintenance records where the referenced bus is in maintenance status
     const alerts = maintenanceRecords
       .filter((r) => r.bus_id?.status === 'maintenance')
       .slice(0, 5)
@@ -52,37 +65,11 @@ export const getDashboardSummary = async (req, res) => {
         cost: r.cost,
       }))
 
-    const maintenance = {
-      total: maintenanceRecords.length,
-      totalCost: totalMaintenanceCost,
-      alerts,
-    }
+    const maintenance = { total: maintenanceRecords.length, totalCost: totalMaintenanceCost, alerts }
 
-    // ── Active routes count ────────────────────────────────────────────────
-    const totalRoutes = await Route.countDocuments({ status: 'active' })
-
-    // ── Trip completion % ──────────────────────────────────────────────────
-    // Only count operational statuses (exclude draft/pending/approved which are not yet active)
-    const operationalStatuses = ['scheduled', 'on-time', 'delayed', 'completed', 'cancelled']
-    const totalOperational = await Schedule.countDocuments({
-      status: { $in: operationalStatuses },
-    })
-    const completedCount = await Schedule.countDocuments({ status: 'completed' })
     const tripCompletion = totalOperational > 0
       ? Math.round((completedCount / totalOperational) * 100)
       : 0
-
-    // ── Recent schedules for trip status table ─────────────────────────────
-    // Show most recent 8 schedules that are in an active/operational state
-    const schedules = await Schedule.find({
-      status: { $in: ['scheduled', 'on-time', 'delayed', 'completed'] },
-    })
-      .populate('routeId', 'routeName startPoint endPoint')
-      .populate('busId', 'regNumber')
-      .populate('driverId', 'name')
-      .sort({ tripDate: -1, departureTime: -1 })
-      .limit(8)
-      .lean()
 
     const recentSchedules = schedules.map((s) => ({
       _id: s._id,
@@ -95,14 +82,7 @@ export const getDashboardSummary = async (req, res) => {
       status: s.status,
     }))
 
-    res.json({
-      buses,
-      drivers,
-      maintenance,
-      recentSchedules,
-      totalRoutes,
-      tripCompletion,
-    })
+    res.json({ buses, drivers, maintenance, recentSchedules, totalRoutes, tripCompletion })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
