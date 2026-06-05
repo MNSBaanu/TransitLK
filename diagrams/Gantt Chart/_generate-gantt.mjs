@@ -27,30 +27,20 @@ const QA = { fill: '#94A3B8', stroke: '#64748B' }
 const PLANNING = { fill: '#E0E7FF', stroke: '#6366F1' }
 const REFINE = { fill: '#C7D2FE', stroke: '#6366F1' }
 const UAT = { fill: '#FBCFE8', stroke: '#DB2777' }
+const RELEASE = { fill: '#FEE2E2', stroke: '#DC2626' }
 
 function taskColor(t) {
   if (t.ceremony === 'planning') return PLANNING
   if (t.ceremony === 'refine') return REFINE
   if (t.ceremony === 'uat') return UAT
+  if (t.ceremony === 'release') return RELEASE
   if (t.qa) return QA
   return SPRINT_COLORS[t.sprint] || SPRINT_COLORS[5]
 }
 
 const tasks = [
+  // ── Sprint 1 ──
   { label: 'Sprint 1 Planning', sprint: 1, start: 1, dur: 1, ceremony: 'planning' },
-  { label: 'Sprint 2 Planning', sprint: 2, start: 8, dur: 1, ceremony: 'planning' },
-  { label: 'Sprint 3 Planning', sprint: 3, start: 15, dur: 1, ceremony: 'planning' },
-  { label: 'Sprint 4 Planning', sprint: 4, start: 22, dur: 1, ceremony: 'planning' },
-  {
-    label: 'Product Backlog Refinement',
-    ceremony: 'refine',
-    segments: [
-      { start: 5, dur: 2 },
-      { start: 12, dur: 2 },
-      { start: 19, dur: 2 },
-      { start: 26, dur: 2 },
-    ],
-  },
   { label: 'Requirements Analysis', sprint: 1, start: 1, dur: 3 },
   { label: 'Product Backlog', sprint: 1, start: 1, dur: 3 },
   { label: 'Architecture Diagram', sprint: 1, start: 2, dur: 3 },
@@ -61,6 +51,9 @@ const tasks = [
   { label: 'Admin Management', sprint: 1, start: 5, dur: 3 },
   { label: 'Depot Management', sprint: 1, start: 6, dur: 2 },
   { label: 'Sprint 1 test &amp; review', sprint: 1, start: 6, dur: 2, qa: true },
+  { label: 'Release v0.1.0', sprint: 1, start: 7, dur: 1, ceremony: 'release' },
+  // ── Sprint 2 ──
+  { label: 'Sprint 2 Planning', sprint: 2, start: 8, dur: 1, ceremony: 'planning' },
   { label: 'Fleet &amp; Driver Management', sprint: 2, start: 8, dur: 7 },
   { label: 'Vehicle Registration', sprint: 2, start: 8, dur: 4 },
   { label: 'Driver Registration', sprint: 2, start: 8, dur: 4 },
@@ -71,6 +64,9 @@ const tasks = [
   { label: 'Driver Assignment', sprint: 2, start: 10, dur: 3 },
   { label: 'Google Maps Integration', sprint: 2, start: 11, dur: 4 },
   { label: 'Sprint 2 test &amp; review', sprint: 2, start: 13, dur: 2, qa: true },
+  { label: 'Release v0.2.0', sprint: 2, start: 14, dur: 1, ceremony: 'release' },
+  // ── Sprint 3 ──
+  { label: 'Sprint 3 Planning', sprint: 3, start: 15, dur: 1, ceremony: 'planning' },
   { label: 'Schedule Management Module', sprint: 3, start: 15, dur: 7 },
   { label: 'Daily/Weekly/Monthly Timetables', sprint: 3, start: 15, dur: 5 },
   { label: 'Route Scheduling', sprint: 3, start: 16, dur: 4 },
@@ -80,6 +76,9 @@ const tasks = [
   { label: 'Fuel Logs', sprint: 3, start: 18, dur: 3 },
   { label: 'Maintenance Records', sprint: 3, start: 18, dur: 3 },
   { label: 'Sprint 3 test &amp; review', sprint: 3, start: 20, dur: 2, qa: true },
+  { label: 'Release v0.3.0', sprint: 3, start: 21, dur: 1, ceremony: 'release' },
+  // ── Sprint 4 ──
+  { label: 'Sprint 4 Planning', sprint: 4, start: 22, dur: 1, ceremony: 'planning' },
   { label: 'Reporting &amp; Analytics', sprint: 4, start: 22, dur: 5 },
   { label: 'Trip Completion Reports', sprint: 4, start: 22, dur: 3 },
   { label: 'Route Performance Reports', sprint: 4, start: 22, dur: 3 },
@@ -91,16 +90,20 @@ const tasks = [
   { label: 'Deployment', sprint: 4, start: 27, dur: 2 },
   { label: 'Technical documentation', sprint: 4, start: 27, dur: 2 },
   { label: 'Sprint 4 test &amp; review', sprint: 4, start: 26, dur: 2, qa: true },
+  { label: 'Release v1.0.0', sprint: 4, start: 28, dur: 1, ceremony: 'release' },
+  // ── Release window ──
+  {
+    label: 'Product Backlog Refinement',
+    ceremony: 'refine',
+    segments: [
+      { start: 5, dur: 2 },
+      { start: 12, dur: 2 },
+      { start: 19, dur: 2 },
+      { start: 26, dur: 2 },
+    ],
+  },
   { label: 'User Acceptance Testing', ceremony: 'uat', start: 29, dur: 3 },
   { label: 'Deploy &amp; freeze regression', sprint: 5, start: 29, dur: 3 },
-]
-
-const milestones = [
-  { day: 7, label: '◆ S1: Login, Users, Admins, Depots' },
-  { day: 14, label: '◆ S2: Fleet, Routes, Maps' },
-  { day: 21, label: '◆ S3: Schedules, Fuel &amp; Maint.' },
-  { day: 28, label: '◆ S4: Analytics &amp; Deploy' },
-  { day: 32, label: '◆ 8 Jun Submission' },
 ]
 
 const sprintHeaders = [
@@ -121,7 +124,7 @@ function cell(xml) {
 const cells = []
 const gridX = ORIGIN_X + LABEL_W
 const pageW = gridX + TOTAL_DAYS * DAY_W + 60
-const pageH = ORIGIN_Y + (tasks.length + 8) * ROW_H + 80
+const pageH = ORIGIN_Y + tasks.length * ROW_H + 48
 
 cells.push(cell(`        <mxCell id="${nextId()}" value="TransitLK — Agile Development Gantt Chart&lt;br&gt;&lt;font style=&quot;font-size: 12px&quot;&gt;SRMSS | 8 May – 8 June 2026 | 4 x 7-day sprints&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=18;" vertex="1" parent="1">
           <mxGeometry x="${ORIGIN_X}" y="20" width="${pageW - ORIGIN_X * 2}" height="50" as="geometry"/>
@@ -181,7 +184,11 @@ tasks.forEach((t, i) => {
   bars.forEach((seg) => {
     const barX = gridX + (seg.start - 1) * DAY_W + 2
     const barW = seg.dur * DAY_W - 4
-    cells.push(cell(`        <mxCell id="${nextId()}" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=${c.fill};strokeColor=${c.stroke};opacity=90;" vertex="1" parent="1">
+    const barLabel = t.ceremony === 'release' ? t.label.replace('Release ', '') : ''
+    const barStyle = t.ceremony === 'release'
+      ? `rounded=1;whiteSpace=wrap;html=1;fillColor=${c.fill};strokeColor=${c.stroke};fontStyle=1;fontSize=9;fontColor=#B91C1C;align=center;`
+      : `rounded=1;whiteSpace=wrap;html=1;fillColor=${c.fill};strokeColor=${c.stroke};opacity=90;`
+    cells.push(cell(`        <mxCell id="${nextId()}" value="${barLabel}" style="${barStyle}" vertex="1" parent="1">
           <mxGeometry x="${barX}" y="${y + 4}" width="${barW}" height="${ROW_H - 8}" as="geometry"/>
         </mxCell>`))
   })
@@ -194,43 +201,6 @@ tasks.forEach((t, i) => {
           </mxGeometry>
         </mxCell>`))
 })
-
-// Milestones
-const msY = ORIGIN_Y + tasks.length * ROW_H + 12
-milestones.forEach((m) => {
-  const x = gridX + m.day * DAY_W - DAY_W / 2
-  cells.push(cell(`        <mxCell id="${nextId()}" value="" style="rhombus;whiteSpace=wrap;html=1;fillColor=#EF4444;strokeColor=#B91C1C;" vertex="1" parent="1">
-          <mxGeometry x="${x - 8}" y="${msY}" width="16" height="16" as="geometry"/>
-        </mxCell>`))
-  cells.push(cell(`        <mxCell id="${nextId()}" value="${m.label}" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#B91C1C;" vertex="1" parent="1">
-          <mxGeometry x="${x + 12}" y="${msY - 2}" width="200" height="20" as="geometry"/>
-        </mxCell>`))
-})
-
-// Legend
-const legY = msY + 36
-const legends = [
-  { fill: '#E0E7FF', label: 'Sprint planning' },
-  { fill: '#C7D2FE', label: 'Backlog refinement' },
-  { fill: '#3B82F6', label: 'Development' },
-  { fill: '#94A3B8', label: 'Test &amp; review' },
-  { fill: '#FBCFE8', label: 'UAT' },
-  { fill: '#EF4444', label: 'Milestone ◆' },
-]
-legends.forEach((l, i) => {
-  const x = ORIGIN_X + i * 118
-  cells.push(cell(`        <mxCell id="${nextId()}" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=${l.fill};strokeColor=#666666;" vertex="1" parent="1">
-          <mxGeometry x="${x}" y="${legY}" width="18" height="14" as="geometry"/>
-        </mxCell>`))
-  cells.push(cell(`        <mxCell id="${nextId()}" value="${l.label}" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="${x + 22}" y="${legY - 2}" width="100" height="18" as="geometry"/>
-        </mxCell>`))
-})
-
-// Agile note
-cells.push(cell(`        <mxCell id="${nextId()}" value="Agile: sprint planning + backlog refinement each iteration; UAT before submission (8 Jun)." style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#FFF2CC;strokeColor=#D6B656;size=10;align=left;spacingLeft=6;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="${ORIGIN_X}" y="${legY + 28}" width="480" height="36" as="geometry"/>
-        </mxCell>`))
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net" agent="TransitLK" version="22.1.0" type="device">
