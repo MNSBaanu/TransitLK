@@ -119,7 +119,7 @@ export function buildTimetableRows(routes, schedules = [], anchorDate) {
       serviceType: route.serviceType,
       stops: route.stops?.length ? [...route.stops] : [],
       viaDescription: route.viaDescription || '',
-      included: true,
+      included: false,
       departureTime: existing?.departureTime || '08:00',
       arrivalTime: existing?.arrivalTime || '12:00',
       busId: String(existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''),
