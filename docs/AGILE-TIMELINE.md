@@ -3,9 +3,9 @@
 **TransitLK | CS6003 Coursework-1**  
 **Methodology:** Agile (Scrum-style sprints)  
 **Discussion / brief:** 6 May 2026  
-**Development start:** 7 May 2026 (work begins after discussion)  
+**Development start:** 8 May 2026 (work begins after discussion)  
 **Submission deadline:** 8 June 2026  
-**Development window:** 7 May – 7 June 2026 (~4.5 weeks)  
+**Development window:** **8 May – 8 June 2026** (4 × **7-day** sprints + deploy buffer)  
 **Team size:** 3 members
 
 > Use this document for the **Timeline** section (before the Gantt chart) in your group report.  
@@ -18,11 +18,11 @@
 | Date | Milestone |
 |------|-----------|
 | **6 May 2026** | Group discussion / requirements alignment with lecturer *(not counted as development)* |
-| **7 May 2026** | **Day 1** — Sprint 0 starts (repo, backlog, environments) |
-| **15 May 2026** | Sprint 1 review — login + routes working |
-| **22 May 2026** | Sprint 2 review — schedules + fleet working |
-| **29 May 2026** | Sprint 3 review — dashboard + fuel/maintenance working |
-| **5 June 2026** | Sprint 4 review — integration, JWT/RBAC, E2E tests |
+| **8 May 2026** | **Day 1** — Sprint 0 starts (repo, backlog, environments) |
+| **14 May 2026** | Sprint 1 review — login + user/admin/depot modules |
+| **21 May 2026** | Sprint 2 review — fleet + routes + maps |
+| **28 May 2026** | Sprint 3 review — schedules + fuel/maintenance |
+| **4 June 2026** | Sprint 4 review — analytics, integration, E2E tests |
 | **6–7 June 2026** | **Deployment & final testing** (live URL + GitHub frozen) |
 | **8 June 2026** | **Submission** — report, video, GitHub link on WebLearn |
 
@@ -46,12 +46,12 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 
 | Period | Sprint | Goal (increment) | Outcome |
 |--------|--------|------------------|---------|
-| **7–9 May 2026** | Sprint 0 — Setup & backlog | Kick-off after 6 May discussion; environments, backlog | Repo, MongoDB, React shell, prioritized stories |
-| **10–16 May 2026** | Sprint 1 — Foundation & routes | Login, JWT, route CRUD, bus/driver lists | Log in; create routes; manual bus/driver assign |
-| **17–23 May 2026** | Sprint 2 — Scheduling & fleet | Schedules, basic conflict checks, bus/driver CRUD | Build timetables; maintain fleet data |
-| **24–30 May 2026** | Sprint 3 — Operations | Dashboard, fuel & maintenance, approval (basic) | Depot view; logs; draft approval flow |
-| **31 May – 5 Jun 2026** | Sprint 4 — Integration & hardening | Secure APIs, RBAC, maps (if time), E2E tests | Stable integrated app on localhost/staging |
-| **6–7 Jun 2026** | Release — Deploy & freeze | Production/staging deploy, regression, demo prep | **Live link ready** for submission |
+| **8–10 May 2026** | Sprint 0 — Setup & backlog *(within Sprint 1 week)* | Kick-off; environments, backlog | Repo, MongoDB, React shell, prioritized stories |
+| **8–14 May 2026** | Sprint 1 — Foundation (**7 days**) | Login, JWT, user/admin/depot modules | Log in; manage users and depots |
+| **15–21 May 2026** | Sprint 2 — Fleet & routes (**7 days**) | Fleet CRUD, route CRUD, Google Maps | Routes on map; fleet data maintained |
+| **22–28 May 2026** | Sprint 3 — Schedules & logs (**7 days**) | Schedules, conflicts, fuel & maintenance | Timetables; conflict check; logs |
+| **29 May – 4 Jun 2026** | Sprint 4 — Analytics & release (**7 days**) | Reports, RBAC hardening, E2E tests, deploy prep | Analytics; integrated tested app |
+| **5–7 Jun 2026** | Release — Deploy & freeze | Production/staging deploy, regression, demo prep | **Live link ready** for submission |
 | **8 Jun 2026** | — | **Submission** (no new dev) | Upload report + GitHub + working system link |
 
 **Best time for deployment:** **6 June 2026** (primary), with **7 June** as buffer for fixes. Do not leave first deploy until 8 June — that is submission day only.
@@ -59,8 +59,8 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 **Agile ceremonies (lightweight):**
 
 - **Daily stand-up** (~15 min)  
-- **Sprint planning** — start of each sprint (7, 10, 17, 24, 31 May)  
-- **Sprint review** — end of each sprint (9, 16, 23, 30 May, 5 Jun)  
+- **Sprint planning** — start of each 7-day sprint (8, 15, 22, 29 May)  
+- **Sprint review** — end of each sprint (14, 21, 28 May, 4 Jun)  
 - **Retrospective** — after each review  
 
 ---
@@ -88,7 +88,7 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 
 ## 3. Sprint breakdown (parallel work)
 
-### Sprint 0 — Setup & backlog (7–9 May)
+### Sprint 0 — Setup & backlog (8–10 May)
 
 | Track | Tasks |
 |-------|--------|
@@ -97,7 +97,7 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 | **Frontend** | React + Vite, layout, sidebar |
 | **Design spike** | Core use cases + ER for Sprint 1 only |
 
-### Sprint 1 — Foundation & routes (10–16 May)
+### Sprint 1 — Foundation & routes (11–17 May)
 
 | Member | Backend | Frontend | Test (same sprint) |
 |--------|---------|----------|-------------------|
@@ -107,7 +107,7 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 
 **Demo:** Log in → create route → assign bus/driver.
 
-### Sprint 2 — Scheduling & fleet (17–23 May)
+### Sprint 2 — Scheduling & fleet (18–24 May)
 
 | Member | Backend | Frontend | Test (same sprint) |
 |--------|---------|----------|-------------------|
@@ -117,7 +117,7 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 
 **Demo:** Create schedule; maintain buses/drivers.
 
-### Sprint 3 — Operations (24–30 May)
+### Sprint 3 — Operations (25–31 May)
 
 | Member | Backend | Frontend | Test (same sprint) |
 |--------|---------|----------|-------------------|
@@ -127,7 +127,7 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 
 **Demo:** Dashboard + fuel/maintenance.
 
-### Sprint 4 — Integration (31 May – 5 Jun)
+### Sprint 4 — Integration (1 – 6 Jun)
 
 | Track | Tasks |
 |-------|--------|
@@ -150,19 +150,19 @@ Development deliverables only. Report writing runs in parallel but is **not** on
 
 ## 4. Agile Gantt chart (for report & onlinegantt.com)
 
-**Axis:** 7 May 2026 → 8 June 2026 (submission marker on 8 Jun, no dev tasks that day).
+**Axis:** **8 May 2026 → 8 June 2026** (submission marker on 8 Jun, no dev tasks that day).
 
 ### Text view (copy into Gantt tool)
 
 ```
 MILESTONE: 6 May — Discussion (informational only, not development)
 
-SECTION: Sprint 0 — Setup & Backlog (7–9 May)
+SECTION: Sprint 0 — Setup & Backlog (8–10 May)
   S0.1  Sprint planning & backlog (post-discussion)
   S0.2  Dev environment setup (GitHub, MongoDB, React)
   S0.3  Architecture spike (3-tier, core entities)
 
-SECTION: Sprint 1 — Foundation & Routes (10–16 May)
+SECTION: Sprint 1 — Foundation & Routes (11–17 May)
   S1.1  User auth API + JWT
   S1.2  Route API + Mongoose models
   S1.3  Bus/Driver list APIs
@@ -170,14 +170,14 @@ SECTION: Sprint 1 — Foundation & Routes (10–16 May)
   S1.5  Route management UI + manual assign
   S1.6  Sprint 1 test & review
 
-SECTION: Sprint 2 — Scheduling & Fleet (17–23 May)
+SECTION: Sprint 2 — Scheduling & Fleet (18–24 May)
   S2.1  Schedule API + conflict validation
   S2.2  Bus/Driver CRUD APIs
   S2.3  Schedule UI
   S2.4  Fleet management UI
   S2.5  Sprint 2 test & review
 
-SECTION: Sprint 3 — Dashboard & Logs (24–30 May)
+SECTION: Sprint 3 — Dashboard & Logs (25–31 May)
   S3.1  Fuel & maintenance APIs
   S3.2  Dashboard API
   S3.3  Fuel/maintenance UI
@@ -185,7 +185,7 @@ SECTION: Sprint 3 — Dashboard & Logs (24–30 May)
   S3.5  Schedule approval (basic)
   S3.6  Sprint 3 test & review
 
-SECTION: Sprint 4 — Integration (31 May – 5 Jun)
+SECTION: Sprint 4 — Integration (1 – 6 Jun)
   S4.1  Secure APIs (JWT + RBAC)
   S4.2  Google Maps on routes (if time)
   S4.3  Driver view-only module
@@ -204,7 +204,7 @@ MILESTONE: 8 Jun — Submission (report + GitHub + live link)
 
 ```mermaid
 gantt
-    title SRMSS Agile Timeline (7 May – 8 Jun 2026)
+    title SRMSS Agile Timeline (8 May – 8 Jun 2026)
     dateFormat YYYY-MM-DD
     axisFormat %d %b
 
@@ -213,36 +213,36 @@ gantt
     Submission deadline           :milestone, m08, 2026-06-08, 0d
 
     section Sprint 0 Setup
-    Backlog & planning            :s01, 2026-05-07, 2d
-    Dev environment setup         :s02, 2026-05-07, 3d
-    Architecture spike            :s03, 2026-05-08, 2d
+    Backlog & planning            :s01, 2026-05-08, 2d
+    Dev environment setup         :s02, 2026-05-08, 3d
+    Architecture spike            :s03, 2026-05-09, 2d
 
     section Sprint 1 Routes
-    Auth API JWT                  :s11, 2026-05-10, 4d
-    Route API models              :s12, 2026-05-10, 5d
-    Bus Driver list APIs          :s13, 2026-05-12, 3d
-    Login Route UI                :s14, 2026-05-10, 5d
-    Sprint 1 test review          :s15, 2026-05-15, 2d
+    Auth API JWT                  :s11, 2026-05-11, 4d
+    Route API models              :s12, 2026-05-11, 5d
+    Bus Driver list APIs          :s13, 2026-05-13, 3d
+    Login Route UI                :s14, 2026-05-11, 5d
+    Sprint 1 test review          :s15, 2026-05-16, 2d
 
     section Sprint 2 Schedule Fleet
-    Schedule API conflicts        :s21, 2026-05-17, 5d
-    Bus Driver CRUD               :s22, 2026-05-17, 5d
-    Schedule Fleet UI             :s23, 2026-05-17, 6d
-    Sprint 2 test review          :s24, 2026-05-22, 2d
+    Schedule API conflicts        :s21, 2026-05-18, 5d
+    Bus Driver CRUD               :s22, 2026-05-18, 5d
+    Schedule Fleet UI             :s23, 2026-05-18, 6d
+    Sprint 2 test review          :s24, 2026-05-23, 2d
 
     section Sprint 3 Operations
-    Fuel maintenance APIs         :s31, 2026-05-24, 4d
-    Dashboard API                 :s32, 2026-05-24, 4d
-    Logs Dashboard UI             :s33, 2026-05-24, 6d
-    Schedule approval basic       :s34, 2026-05-27, 3d
-    Sprint 3 test review          :s35, 2026-05-29, 2d
+    Fuel maintenance APIs         :s31, 2026-05-25, 4d
+    Dashboard API                 :s32, 2026-05-25, 4d
+    Logs Dashboard UI             :s33, 2026-05-25, 6d
+    Schedule approval basic       :s34, 2026-05-28, 3d
+    Sprint 3 test review          :s35, 2026-05-30, 2d
 
     section Sprint 4 Integration
-    API security RBAC             :s41, 2026-05-31, 4d
-    Google Maps routes            :s42, 2026-05-31, 3d
-    Driver view module            :s43, 2026-06-02, 3d
-    E2E functional testing        :s44, 2026-05-31, 5d
-    Bug fix sprint review         :s45, 2026-06-04, 2d
+    API security RBAC             :s41, 2026-06-01, 4d
+    Google Maps routes            :s42, 2026-06-01, 3d
+    Driver view module            :s43, 2026-06-03, 3d
+    E2E functional testing        :s44, 2026-06-01, 5d
+    Bug fix sprint review         :s45, 2026-06-05, 2d
 
     section Release Deploy
     Production deployment         :s51, 2026-06-06, 1d
@@ -257,7 +257,7 @@ gantt
 | When | What |
 |------|------|
 | **6 May** | Discussion only — align scope; **no deployment** |
-| **7 May** | Start development (Sprint 0) |
+| **8 May** | Start development (Sprint 0) |
 | **3–4 Jun** *(optional)* | Staging deploy — test hosting early |
 | **6 Jun** | **Main deployment** — backend + DB + frontend live |
 | **7 Jun** | Fix production bugs; freeze code; verify GitHub link |
@@ -278,7 +278,7 @@ gantt
 ## 7. What to put in the group report
 
 1. Methodology & justification (Agile)  
-2. Note: **Discussion 6 May → development from 7 May → submission 8 June**  
+2. Note: **Discussion 6 May → development from 8 May → submission 8 June**  
 3. **Timeline** — Section 1 + milestones table  
 4. **Agile Gantt** — Section 4 (ends 7 Jun deploy; milestone 8 Jun submit)  
 5. Responsibilities & risk analysis  
@@ -295,4 +295,4 @@ gantt
 
 ---
 
-*Timeline aligned to: discussion 6 May 2026, start 7 May 2026, submit 8 June 2026.*
+*Timeline aligned to: discussion 6 May 2026, development 8 May – 8 June 2026.*
