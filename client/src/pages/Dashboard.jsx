@@ -175,7 +175,7 @@ function Dashboard() {
                   <p className="text-xs font-bold uppercase tracking-wide text-red-600">MAINTENANCE NEEDED</p>
                   <p className="mt-0.5 text-sm font-semibold text-neutral-900">Bus {alert.busReg}</p>
                   <p className="mt-0.5 text-xs text-on-surface-variant line-clamp-2">{alert.description}</p>
-                  <button className="mt-2 rounded-lg border border-outline-variant bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 hover:bg-surface-container">DETAILS</button>
+                  <button onClick={() => setAlertDetail(alert)} className="mt-2 rounded-lg border border-outline-variant bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 hover:bg-surface-container">DETAILS</button>
                 </div>
               </div>
             </div>
@@ -198,9 +198,7 @@ function Dashboard() {
             </div>
           </div>
 
-          <button className="w-full rounded-xl border border-outline-variant bg-white py-2.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container transition-colors">
-            View Past History
-          </button>
+            
         </div>
       </div>
     </div>
@@ -208,3 +206,5 @@ function Dashboard() {
 }
 
 export default Dashboard
+
+
