@@ -36,13 +36,38 @@ export function isWithinWorkingHours(workingHours) {
   return minutes >= start && minutes < end
 }
 
-export function driverAvailabilityLabel(driver) {
+/** Check if departure time (HH:mm) falls within working hours string */
+export function isWithinWorkingHoursAtTime(workingHours, departureTime) {
+  if (!workingHours?.trim()) return true
+  if (/off|leave|unavailable/i.test(workingHours)) return false
+
+  const match = workingHours.match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/i)
+  if (!match) return true
+
+  const depMatch = String(departureTime || '').match(/^(\d{1,2}):(\d{2})$/)
+  if (!depMatch) return isWithinWorkingHours(workingHours)
+
+  const startH = Number(match[1])
+  const startM = Number(match[2] || 0)
+  const endH = Number(match[3])
+  const endM = Number(match[4] || 0)
+  const minutes = Number(depMatch[1]) * 60 + Number(depMatch[2])
+  const start = startH * 60 + startM
+  let end = endH * 60 + endM
+  if (end <= start) end += 24 * 60
+  return minutes >= start && minutes < end
+}
+
+export function driverAvailabilityLabel(driver, atTime) {
   if (!driver) return 'Unknown'
   if (driver.status && driver.status !== 'available') {
     return formatServiceType(driver.status)
   }
-  if (!isWithinWorkingHours(driver.workingHours)) {
-    return 'Outside working hours'
+  const withinHours = atTime
+    ? isWithinWorkingHoursAtTime(driver.workingHours, atTime)
+    : isWithinWorkingHours(driver.workingHours)
+  if (!withinHours) {
+    return atTime ? 'Outside working hours for trip time' : 'Outside working hours'
   }
   return 'Available'
 }
@@ -52,8 +77,11 @@ export function isDriverStatusAvailable(driver) {
   return !driver.status || driver.status === 'available'
 }
 
-export function isDriverAssignable(driver) {
-  return isDriverStatusAvailable(driver)
+/** @param {string} [atTime] HH:mm — trip departure; omit to use current time (route assignment) */
+export function isDriverAssignable(driver, atTime) {
+  if (!isDriverStatusAvailable(driver)) return false
+  if (atTime) return isWithinWorkingHoursAtTime(driver.workingHours, atTime)
+  return isWithinWorkingHours(driver.workingHours)
 }
 
 /** Default minimum seat requirement by route service type */
@@ -69,7 +97,8 @@ export function defaultMinCapacityForService(serviceType) {
 
 export function isBusAssignable(bus, routeServiceType, minCapacity = 0) {
   if (!bus || bus.status !== 'available') return false
-  const required = Number(minCapacity) || 0
+  if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) return false
+  const required = Number(minCapacity) || defaultMinCapacityForService(routeServiceType)
   if (required > 0 && Number(bus.capacity) < required) return false
   return true
 }
@@ -79,7 +108,10 @@ export function busUnassignableReason(bus, routeServiceType, minCapacity = 0) {
   if (bus.status !== 'available') {
     return `Not available (${formatServiceType(bus.status)})`
   }
-  const required = Number(minCapacity) || 0
+  if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) {
+    return `Requires ${formatServiceType(routeServiceType)} service type (bus is ${formatServiceType(bus.serviceType)})`
+  }
+  const required = Number(minCapacity) || defaultMinCapacityForService(routeServiceType)
   if (required > 0 && Number(bus.capacity) < required) {
     return `Capacity ${bus.capacity} seats — requires ≥${required}`
   }

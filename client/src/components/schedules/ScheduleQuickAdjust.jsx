@@ -63,16 +63,39 @@ function ScheduleQuickAdjust({
   const timeErr = selected ? validateTimeRange(form.departureTime, form.arrivalTime) : null
   const derivedStatus = reasonToStatus(form.reason, form.status)
   const [activePicker, setActivePicker] = useState(null)
+  const tripDepartureTime = form.departureTime || selected?.departureTime
 
   const assignableDrivers = useMemo(
     () =>
       drivers.filter(
         (d) =>
-          isDriverAssignable(d) ||
+          isDriverAssignable(d, tripDepartureTime) ||
           String(d._id) === String(form.driverId || selected?.driverId?._id || selected?.driverId)
       ),
-    [drivers, form.driverId, selected]
+    [drivers, form.driverId, selected, tripDepartureTime]
   )
+
+  const eligibleDrivers = useMemo(
+    () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime)),
+    [drivers, tripDepartureTime]
+  )
+
+  const assignableBuses = useMemo(() => {
+    if (!selected) return []
+    const serviceType = selected.routeId?.serviceType
+    const minCap = defaultMinCapacityForService(serviceType)
+    const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
+    return buses.filter(
+      (b) => isBusAssignable(b, serviceType, minCap) || String(b._id) === currentBusId
+    )
+  }, [selected, buses, form.busId])
+
+  const eligibleBuses = useMemo(() => {
+    if (!selected) return []
+    const serviceType = selected.routeId?.serviceType
+    const minCap = defaultMinCapacityForService(serviceType)
+    return buses.filter((b) => isBusAssignable(b, serviceType, minCap))
+  }, [selected, buses])
 
   const maintenanceSwapOptions = useMemo(() => {
     if (!selected) return []
@@ -89,9 +112,10 @@ function ScheduleQuickAdjust({
     if (!selected) return []
     const currentDriverId = String(selected.driverId?._id || selected.driverId || '')
     return drivers.filter(
-      (d) => String(d._id) !== currentDriverId && isDriverAssignable(d)
+      (d) =>
+        String(d._id) !== currentDriverId && isDriverAssignable(d, tripDepartureTime)
     )
-  }, [selected, drivers])
+  }, [selected, drivers, tripDepartureTime])
 
   const togglePicker = (picker) => {
     setActivePicker((prev) => (prev === picker ? null : picker))
@@ -349,7 +373,15 @@ function ScheduleQuickAdjust({
                     {d.name}
                   </option>
                 ))}
+                {selected && eligibleDrivers.length === 0 && !form.driverId && (
+                  <option disabled value="__no_driver__">
+                    No driver is available
+                  </option>
+                )}
               </select>
+              {selected && eligibleDrivers.length === 0 && !form.driverId && (
+                <p className="mt-1 text-xs text-amber-800">No driver is available right now.</p>
+              )}
             </label>
 
             <label className="block">
@@ -362,13 +394,23 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="">Select vehicle</option>
-                {buses.map((b) => (
+                {assignableBuses.map((b) => (
                   <option key={b._id} value={b._id}>
                     {b.regNumber}
                     {b.serviceType ? ` · ${b.serviceType}` : ''}
                   </option>
                 ))}
+                {selected && eligibleBuses.length === 0 && !form.busId && (
+                  <option disabled value="__no_bus__">
+                    No bus is available
+                  </option>
+                )}
               </select>
+              {selected && eligibleBuses.length === 0 && !form.busId && (
+                <p className="mt-1 text-xs text-amber-800">
+                  No {formatServiceType(selected.routeId?.serviceType)} bus is available right now.
+                </p>
+              )}
             </label>
           </section>
 
@@ -570,9 +612,7 @@ function ScheduleQuickAdjust({
               <div className={`${sectionClass} p-3`}>
                 <p className={`${labelClass} mb-2`}>Available cover drivers</p>
                 {coverDriverOptions.length === 0 ? (
-                  <p className="text-xs text-on-surface-variant">
-                    No available drivers for this trip right now.
-                  </p>
+                  <p className="text-xs text-amber-800">No driver is available.</p>
                 ) : (
                   <ul className="max-h-44 space-y-1.5 overflow-y-auto">
                     {coverDriverOptions.map((driver) => (
