@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
-import { getCachedPageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
+import { getCachedPageData, getStalePageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import ScheduleGantt from '../components/schedules/ScheduleGantt'
@@ -63,10 +63,15 @@ function SchedulesPage() {
   const persistedView = readPersistedScheduleView()
   const initialViewDate = persistedView?.viewDate || toDateInputValue(new Date())
   const initialViewMode = persistedView?.viewMode || 'daily'
-  const initialData = getCachedPageData('/schedules', {
-    viewMode: initialViewMode,
-    viewDate: initialViewDate,
-  })
+  const initialData =
+    getCachedPageData('/schedules', {
+      viewMode: initialViewMode,
+      viewDate: initialViewDate,
+    }) ||
+    getStalePageData('/schedules', {
+      viewMode: initialViewMode,
+      viewDate: initialViewDate,
+    })
   const { user } = useAuth()
   const [schedules, setSchedules] = useState(() => initialData?.schedules || [])
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
