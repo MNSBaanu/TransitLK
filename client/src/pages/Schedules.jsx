@@ -902,10 +902,6 @@ function SchedulesPage() {
           user?.role === ROLES.DEPOT_MANAGER ||
           user?.role === ROLES.ADMINISTRATOR
         }
-        canSubmit={
-          user?.role === ROLES.TRANSPORT_SCHEDULER ||
-          user?.role === ROLES.ADMINISTRATOR
-        }
       />
 
       {error && !showTimetable && (

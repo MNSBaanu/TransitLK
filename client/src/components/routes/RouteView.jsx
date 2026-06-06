@@ -67,7 +67,6 @@ function RouteView({
             </div>
 
             <ReadOnlyField label="Route name" value={form.routeName} />
-            <ReadOnlyField label="Via" value={form.viaDescription} />
 
             <div className="grid grid-cols-2 gap-3">
               <ReadOnlyField label="Service type" value={formatServiceType(form.serviceType)} />
