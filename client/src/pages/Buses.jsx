@@ -187,7 +187,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
           <option value="">All Statuses</option>
           <option value="available">Available</option>
           <option value="in-service">In Service</option>
-          <option value="maintenance">In Maintenance</option>
+          <option value="maintenance">Maintenance</option>
           <option value="retired">Retired</option>
         </select>
         <span className="ml-auto text-sm text-on-surface-variant">
