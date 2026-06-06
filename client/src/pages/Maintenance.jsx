@@ -1,7 +1,7 @@
 // Assigned to: Irfa
 // Module: Fuel & Maintenance Log
 
-import { useCallback, useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
@@ -230,6 +230,7 @@ function Maintenance() {
   const [summary, setSummary] = useState(() => stale?.summary || { totalLiters: 0, totalAmount: 0 })
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [minAmount, setMinAmount] = useState('')
   const [logModal, setLogModal] = useState(false)
   const [maintenanceModal, setMaintenanceModal] = useState(null)
   const [fuelModal, setFuelModal] = useState(null)
@@ -253,12 +254,19 @@ function Maintenance() {
 
   const activeList = tab === 'maintenance' ? maintenance : fuelLogs
 
-  const filtered = activeList.filter((r) => {
-    const busReg = r.bus_id?.regNumber || ''
-    const desc = r.description || ''
-    return busReg.toLowerCase().includes(search.toLowerCase()) ||
-      desc.toLowerCase().includes(search.toLowerCase())
-  })
+  const filtered = useMemo(() => {
+    return activeList.filter((r) => {
+      const busReg = r.bus_id?.regNumber || ''
+      const desc = r.description || ''
+      const matchSearch = busReg.toLowerCase().includes(search.toLowerCase()) ||
+        desc.toLowerCase().includes(search.toLowerCase())
+      const amount = Number(r.amount) || 0
+      const matchAmount = (tab === 'fuel' && minAmount !== '')
+        ? amount >= Number(minAmount)
+        : true
+      return matchSearch && matchAmount
+    })
+  }, [activeList, search, tab, minAmount])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
@@ -293,25 +301,8 @@ function Maintenance() {
         }
       />
 
-      {/* Alert Banner */}
-      {maintenanceOverdue.length > 0 && (
-        <div className="mb-5 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Icon name="warning" size={20} className="text-red-600 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-red-700">
-                Maintenance Alert: {maintenanceOverdue.length} Vehicle{maintenanceOverdue.length > 1 ? 's' : ''} Overdue
-              </p>
-              <p className="text-xs text-red-500">
-                Immediate attention required for: {maintenanceOverdue.slice(0, 4).map((r) => r.bus_id?.regNumber || '—').join(', ')}
-              </p>
-            </div>
-          </div>
-          <button className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-red-700">
-            VIEW DETAILS
-          </button>
-        </div>
-      )}
+
+
 
       {/* Stats Cards */}
       <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -362,7 +353,7 @@ function Maintenance() {
               { key: 'maintenance', label: 'Maintenance Logs' },
               { key: 'fuel', label: 'Fuel Logs' },
             ].map(({ key, label }) => (
-              <button key={key} onClick={() => { setTab(key); setPage(1) }}
+              <button key={key} onClick={() => { setTab(key); setPage(1); setSearch(''); setMinAmount('') }}
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === key ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-on-surface-variant hover:text-neutral-900'
                 }`}>
@@ -370,13 +361,26 @@ function Maintenance() {
               </button>
             ))}
           </div>
-          <div className="relative mb-2">
-            <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-              placeholder="Search logs..."
-              className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-52" />
-          </div>
-        </div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="relative">
+              <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Search logs..."
+                className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-48" />
+            </div>
+            {tab === 'fuel' && (
+              <div className="relative">
+                <Icon name="filter_list" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+                <input
+                  type="number"
+                  value={minAmount}
+                  onChange={(e) => { setMinAmount(e.target.value); setPage(1) }}
+                  placeholder="Min amount (LKR)"
+                  className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-44"
+                />
+              </div>
+            )}
+          </div>        </div>
 
         <div className="p-5">
           {/* Maintenance Table */}
