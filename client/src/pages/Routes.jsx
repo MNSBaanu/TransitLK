@@ -22,6 +22,7 @@ import {
   isBusAssignable,
   isDriverAssignable,
 } from '../utils/fleetHelpers'
+import { buildRouteName } from '../utils/routeHelpers'
 import {
   ModuleAlert,
   ModuleCard,
@@ -36,7 +37,6 @@ const emptyForm = {
   distance: '',
   startPoint: '',
   endPoint: '',
-  viaDescription: '',
   stops: [],
   startLocation: null,
   endLocation: null,
@@ -76,13 +76,14 @@ function routeCode(route) {
 }
 
 function routeFromApi(route) {
+  const startPoint = route.startPoint || ''
+  const endPoint = route.endPoint || ''
   return {
     routeNo: route.routeNo || '',
-    routeName: route.routeName || '',
+    routeName: buildRouteName(startPoint, endPoint) || route.routeName || '',
     distance: String(route.distance ?? ''),
-    startPoint: route.startPoint || '',
-    endPoint: route.endPoint || '',
-    viaDescription: route.viaDescription || '',
+    startPoint,
+    endPoint,
     stops: route.stops?.length ? [...route.stops] : [],
     startLocation: route.startLocation || null,
     endLocation: route.endLocation || null,
@@ -118,6 +119,7 @@ function RoutesPage() {
   const [selectedId, setSelectedId] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [stopInput, setStopInput] = useState('')
+  const [initialRouteStatus, setInitialRouteStatus] = useState('draft')
 
   const isViewing = pageView === 'view' && Boolean(selectedId)
   const isEditPage = pageView === 'edit'
@@ -281,6 +283,7 @@ function RoutesPage() {
     setSelectedId(null)
     setForm(emptyForm)
     setStopInput('')
+    setInitialRouteStatus('draft')
     setError('')
   }
 
@@ -302,6 +305,7 @@ function RoutesPage() {
     if (route) {
       setSelectedId(route._id)
       setForm(routeFromApi(route))
+      setInitialRouteStatus(route.status || 'active')
     } else {
       resetForm()
     }
@@ -324,6 +328,12 @@ function RoutesPage() {
     const { name, value } = e.target
     setForm((prev) => {
       const next = { ...prev, [name]: value }
+      if (name === 'startPoint' || name === 'endPoint') {
+        next.routeName = buildRouteName(
+          name === 'startPoint' ? value : prev.startPoint,
+          name === 'endPoint' ? value : prev.endPoint
+        )
+      }
       if (name === 'serviceType' && prev.busId) {
         const bus = buses.find((b) => b._id === prev.busId)
         const minCap = defaultMinCapacityForService(value)
@@ -362,19 +372,27 @@ function RoutesPage() {
   }
 
   const handleStartPlaceSelect = useCallback((place) => {
-    setForm((prev) => ({
-      ...prev,
-      startPoint: place.label,
-      startLocation: place.location,
-    }))
+    setForm((prev) => {
+      const startPoint = place.label
+      return {
+        ...prev,
+        startPoint,
+        startLocation: place.location,
+        routeName: buildRouteName(startPoint, prev.endPoint),
+      }
+    })
   }, [])
 
   const handleEndPlaceSelect = useCallback((place) => {
-    setForm((prev) => ({
-      ...prev,
-      endPoint: place.label,
-      endLocation: place.location,
-    }))
+    setForm((prev) => {
+      const endPoint = place.label
+      return {
+        ...prev,
+        endPoint,
+        endLocation: place.location,
+        routeName: buildRouteName(prev.startPoint, endPoint),
+      }
+    })
   }, [])
 
   const handleStopPlaceSelect = useCallback((place) => {
@@ -404,11 +422,10 @@ function RoutesPage() {
   const buildPayload = () => {
     const payload = {
       routeNo: form.routeNo.trim(),
-      routeName: form.routeName.trim(),
+      routeName: buildRouteName(form.startPoint, form.endPoint),
       distance: Number(form.distance),
       startPoint: form.startPoint.trim(),
       endPoint: form.endPoint.trim(),
-      viaDescription: form.viaDescription.trim() || undefined,
       stops: form.stops,
     }
     if (form.startLocation?.lat != null) payload.startLocation = form.startLocation
@@ -635,6 +652,7 @@ function RoutesPage() {
             form={form}
             isEditing={isEditingExisting}
             routeCode={displayRouteCode}
+            initialRouteStatus={initialRouteStatus}
             stopInput={stopInput}
             onStopInputChange={setStopInput}
             onFormChange={handleFormChange}
