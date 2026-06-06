@@ -7,7 +7,6 @@ import {
   validateLocation,
   validateStopLocations,
   finalizeRouteFields,
-  isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
 import {
   defaultMinCapacityForService,
@@ -94,13 +93,6 @@ const validateDriverAssignment = async (driverId, routeDepotId) => {
   }
   if (driver.status && driver.status !== 'available') {
     const error = new Error(`Driver is not available (status: ${driver.status})`)
-    error.statusCode = 400
-    throw error
-  }
-  if (!isWithinWorkingHours(driver.workingHours)) {
-    const error = new Error(
-      `Driver is outside working hours (${driver.workingHours || 'not set'})`
-    )
     error.statusCode = 400
     throw error
   }

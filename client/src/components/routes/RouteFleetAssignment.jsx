@@ -5,7 +5,6 @@ import {
   formatServiceType,
   isBusAssignable,
   isDriverAssignable,
-  isWithinWorkingHours,
 } from '../../utils/fleetHelpers'
 
 const selectClass =
@@ -67,10 +66,7 @@ function busRequirementItems(bus, serviceType, minCapacity) {
 
 function driverRequirementItems(driver) {
   if (!driver) {
-    return [
-      { label: 'Status: available', ok: null },
-      { label: 'Within working hours', ok: null },
-    ]
+    return [{ label: 'Status: available', ok: null }]
   }
   const statusOk = !driver.status || driver.status === 'available'
   return [
@@ -79,8 +75,8 @@ function driverRequirementItems(driver) {
       ok: statusOk,
     },
     {
-      label: `Within working hours (${driver.workingHours || 'not set'})`,
-      ok: statusOk && isWithinWorkingHours(driver.workingHours),
+      label: `Working hours: ${driver.workingHours || 'not set'} (checked when scheduling trips)`,
+      ok: null,
     },
   ]
 }

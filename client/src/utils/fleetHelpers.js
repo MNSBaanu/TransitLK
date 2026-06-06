@@ -47,10 +47,13 @@ export function driverAvailabilityLabel(driver) {
   return 'Available'
 }
 
-export function isDriverAssignable(driver) {
+export function isDriverStatusAvailable(driver) {
   if (!driver) return false
-  if (driver.status && driver.status !== 'available') return false
-  return isWithinWorkingHours(driver.workingHours)
+  return !driver.status || driver.status === 'available'
+}
+
+export function isDriverAssignable(driver) {
+  return isDriverStatusAvailable(driver)
 }
 
 /** Default minimum seat requirement by route service type */
