@@ -6,6 +6,20 @@ import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData } from '../services/pagePrefetch'
 
+const EMPTY_DASHBOARD = {
+  buses: {
+    total: 0,
+    available: 0,
+    maintenance: 0,
+    byServiceType: { express: 0, ordinary: 0, semiLuxury: 0 },
+  },
+  drivers: { total: 0, onDuty: 0 },
+  maintenance: { totalCost: 0, alerts: [] },
+  recentSchedules: [],
+  totalRoutes: 0,
+  tripCompletion: 0,
+}
+
 const STATUS_STYLES = {
   'on-time':   'bg-green-100 text-green-700',
   scheduled:   'bg-blue-100 text-blue-700',
@@ -61,15 +75,7 @@ function Dashboard() {
 
   const { loading, refreshing } = useFastPageLoad('/dashboard', { applyData })
 
-  if (loading && !data) {
-    return (
-      <div className="flex h-64 items-center justify-center text-on-surface-variant text-sm">
-        Loading dashboard...
-      </div>
-    )
-  }
-
-  if (!data) {
+  if (!loading && !data) {
     return (
       <div className="flex h-64 items-center justify-center text-red-500 text-sm">
         Failed to load dashboard data. Make sure the server is running.
@@ -77,7 +83,8 @@ function Dashboard() {
     )
   }
 
-  const { buses, drivers, maintenance, recentSchedules, totalRoutes, tripCompletion } = data
+  const { buses, drivers, maintenance, recentSchedules, totalRoutes, tripCompletion } =
+    data || EMPTY_DASHBOARD
 
   return (
     <div className="w-full space-y-5">
