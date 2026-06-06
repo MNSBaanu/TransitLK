@@ -1,9 +1,11 @@
 // Assigned to: Irfa
 // Module: Fuel & Maintenance Log
 
-import { useState, useEffect } from 'react'
+import { useCallback, useState } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
 
 const ITEMS_PER_PAGE = 8
@@ -221,11 +223,11 @@ function LogActivityModal({ onClose, onSave }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Maintenance() {
+  const stale = getStalePageData('/maintenance')
   const [tab, setTab] = useState('maintenance')
-  const [maintenance, setMaintenance] = useState([])
-  const [fuelLogs, setFuelLogs] = useState([])
-  const [summary, setSummary] = useState({ totalLiters: 0, totalAmount: 0 })
-  const [loading, setLoading] = useState(true)
+  const [maintenance, setMaintenance] = useState(() => stale?.maintenance || [])
+  const [fuelLogs, setFuelLogs] = useState(() => stale?.fuelLogs || [])
+  const [summary, setSummary] = useState(() => stale?.summary || { totalLiters: 0, totalAmount: 0 })
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [logModal, setLogModal] = useState(false)
@@ -233,26 +235,21 @@ function Maintenance() {
   const [fuelModal, setFuelModal] = useState(null)
   const [menuOpen, setMenuOpen] = useState(null)
 
-  const fetchAll = async () => {
-    setLoading(true)
-    try {
-      const [mRes, fRes, sRes] = await Promise.all([
-        api.get('/maintenance'),
-        api.get('/fuel'),
-        api.get('/fuel/summary'),
-      ])
-      setMaintenance(mRes.data)
-      setFuelLogs(fRes.data)
-      setSummary(sRes.data)
-    } catch {
-      setMaintenance([])
-      setFuelLogs([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  const applyData = useCallback((payload) => {
+    setMaintenance(payload?.maintenance || [])
+    setFuelLogs(payload?.fuelLogs || [])
+    setSummary(payload?.summary || { totalLiters: 0, totalAmount: 0 })
+  }, [])
 
-  useEffect(() => { fetchAll() }, [])
+  const { loading, reload } = useFastPageLoad('/maintenance', {
+    applyData,
+    refreshEnabled: !logModal && !maintenanceModal && !fuelModal,
+  })
+
+  const refreshMaintenance = () => {
+    invalidatePageData('/maintenance')
+    reload({ keepContent: true, force: true })
+  }
 
   const activeList = tab === 'maintenance' ? maintenance : fuelLogs
 
@@ -269,13 +266,13 @@ function Maintenance() {
   const handleDeleteMaintenance = async (id) => {
     if (!window.confirm('Delete this record?')) return
     await api.delete(`/maintenance/${id}`)
-    fetchAll()
+    refreshMaintenance()
   }
 
   const handleDeleteFuel = async (id) => {
     if (!window.confirm('Delete this record?')) return
     await api.delete(`/fuel/${id}`)
-    fetchAll()
+    refreshMaintenance()
   }
 
   const totalMaintenanceCost = maintenance.reduce((sum, r) => sum + (r.cost || 0), 0)
@@ -396,7 +393,7 @@ function Maintenance() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
-                  {loading ? (
+                  {loading && maintenance.length === 0 ? (
                     <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
                     <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
@@ -455,7 +452,7 @@ function Maintenance() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
-                  {loading ? (
+                  {loading && fuelLogs.length === 0 ? (
                     <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
                     <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">No fuel logs found</td></tr>
@@ -535,14 +532,14 @@ function Maintenance() {
         <MaintenanceModal
           record={maintenanceModal === 'new' ? null : maintenanceModal}
           onClose={() => setMaintenanceModal(null)}
-          onSave={() => { setMaintenanceModal(null); fetchAll() }}
+          onSave={() => { setMaintenanceModal(null); refreshMaintenance() }}
         />
       )}
       {fuelModal && (
         <FuelModal
           record={fuelModal === 'new' ? null : fuelModal}
           onClose={() => setFuelModal(null)}
-          onSave={() => { setFuelModal(null); fetchAll() }}
+          onSave={() => { setFuelModal(null); refreshMaintenance() }}
         />
       )}
     </div>

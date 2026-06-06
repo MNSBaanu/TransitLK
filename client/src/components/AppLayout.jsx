@@ -1,13 +1,16 @@
 import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { LayoutProvider } from '../context/LayoutContext'
+import { useAuth } from '../context/AuthContext'
 import Navbar from './Navbar'
-import { primeCriticalPageData } from '../services/pagePrefetch'
+import { primePagesForRole } from '../services/pagePrefetch'
 
 function AppLayout() {
+  const { user } = useAuth()
+
   useEffect(() => {
-    primeCriticalPageData()
-  }, [])
+    if (user?.role) primePagesForRole(user.role)
+  }, [user?.role])
 
   return (
     <LayoutProvider>

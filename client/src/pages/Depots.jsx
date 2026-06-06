@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import api from '../services/api'
 import Icon from '../components/Icon'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import {
   ModuleAlert,
   ModuleHeader,
@@ -169,33 +171,19 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
 }
 
 function Depots() {
-  const [depots, setDepots] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [depots, setDepots] = useState(() => getStalePageData('/depots')?.depots || [])
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState('')
   const [modal, setModal] = useState(null)
 
-  const fetchDepots = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data } = await api.get('/depots')
-      setDepots(Array.isArray(data) ? data : [])
-    } catch {
-      setDepots([])
-    } finally {
-      setLoading(false)
-    }
+  const applyData = useCallback((payload) => {
+    setDepots(payload?.depots || [])
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.resolve().then(() => {
-      if (!cancelled) fetchDepots()
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [fetchDepots])
+  const { loading, reload } = useFastPageLoad('/depots', {
+    applyData,
+    refreshEnabled: !modal,
+  })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -220,7 +208,8 @@ function Depots() {
   const handleSaved = async () => {
     setModal(null)
     setToast('Depot saved')
-    await fetchDepots()
+    invalidatePageData('/depots')
+    await reload({ keepContent: true, force: true })
     setTimeout(() => setToast(''), 2500)
   }
 
@@ -229,7 +218,8 @@ function Depots() {
     try {
       await api.delete(`/depots/${depot._id}`)
       setToast('Depot removed')
-      fetchDepots()
+      invalidatePageData('/depots')
+      reload({ keepContent: true, force: true })
       setTimeout(() => setToast(''), 2500)
     } catch (err) {
       window.alert(err.response?.data?.message || 'Could not remove depot')
@@ -297,7 +287,7 @@ function Depots() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && depots.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading depots...
