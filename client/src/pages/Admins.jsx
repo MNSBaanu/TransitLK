@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import {
   ModuleAlert,
   ModuleHeader,
@@ -213,45 +215,22 @@ function AdminModal({ admin, depots, onClose, onSave }) {
 
 function Admins() {
   const { user } = useAuth()
-  const [admins, setAdmins] = useState([])
-  const [depots, setDepots] = useState([])
-  const [loading, setLoading] = useState(true)
+  const stale = getStalePageData('/admins')
+  const [admins, setAdmins] = useState(() => stale?.admins || [])
+  const [depots, setDepots] = useState(() => stale?.depots || [])
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null)
   const [toast, setToast] = useState('')
 
-  const fetchAdmins = useCallback(async () => {
-    setLoading(true)
-    try {
-      const { data } = await api.get('/admins')
-      setAdmins(Array.isArray(data) ? data : [])
-    } catch {
-      setAdmins([])
-    } finally {
-      setLoading(false)
-    }
+  const applyData = useCallback((payload) => {
+    setAdmins(payload?.admins || [])
+    setDepots(payload?.depots || [])
   }, [])
 
-  const fetchDepots = useCallback(async () => {
-    try {
-      const { data } = await api.get('/depots')
-      setDepots(Array.isArray(data) ? data : [])
-    } catch {
-      setDepots([])
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.resolve().then(async () => {
-      if (cancelled) return
-      await fetchAdmins()
-      if (!cancelled) await fetchDepots()
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [fetchAdmins, fetchDepots])
+  const { loading, reload } = useFastPageLoad('/admins', {
+    applyData,
+    refreshEnabled: !modal,
+  })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -284,7 +263,8 @@ function Admins() {
     try {
       await api.delete(`/admins/${admin._id}`)
       setToast('Administrator removed')
-      fetchAdmins()
+      invalidatePageData('/admins')
+      reload({ keepContent: true, force: true })
       setTimeout(() => setToast(''), 2500)
     } catch (err) {
       window.alert(err.response?.data?.message || 'Could not remove administrator')
@@ -294,7 +274,8 @@ function Admins() {
   const handleSaved = () => {
     setModal(null)
     setToast('Administrator saved')
-    fetchAdmins()
+    invalidatePageData('/admins')
+    reload({ keepContent: true, force: true })
     setTimeout(() => setToast(''), 2500)
   }
 
@@ -353,7 +334,7 @@ function Admins() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && admins.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading administrators...

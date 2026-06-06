@@ -1,4 +1,5 @@
 import api from './api'
+import { ROLE_ALLOWED_PATHS } from '../config/roles'
 import { getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
 
 const CACHE_TTL_MS = 60 * 1000
@@ -197,10 +198,83 @@ async function fetchReportsPageData(options = {}) {
   }
 }
 
+async function fetchDashboardPageData() {
+  const { data } = await api.get('/dashboard')
+  return { data }
+}
+
+async function fetchDepotsPageData() {
+  const { data } = await api.get('/depots')
+  return { depots: asArray(data) }
+}
+
+async function fetchAdminsPageData() {
+  const [adminRes, depotRes] = await Promise.all([api.get('/admins'), api.get('/depots')])
+  return {
+    admins: asArray(adminRes.data),
+    depots: asArray(depotRes.data),
+  }
+}
+
+async function fetchUsersPageData() {
+  const [userRes, depotRes] = await Promise.all([api.get('/users'), api.get('/depots')])
+  return {
+    accounts: asArray(userRes.data),
+    depots: asArray(depotRes.data),
+  }
+}
+
+async function fetchBusesPageData() {
+  const [busRes, driverRes] = await Promise.all([api.get('/buses'), api.get('/drivers')])
+  return {
+    buses: asArray(busRes.data),
+    drivers: asArray(driverRes.data),
+  }
+}
+
+async function fetchMaintenancePageData() {
+  const [mRes, fRes, sRes] = await Promise.all([
+    api.get('/maintenance'),
+    api.get('/fuel'),
+    api.get('/fuel/summary'),
+  ])
+  return {
+    maintenance: asArray(mRes.data),
+    fuelLogs: asArray(fRes.data),
+    summary: sRes.data || { totalLiters: 0, totalAmount: 0 },
+  }
+}
+
+function getDriverTripsDateRange() {
+  const from = new Date()
+  from.setDate(from.getDate() - 7)
+  const to = new Date()
+  to.setDate(to.getDate() + 30)
+  return {
+    fromDate: from.toISOString().slice(0, 10),
+    toDate: to.toISOString().slice(0, 10),
+  }
+}
+
+async function fetchDriverTripsPageData() {
+  const { fromDate, toDate } = getDriverTripsDateRange()
+  const { data } = await api.get('/schedules', {
+    params: { fromDate, toDate },
+  })
+  return { trips: asArray(data), fromDate, toDate }
+}
+
 const pageLoaders = {
+  '/dashboard': fetchDashboardPageData,
   '/routes': fetchRoutesPageData,
   '/schedules': fetchSchedulesPageData,
   '/reports': fetchReportsPageData,
+  '/depots': fetchDepotsPageData,
+  '/admins': fetchAdminsPageData,
+  '/users': fetchUsersPageData,
+  '/buses': fetchBusesPageData,
+  '/maintenance': fetchMaintenancePageData,
+  '/my-trips': fetchDriverTripsPageData,
 }
 
 export function isPrefetchablePath(path) {
@@ -213,6 +287,14 @@ export function getCachedPageData(path, options = {}) {
   const cacheKey = getCacheKey(path, options)
   const cached = pageCache.get(cacheKey)
   return isFresh(cached) ? cached.data : null
+}
+
+/** Returns cached data even when TTL expired — for instant first paint while refreshing. */
+export function getStalePageData(path, options = {}) {
+  if (!isPrefetchablePath(path)) return null
+
+  const cacheKey = getCacheKey(path, options)
+  return pageCache.get(cacheKey)?.data ?? null
 }
 
 export async function loadPageData(path, options = {}, { force = false } = {}) {
@@ -264,8 +346,21 @@ export function invalidatePageData(path) {
 
 export function primeCriticalPageData() {
   return Promise.allSettled([
+    prefetchPageData('/dashboard'),
     prefetchPageData('/routes'),
     prefetchPageData('/schedules'),
     prefetchPageData('/reports'),
+    prefetchPageData('/buses'),
+    prefetchPageData('/depots'),
+    prefetchPageData('/maintenance'),
+    prefetchPageData('/admins'),
+    prefetchPageData('/users'),
   ])
+}
+
+export function primePagesForRole(role) {
+  const paths = ROLE_ALLOWED_PATHS[role] || []
+  return Promise.allSettled(
+    paths.filter(isPrefetchablePath).map((path) => prefetchPageData(path))
+  )
 }
