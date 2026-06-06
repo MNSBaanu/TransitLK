@@ -35,7 +35,7 @@ export const getAllFuelLogs = async (req, res) => {
       if (to) filter.fuel_date.$lte = new Date(to)
     }
 
-    const logs = await FuelLog.find(filter).populate('bus_id', 'regNumber').sort({ fuel_date: -1 })
+    const logs = await FuelLog.find(filter).populate('bus_id', 'regNumber').sort({ liters: -1 })
     res.json(logs)
   } catch (error) {
     res.status(500).json({ message: error.message })
