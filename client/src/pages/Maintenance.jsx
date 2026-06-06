@@ -1,7 +1,7 @@
 // Assigned to: Irfa
 // Module: Fuel & Maintenance Log
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
@@ -284,7 +284,7 @@ function Maintenance() {
   }
 
   const totalMaintenanceCost = maintenance.reduce((sum, r) => sum + (r.cost || 0), 0)
-  const maintenanceOverdue = maintenance.filter((r) => r.bus_id?.status === 'in maintenance')
+  const maintenanceOverdue = maintenance.filter((r) => r.bus_id?.status === 'maintenance')
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
   const formatCurrency = (n) => `LKR ${Number(n || 0).toLocaleString()}`

@@ -102,8 +102,10 @@ export function getTimetableDates(period, anchorDate) {
   return [toDateInputValue(new Date(anchorDate))]
 }
 
+import { isSchedulableRoute } from './routeHelpers'
+
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
-  const active = routes.filter((r) => r.status === 'active' || !r.status)
+  const active = routes.filter(isSchedulableRoute)
   return active.map((route) => {
     const routeId = String(route._id)
     const existing = schedules.find(
