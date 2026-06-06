@@ -9,6 +9,7 @@ import {
   getTimetableRowStatus,
   validateTimeRange,
 } from '../../utils/scheduleHelpers'
+import { isDriverAssignable, isBusAssignable, defaultMinCapacityForService } from '../../utils/fleetHelpers'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-100'
@@ -478,13 +479,22 @@ function ScheduleTimetableDrawer({
                     const rowStatus = getTimetableRowStatus(row, { overlapHints: rowHints })
                     const missingBus = row.included && !row.busId
                     const missingDriver = row.included && !row.driverId
+                    const rowMinCap = defaultMinCapacityForService(row.serviceType)
+                    const availableBuses = buses.filter((b) =>
+                      isBusAssignable(b, row.serviceType, rowMinCap)
+                    )
+                    const availableDrivers = drivers.filter((d) =>
+                      isDriverAssignable(d, row.departureTime)
+                    )
                     const rowBuses = buses.filter(
                       (b) =>
-                        (b.status === 'available' || b.status === 'in-service') &&
-                        (!row.serviceType || !b.serviceType || b.serviceType === row.serviceType)
+                        isBusAssignable(b, row.serviceType, rowMinCap) ||
+                        (row.busId && String(b._id) === String(row.busId))
                     )
                     const rowDrivers = drivers.filter(
-                      (d) => d.status === 'available' || !d.status
+                      (d) =>
+                        isDriverAssignable(d, row.departureTime) ||
+                        (row.driverId && String(d._id) === String(row.driverId))
                     )
                     const isFocused = focusedRowIndices.includes(rowIndex)
                     const isPrimaryFocus = String(row.routeId) === primaryFocusRouteId
@@ -586,6 +596,11 @@ function ScheduleTimetableDrawer({
                                 {b.regNumber}
                               </option>
                             ))}
+                            {row.included && availableBuses.length === 0 && !row.busId && (
+                              <option disabled value="__no_bus__">
+                                No bus is available
+                              </option>
+                            )}
                           </select>
                         </td>
                         <td className="py-3 align-top">
@@ -606,6 +621,11 @@ function ScheduleTimetableDrawer({
                                 {d.name}
                               </option>
                             ))}
+                            {row.included && availableDrivers.length === 0 && !row.driverId && (
+                              <option disabled value="__no_driver__">
+                                No driver is available
+                              </option>
+                            )}
                           </select>
                         </td>
                         <td className="py-3 align-top">

@@ -4,6 +4,24 @@ const STATUS_LABELS = {
   draft: 'Draft',
 }
 
+export function buildRouteName(startPoint, endPoint) {
+  const start = String(startPoint || '').trim()
+  const end = String(endPoint || '').trim()
+  if (!start && !end) return ''
+  if (!start) return end
+  if (!end) return start
+  return `${start} — ${end}`
+}
+
+export function isSchedulableRoute(route) {
+  return route?.status === 'active' || !route?.status
+}
+
+export function formatRouteStopsLabel(stops) {
+  if (!stops?.length) return ''
+  return stops.join(', ')
+}
+
 export function formatRouteStatus(status) {
   return STATUS_LABELS[status] || status || '—'
 }

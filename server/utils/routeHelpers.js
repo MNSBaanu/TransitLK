@@ -38,6 +38,32 @@ export function sanitizeRouteBody(body) {
   return data
 }
 
+export function buildRouteName(startPoint, endPoint) {
+  const start = String(startPoint || '').trim()
+  const end = String(endPoint || '').trim()
+  if (!start && !end) return ''
+  if (!start) return end
+  if (!end) return start
+  return `${start} — ${end}`
+}
+
+/** Legacy SLTB-style label derived from the first stop when stops are used instead of manual via. */
+export function deriveViaDescription(stops) {
+  if (!stops?.length) return undefined
+  const first = stops[0]
+  return /^via\s/i.test(first) ? first : `via ${first}`
+}
+
+export function finalizeRouteFields(data) {
+  if (data.startPoint && data.endPoint) {
+    data.routeName = buildRouteName(data.startPoint, data.endPoint)
+  }
+  if (Array.isArray(data.stops) && data.stops.length > 0) {
+    data.viaDescription = deriveViaDescription(data.stops)
+  }
+  return data
+}
+
 export function validateLocation(loc, label) {
   if (!loc) return null
   const lat = Number(loc.lat)

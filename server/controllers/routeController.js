@@ -6,6 +6,7 @@ import {
   sanitizeRouteBody,
   validateLocation,
   validateStopLocations,
+  finalizeRouteFields,
   isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
 import {
@@ -125,7 +126,30 @@ const prepareRouteData = (body) => {
     data.stopLocations = validateStopLocations(data.stops || [], data.stopLocations)
   }
 
-  return data
+  return finalizeRouteFields(data)
+}
+
+const assertRouteStatusTransition = async (existing, nextStatus) => {
+  if (!nextStatus || nextStatus === existing.status) return
+
+  if (existing.status === 'active' && nextStatus === 'draft') {
+    const error = new Error(
+      'An active route cannot be moved back to draft. Set it to inactive to pause operations.'
+    )
+    error.statusCode = 400
+    throw error
+  }
+
+  if (existing.status === 'active' && nextStatus === 'inactive') {
+    const linkedSchedules = await Schedule.countDocuments({ routeId: existing._id })
+    if (linkedSchedules > 0) {
+      const error = new Error(
+        `Cannot deactivate route while ${linkedSchedules} schedule(s) are linked. Remove or reassign those schedules first.`
+      )
+      error.statusCode = 409
+      throw error
+    }
+  }
 }
 
 // @desc    Get all routes
@@ -283,6 +307,9 @@ export const updateRoute = async (req, res) => {
     const serviceType = data.serviceType ?? existing.serviceType ?? 'ordinary'
     if (nextBusId) await validateBusAssignment(nextBusId, serviceType, depotId)
     if (nextDriverId) await validateDriverAssignment(nextDriverId, depotId)
+
+    const nextStatus = data.status ?? existing.status
+    await assertRouteStatusTransition(existing, nextStatus)
 
     data.depotId = depotId
 

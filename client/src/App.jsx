@@ -18,7 +18,7 @@ import { useAuth } from './context/AuthContext'
 
 function RootRedirect() {
   const { isAuthenticated, user, loading } = useAuth()
-  if (loading) return null
+  if (loading && !isAuthenticated) return null
   if (isAuthenticated && user) {
     return <Navigate to={homePathForRole(user.role)} replace />
   }
