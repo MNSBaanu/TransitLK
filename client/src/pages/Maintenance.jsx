@@ -1,7 +1,7 @@
 // Assigned to: Irfa
 // Module: Fuel & Maintenance Log
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
