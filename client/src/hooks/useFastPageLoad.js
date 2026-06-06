@@ -3,7 +3,7 @@ import { useAutoRefresh } from './useAutoRefresh'
 import { getCachedPageData, getStalePageData, loadPageData } from '../services/pagePrefetch'
 
 /** Instant stale cache + background refresh + optional auto-poll for prefetchable pages. */
-export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled = true } = {}) {
+export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled = true, forceRefresh = false } = {}) {
   const optionsRef = useRef(options)
   optionsRef.current = options
 
@@ -41,8 +41,8 @@ export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled 
     const loadOptions = optionsRef.current
     const stale = getStalePageData(path, loadOptions)
     if (stale) applyData(stale)
-    load({ keepContent: Boolean(stale) })
-  }, [path, load, applyData])
+    load({ keepContent: Boolean(stale), force: forceRefresh })
+  }, [path, load, applyData, forceRefresh])
 
   useAutoRefresh(() => load({ keepContent: true, force: true }), { enabled: refreshEnabled })
 
