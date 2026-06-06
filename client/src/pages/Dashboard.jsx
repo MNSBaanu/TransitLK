@@ -1,7 +1,8 @@
 ﻿// Module: Depot Management Dashboard
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Icon from '../components/Icon'
+import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData } from '../services/pagePrefetch'
 
@@ -39,7 +40,20 @@ function ProgressBar({ label, value, total, color }) {
 }
 
 function Dashboard() {
+  const { user } = useAuth()
   const [data, setData] = useState(() => getStalePageData('/dashboard')?.data || null)
+
+  const depotLabel = useMemo(() => {
+    const depot = user?.depotId
+    if (!depot) return { name: 'Depot Dashboard', code: null }
+    if (typeof depot === 'object') {
+      return {
+        name: depot.depotName || 'Depot Dashboard',
+        code: depot.depotCode || null,
+      }
+    }
+    return { name: 'Depot Dashboard', code: null }
+  }, [user?.depotId])
 
   const applyData = useCallback((payload) => {
     setData(payload?.data || null)
@@ -67,6 +81,22 @@ function Dashboard() {
 
   return (
     <div className="w-full space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-depot-blue-light/25 bg-gradient-to-r from-depot-navy/5 to-depot-blue-light/10 px-5 py-4 shadow-sm">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-depot-blue-light">
+            Depot
+          </p>
+          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-depot-navy sm:text-2xl">
+            {depotLabel.name}
+          </h1>
+        </div>
+        {depotLabel.code && (
+          <span className="rounded-lg border border-depot-blue-light/40 bg-depot-navy/10 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-depot-navy">
+            {depotLabel.code}
+          </span>
+        )}
+      </div>
+
       {refreshing && (
         <p className="text-right text-xs text-on-surface-variant">Updating live data…</p>
       )}
