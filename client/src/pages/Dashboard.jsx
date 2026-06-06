@@ -1,8 +1,9 @@
 ﻿// Module: Depot Management Dashboard
 
-import { useState, useEffect } from 'react'
+import { useCallback, useState } from 'react'
 import Icon from '../components/Icon'
-import api from '../services/api'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData } from '../services/pagePrefetch'
 
 const STATUS_STYLES = {
   'on-time':   'bg-green-100 text-green-700',
@@ -38,27 +39,15 @@ function ProgressBar({ label, value, total, color }) {
 }
 
 function Dashboard() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(() => getStalePageData('/dashboard')?.data || null)
 
-  const fetchDashboard = async () => {
-    try {
-      const { data: res } = await api.get('/dashboard')
-      setData(res)
-    } catch {
-      setData(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchDashboard()
-    const interval = setInterval(fetchDashboard, 30000)
-    return () => clearInterval(interval)
+  const applyData = useCallback((payload) => {
+    setData(payload?.data || null)
   }, [])
 
-  if (loading) {
+  const { loading, refreshing } = useFastPageLoad('/dashboard', { applyData })
+
+  if (loading && !data) {
     return (
       <div className="flex h-64 items-center justify-center text-on-surface-variant text-sm">
         Loading dashboard...
@@ -78,6 +67,9 @@ function Dashboard() {
 
   return (
     <div className="w-full space-y-5">
+      {refreshing && (
+        <p className="text-right text-xs text-on-surface-variant">Updating live data…</p>
+      )}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Total Active Routes" value={totalRoutes} sub="Active routes" subColor="text-green-600" />
         <StatCard label="Buses Available" value={buses.available} sub={`of ${buses.total} Total`} />
