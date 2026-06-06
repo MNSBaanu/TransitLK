@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
       return null
     }
   })
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')))
 
   const persistUser = (profile) => {
     setUser(profile)
