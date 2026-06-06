@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
 import { homePathForRole, isPathAllowed } from '../config/roles'
+import { primePagesForRole } from '../services/pagePrefetch'
 
 const AuthContext = createContext(null)
 
@@ -36,6 +37,7 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.get('/auth/me')
       persistUser(data)
+      primePagesForRole(data.role)
       return data
     } catch {
       localStorage.removeItem('token')

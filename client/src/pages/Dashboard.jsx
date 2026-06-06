@@ -1,8 +1,10 @@
 ﻿// Module: Depot Management Dashboard
 
-import { useState, useEffect } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Icon from '../components/Icon'
-import api from '../services/api'
+import { useAuth } from '../context/AuthContext'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData } from '../services/pagePrefetch'
 
 const STATUS_STYLES = {
   'on-time':   'bg-green-100 text-green-700',
@@ -38,27 +40,28 @@ function ProgressBar({ label, value, total, color }) {
 }
 
 function Dashboard() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
+  const [data, setData] = useState(() => getStalePageData('/dashboard')?.data || null)
 
-  const fetchDashboard = async () => {
-    try {
-      const { data: res } = await api.get('/dashboard')
-      setData(res)
-    } catch {
-      setData(null)
-    } finally {
-      setLoading(false)
+  const depotLabel = useMemo(() => {
+    const depot = user?.depotId
+    if (!depot) return { name: 'Depot Dashboard', code: null }
+    if (typeof depot === 'object') {
+      return {
+        name: depot.depotName || 'Depot Dashboard',
+        code: depot.depotCode || null,
+      }
     }
-  }
+    return { name: 'Depot Dashboard', code: null }
+  }, [user?.depotId])
 
-  useEffect(() => {
-    fetchDashboard()
-    const interval = setInterval(fetchDashboard, 30000)
-    return () => clearInterval(interval)
+  const applyData = useCallback((payload) => {
+    setData(payload?.data || null)
   }, [])
 
-  if (loading) {
+  const { loading, refreshing } = useFastPageLoad('/dashboard', { applyData })
+
+  if (loading && !data) {
     return (
       <div className="flex h-64 items-center justify-center text-on-surface-variant text-sm">
         Loading dashboard...
@@ -78,6 +81,25 @@ function Dashboard() {
 
   return (
     <div className="w-full space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-depot-blue-light/25 bg-gradient-to-r from-depot-navy/5 to-depot-blue-light/10 px-5 py-4 shadow-sm">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-depot-blue-light">
+            Depot
+          </p>
+          <h1 className="mt-0.5 text-xl font-bold tracking-tight text-depot-navy sm:text-2xl">
+            {depotLabel.name}
+          </h1>
+        </div>
+        {depotLabel.code && (
+          <span className="rounded-lg border border-depot-blue-light/40 bg-depot-navy/10 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-depot-navy">
+            {depotLabel.code}
+          </span>
+        )}
+      </div>
+
+      {refreshing && (
+        <p className="text-right text-xs text-on-surface-variant">Updating live data…</p>
+      )}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Total Active Routes" value={totalRoutes} sub="Active routes" subColor="text-green-600" />
         <StatCard label="Buses Available" value={buses.available} sub={`of ${buses.total} Total`} />

@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import PrefetchNavLink from './PrefetchNavLink'
 import Icon from './Icon'
 import { useAuth } from '../context/AuthContext'
 import TransitLKBrand, { getUserDepotCode } from './TransitLKBrand'
@@ -29,7 +29,7 @@ function Sidebar() {
 
       <nav className="flex-1 space-y-1 px-1">
         {navItems.map((item) => (
-          <NavLink
+          <PrefetchNavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
@@ -42,18 +42,18 @@ function Sidebar() {
           >
             <Icon name={item.icon} size={20} />
             <span>{item.label}</span>
-          </NavLink>
+          </PrefetchNavLink>
         ))}
       </nav>
 
       <div className="mt-auto px-4 pb-2 pt-3">
-        <NavLink
+        <PrefetchNavLink
           to="/schedules"
           className="btn-primary flex w-full items-center justify-center gap-2"
         >
           <Icon name="add" size={20} />
           Assign New Trip
-        </NavLink>
+        </PrefetchNavLink>
       </div>
     </aside>
   )

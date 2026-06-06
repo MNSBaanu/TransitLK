@@ -1,9 +1,11 @@
 // Assigned to: Irfa
 // Module: Fleet & Personnel — Vehicle Management
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
 import { depotLabel, depotIdValue } from '../utils/fleetHelpers'
 
@@ -143,42 +145,27 @@ function BusModal({ bus, onClose, onSave }) {
 }
 
 // ── Fleet Inventory Tab ───────────────────────────────────────────────────────
-function FleetTab({ addTrigger, onAddClose }) {
-  const [buses, setBuses] = useState([])
-  const [loading, setLoading] = useState(true)
+function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [modal, setModal] = useState(null) // null | 'add' | bus object
+  const [modal, setModal] = useState(null)
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
-  const fetchBuses = async () => {
-    setLoading(true)
-    try {
-      const params = {}
-      if (statusFilter) params.status = statusFilter
-      const { data } = await api.get('/buses', { params })
-      setBuses(data)
-    } catch {
-      setBuses([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { fetchBuses() }, [statusFilter])
-
-  const filtered = buses.filter((b) =>
-    b.regNumber?.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = buses.filter((b) => {
+    const matchSearch = b.regNumber?.toLowerCase().includes(search.toLowerCase())
+    const matchStatus = statusFilter ? b.status === statusFilter : true
+    return matchSearch && matchStatus
+  })
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this vehicle?')) return
     await api.delete(`/buses/${id}`)
-    fetchBuses()
+    invalidatePageData('/buses')
+    onRefresh({ keepContent: true, force: true })
   }
 
   const activeBuses = buses.filter((b) => b.status === 'available' || b.status === 'in-service')
@@ -223,7 +210,7 @@ function FleetTab({ addTrigger, onAddClose }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
-            {loading ? (
+            {loading && buses.length === 0 ? (
               <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
               <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
@@ -313,7 +300,12 @@ function FleetTab({ addTrigger, onAddClose }) {
         <BusModal
           bus={modal === 'add' ? null : modal}
           onClose={() => { setModal(null); onAddClose() }}
-          onSave={() => { setModal(null); onAddClose(); fetchBuses() }}
+          onSave={() => {
+            setModal(null)
+            onAddClose()
+            invalidatePageData('/buses')
+            onRefresh({ keepContent: true, force: true })
+          }}
         />
       )}
 
@@ -440,9 +432,7 @@ function getLicenseStatus(expiry) {
   return { label: 'Valid', style: 'bg-green-100 text-green-700' }
 }
 
-function DriversTab({ addTrigger, onAddClose }) {
-  const [drivers, setDrivers] = useState([])
-  const [loading, setLoading] = useState(true)
+function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [licenseFilter, setLicenseFilter] = useState('')
@@ -451,20 +441,6 @@ function DriversTab({ addTrigger, onAddClose }) {
   const [viewDriver, setViewDriver] = useState(null)
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
-
-  const fetchDrivers = async () => {
-    setLoading(true)
-    try {
-      const { data } = await api.get('/drivers')
-      setDrivers(data)
-    } catch {
-      setDrivers([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { fetchDrivers() }, [])
 
   const filtered = drivers.filter((d) => {
     const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -486,7 +462,8 @@ function DriversTab({ addTrigger, onAddClose }) {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this driver?')) return
     await api.delete(`/drivers/${id}`)
-    fetchDrivers()
+    invalidatePageData('/buses')
+    onRefresh({ keepContent: true, force: true })
   }
 
   // derive a short driver ID from mongo _id
@@ -543,7 +520,7 @@ function DriversTab({ addTrigger, onAddClose }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
-            {loading ? (
+            {loading && drivers.length === 0 ? (
               <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
               <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
@@ -702,7 +679,12 @@ function DriversTab({ addTrigger, onAddClose }) {
         <DriverModal
           driver={modal === 'add' ? null : modal}
           onClose={() => { setModal(null); onAddClose() }}
-          onSave={() => { setModal(null); onAddClose(); fetchDrivers() }}
+          onSave={() => {
+            setModal(null)
+            onAddClose()
+            invalidatePageData('/buses')
+            onRefresh({ keepContent: true, force: true })
+          }}
         />
       )}
     </>
@@ -711,9 +693,19 @@ function DriversTab({ addTrigger, onAddClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Buses() {
+  const stale = getStalePageData('/buses')
+  const [buses, setBuses] = useState(() => stale?.buses || [])
+  const [drivers, setDrivers] = useState(() => stale?.drivers || [])
   const [tab, setTab] = useState('fleet')
   const [showAddBus, setShowAddBus] = useState(false)
   const [showAddDriver, setShowAddDriver] = useState(false)
+
+  const applyData = useCallback((payload) => {
+    setBuses(payload?.buses || [])
+    setDrivers(payload?.drivers || [])
+  }, [])
+
+  const { loading, reload } = useFastPageLoad('/buses', { applyData })
 
   return (
     <div className="w-full">
@@ -752,7 +744,24 @@ function Buses() {
 
       {/* Tab Content */}
       <div className="rounded-xl border border-outline-variant bg-white p-5 shadow-sm">
-        {tab === 'fleet' ? <FleetTab addTrigger={showAddBus} onAddClose={() => setShowAddBus(false)} /> : <DriversTab addTrigger={showAddDriver} onAddClose={() => setShowAddDriver(false)} />}
+        <div className={tab === 'fleet' ? '' : 'hidden'}>
+          <FleetTab
+            buses={buses}
+            loading={loading}
+            onRefresh={reload}
+            addTrigger={showAddBus}
+            onAddClose={() => setShowAddBus(false)}
+          />
+        </div>
+        <div className={tab === 'drivers' ? '' : 'hidden'}>
+          <DriversTab
+            drivers={drivers}
+            loading={loading}
+            onRefresh={reload}
+            addTrigger={showAddDriver}
+            onAddClose={() => setShowAddDriver(false)}
+          />
+        </div>
       </div>
 
     </div>
