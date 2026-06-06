@@ -199,8 +199,8 @@ function FleetTab({ addTrigger, onAddClose }) {
           className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
           <option value="">All Statuses</option>
           <option value="available">Available</option>
-          <option value="in service">In Service</option>
-          <option value="in maintenance">In Maintenance</option>
+          <option value="in-service">In Service</option>
+          <option value="maintenance">Maintenance</option>
           <option value="retired">Retired</option>
         </select>
         <span className="ml-auto text-sm text-on-surface-variant">
