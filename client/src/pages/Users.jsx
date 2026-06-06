@@ -4,7 +4,6 @@ import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import {
-  ModuleAlert,
   ModuleHeader,
   ModulePrimaryButton,
   ModuleStats,
@@ -374,16 +373,6 @@ function Users() {
         }
       />
 
-      <ModuleAlert
-        variant="warning"
-        title={isSuperadmin ? 'Administrator management' : 'Driver accounts are not managed here'}
-        body={
-          isSuperadmin
-            ? 'Use this workspace to assign administrators to depots and maintain account access. Driver sign-in remains under Fleet & Drivers.'
-            : 'Operational drivers and their login credentials are maintained under Fleet & Drivers.'
-        }
-      />
-
       <ModuleStats
         items={[
           { label: 'Workspace accounts', value: stats.total, icon: 'group' },
@@ -470,17 +459,22 @@ function Users() {
                       <button
                         type="button"
                         onClick={() => setModal(account)}
-                        className="rounded-lg px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-slate-100"
+                        className="rounded-lg p-1.5 text-on-surface-variant hover:bg-slate-100"
+                        title={account.accountType === 'admin' && !isSuperadmin ? 'View' : 'Edit'}
                       >
-                        {account.accountType === 'admin' && !isSuperadmin ? 'View' : 'Edit'}
+                        <Icon
+                          name={account.accountType === 'admin' && !isSuperadmin ? 'visibility' : 'edit'}
+                          size={16}
+                        />
                       </button>
                       {(account.accountType === 'user' || isSuperadmin) && (
                         <button
                           type="button"
                           onClick={() => handleDelete(account)}
-                          className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                          title="Remove"
                         >
-                          Remove
+                          <Icon name="delete" size={16} />
                         </button>
                       )}
                     </div>
