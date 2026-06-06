@@ -5,6 +5,7 @@ import {
   formatServiceType,
   isBusAssignable,
   isDriverAssignable,
+  isWithinWorkingHours,
 } from '../../utils/fleetHelpers'
 
 const selectClass =
@@ -54,8 +55,8 @@ function busRequirementItems(bus, serviceType, minCapacity) {
       ok: bus.status === 'available',
     },
     {
-      label: `Assigned service type: ${formatServiceType(serviceType)} (current bus: ${formatServiceType(bus.serviceType)})`,
-      ok: true,
+      label: `Service type: ${formatServiceType(serviceType)} (bus: ${formatServiceType(bus.serviceType)})`,
+      ok: !serviceType || !bus.serviceType || bus.serviceType === serviceType,
     },
     {
       label: `Minimum capacity: ${minCapacity} seats (bus: ${bus.capacity})`,
@@ -66,17 +67,21 @@ function busRequirementItems(bus, serviceType, minCapacity) {
 
 function driverRequirementItems(driver) {
   if (!driver) {
-    return [{ label: 'Status: available', ok: null }]
+    return [
+      { label: 'Status: available', ok: null },
+      { label: 'Within working hours (now)', ok: null },
+    ]
   }
   const statusOk = !driver.status || driver.status === 'available'
+  const hoursOk = isWithinWorkingHours(driver.workingHours)
   return [
     {
       label: `Status: available (current: ${formatServiceType(driver.status || 'available')})`,
       ok: statusOk,
     },
     {
-      label: `Working hours: ${driver.workingHours || 'not set'} (checked when scheduling trips)`,
-      ok: null,
+      label: `Within working hours now (${driver.workingHours || 'not set'})`,
+      ok: statusOk && hoursOk,
     },
   ]
 }
@@ -145,15 +150,20 @@ function RouteFleetAssignment({
                 {b.regNumber} · {b.capacity} seats · {formatServiceType(b.serviceType)}
               </option>
             ))}
+            {busEligible.length === 0 && !currentBusInList && (
+              <option disabled value="__no_bus__">
+                No bus is available
+              </option>
+            )}
           </select>
+          {busEligible.length === 0 && !currentBusInList && (
+            <p className="mt-1 text-xs text-amber-800">
+              No {formatServiceType(serviceType)} bus is available right now.
+            </p>
+          )}
           {selectedBus && !isBusAssignable(selectedBus, serviceType, minCapacity) && (
             <p className="mt-1 text-xs text-red-600">
               {busUnassignableReason(selectedBus, serviceType, minCapacity)}
-            </p>
-          )}
-          {selectedBus && isBusAssignable(selectedBus, serviceType, minCapacity) && (
-            <p className="mt-1 text-xs text-on-surface-variant">
-              Saving will align this bus to the route service type.
             </p>
           )}
         </label>
@@ -176,7 +186,15 @@ function RouteFleetAssignment({
                 {d.name} · {driverAvailabilityLabel(d)}
               </option>
             ))}
+            {driverEligible.length === 0 && !currentDriverInList && (
+              <option disabled value="__no_driver__">
+                No driver is available
+              </option>
+            )}
           </select>
+          {driverEligible.length === 0 && !currentDriverInList && (
+            <p className="mt-1 text-xs text-amber-800">No driver is available right now.</p>
+          )}
           {selectedDriver && !isDriverAssignable(selectedDriver) && (
             <p className="mt-1 text-xs text-red-600">{driverAvailabilityLabel(selectedDriver)}</p>
           )}
