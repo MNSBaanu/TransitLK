@@ -1,63 +1,51 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mxfile host="app.diagrams.net" agent="TransitLK" version="22.1.0" type="device">
+<mxfile host="Electron" agent="TransitLK">
   <diagram id="04-driver-status" name="04-driver-status">
-    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="480" pageHeight="420" math="0" shadow="0">
+    <mxGraphModel dx="715" dy="536" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="480" pageHeight="420" math="0" shadow="0">
       <root>
-        <mxCell id="0"/>
-        <mxCell id="1" parent="0"/>
-        <mxCell id="2" value="State: Driver Status — Vertical Flow (drivers)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=16;" vertex="1" parent="1">
-          <mxGeometry x="120" y="20" width="280" height="36" as="geometry"/>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=1;fontSize=16;" value="State: Driver Status — Vertical Flow (drivers)" vertex="1">
+          <mxGeometry height="36" width="280" x="120" y="20" as="geometry" />
         </mxCell>
-        <mxCell id="3" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
-          <mxGeometry x="283" y="72" width="24" height="24" as="geometry"/>
+        <mxCell id="3" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;" value="" vertex="1">
+          <mxGeometry height="24" width="24" x="283" y="72" as="geometry" />
         </mxCell>
-        <mxCell id="4" value="available" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=0;align=center;" vertex="1" parent="1">
-          <mxGeometry x="220" y="128" width="150" height="48" as="geometry"/>
+        <mxCell id="4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=0;align=center;" value="available" vertex="1">
+          <mxGeometry height="48" width="150" x="220" y="128" as="geometry" />
         </mxCell>
-        <mxCell id="5" value="on-leave" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#82b366;fontStyle=0;align=center;" vertex="1" parent="1">
-          <mxGeometry x="220" y="228" width="150" height="48" as="geometry"/>
+        <mxCell id="5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#82b366;fontStyle=0;align=center;" value="on-leave" vertex="1">
+          <mxGeometry height="48" width="150" x="220" y="228" as="geometry" />
         </mxCell>
-        <mxCell id="6" value="off-duty" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#82b366;fontStyle=0;align=center;" vertex="1" parent="1">
-          <mxGeometry x="220" y="328" width="150" height="48" as="geometry"/>
+        <mxCell id="6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#82b366;fontStyle=0;align=center;" value="off-duty" vertex="1">
+          <mxGeometry height="48" width="150" x="220" y="328" as="geometry" />
         </mxCell>
-        <mxCell id="7" value="POST /api/drivers" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" edge="1" parent="1" source="3" target="4">
+        <mxCell id="7" edge="1" parent="1" source="3" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" target="4" value="POST /api/drivers">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="295" y="96" as="sourcePoint"/>
-            <mxPoint x="295" y="128" as="targetPoint"/>
+            <mxPoint x="295" y="96" as="sourcePoint" />
+            <mxPoint x="295" y="128" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="8" value="PUT status" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" edge="1" parent="1" source="4" target="5">
+        <mxCell id="8" edge="1" parent="1" source="4" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" target="5" value="PUT status">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="295" y="176" as="sourcePoint"/>
-            <mxPoint x="295" y="228" as="targetPoint"/>
+            <mxPoint x="295" y="176" as="sourcePoint" />
+            <mxPoint x="295" y="228" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="9" value="PUT status" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" edge="1" parent="1" source="5" target="4">
+        <mxCell id="9" edge="1" parent="1" source="5" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" target="4" value="PUT status">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="295" y="276" as="sourcePoint"/>
-            <mxPoint x="295" y="128" as="targetPoint"/>
+            <mxPoint x="295" y="276" as="sourcePoint" />
+            <mxPoint x="295" y="128" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="10" value="PUT status" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" edge="1" parent="1" source="4" target="6">
+        <mxCell id="12" edge="1" parent="1" source="5" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#666666;fontSize=10;edgeStyle=orthogonalEdgeStyle;curved=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="6" value="PUT status">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="295" y="176" as="sourcePoint"/>
-            <mxPoint x="295" y="328" as="targetPoint"/>
+            <Array as="points">
+              <mxPoint x="295" y="290" />
+              <mxPoint x="295" y="290" />
+            </Array>
+            <mxPoint x="370" y="276" as="sourcePoint" />
+            <mxPoint x="220" y="328" as="targetPoint" />
           </mxGeometry>
-        </mxCell>
-        <mxCell id="11" value="PUT status" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#333333;fontSize=10;" edge="1" parent="1" source="6" target="4">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="295" y="376" as="sourcePoint"/>
-            <mxPoint x="295" y="128" as="targetPoint"/>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="12" value="PUT status" style="endArrow=blockThin;html=1;rounded=0;strokeColor=#666666;fontSize=10;dashed=1;dashPattern=6 4;edgeStyle=orthogonalEdgeStyle;curved=1;" edge="1" parent="1" source="5" target="6">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="370" y="276" as="sourcePoint"/>
-            <mxPoint x="220" y="328" as="targetPoint"/>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="14" value="Manual updates via Fleet &amp; Drivers UI. Schedule assignment requires available." style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#fff2cc;strokeColor=#d6b656;size=12;align=left;spacingLeft=8;" vertex="1" parent="1">
-          <mxGeometry x="30" y="370" width="400" height="36" as="geometry"/>
         </mxCell>
       </root>
     </mxGraphModel>

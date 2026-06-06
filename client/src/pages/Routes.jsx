@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
 import {
   getCachedPageData,
+  getStalePageData,
   invalidatePageData,
   loadPageData,
   prefetchPageData,
@@ -94,7 +95,9 @@ function routeFromApi(route) {
 }
 
 function RoutesPage() {
-  const initialData = getCachedPageData('/routes', DEFAULT_ROUTE_OPTIONS)
+  const initialData =
+    getCachedPageData('/routes', DEFAULT_ROUTE_OPTIONS) ||
+    getStalePageData('/routes', DEFAULT_ROUTE_OPTIONS)
   const [pageView, setPageView] = useState('list')
   const [searchInput, setSearchInput] = useState(() => initialData?.search || '')
   const [search, setSearch] = useState(() => initialData?.search || '')

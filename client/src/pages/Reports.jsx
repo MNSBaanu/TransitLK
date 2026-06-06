@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import api from '../services/api'
-import { getCachedPageData, loadPageData } from '../services/pagePrefetch'
+import { getCachedPageData, getStalePageData, loadPageData } from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
@@ -357,11 +357,17 @@ function Reports() {
   const printRef = useRef(null)
   const initialPeriod = 'monthly'
   const initialRange = applyPeriodRange(initialPeriod)
-  const initialData = getCachedPageData('/reports', {
-    period: initialPeriod,
-    fromDate: initialRange.from,
-    toDate: initialRange.to,
-  })
+  const initialData =
+    getCachedPageData('/reports', {
+      period: initialPeriod,
+      fromDate: initialRange.from,
+      toDate: initialRange.to,
+    }) ||
+    getStalePageData('/reports', {
+      period: initialPeriod,
+      fromDate: initialRange.from,
+      toDate: initialRange.to,
+    })
   const [period, setPeriod] = useState(initialPeriod)
   const [fromDate, setFromDate] = useState(initialRange.from)
   const [toDate, setToDate] = useState(initialRange.to)
