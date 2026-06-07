@@ -47,16 +47,8 @@ router.post(
   authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
   submitSchedule
 )
-router.post(
-  '/:id/approve',
-  authorize(ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
-  approveSchedule
-)
-router.post(
-  '/:id/reject',
-  authorize(ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
-  rejectSchedule
-)
+router.post('/:id/approve', authorize(ROLES.DEPOT_MANAGER), approveSchedule)
+router.post('/:id/reject', authorize(ROLES.DEPOT_MANAGER), rejectSchedule)
 
 router
   .route('/:id')
