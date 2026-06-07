@@ -63,6 +63,16 @@ export const getAllBuses = async (req, res) => {
           status: assignedRoute.status,
         }
       }
+      // Calculate nextMaintenanceDate if not set (4 weeks from lastMaintenanceDate)
+      if (bus.lastMaintenanceDate && !bus.nextMaintenanceDate) {
+        const nextDate = new Date(bus.lastMaintenanceDate)
+        nextDate.setDate(nextDate.getDate() + 28) // 4 weeks = 28 days
+        doc.nextMaintenanceDate = nextDate
+        // Update the bus document with the calculated date
+        Bus.findByIdAndUpdate(bus._id, { nextMaintenanceDate: nextDate }).catch(() => {})
+      } else {
+        doc.nextMaintenanceDate = bus.nextMaintenanceDate
+      }
       return doc
     })
 

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Icon from '../Icon'
 import {
   buildTimetableFeedbackCards,
+  formatRouteEndpointsLabel,
   formatTimeRange,
-  formatRouteStopsLabel,
   getTimetableDates,
   getTimetableRowValidationIssues,
   getTimetableRowStatus,
@@ -262,12 +262,7 @@ function ScheduleTimetableDrawer({
                             <Icon name="warning" size={16} className="text-amber-600" />
                             Incomplete
                           </p>
-                          <p className="mt-1 font-semibold text-neutral-900">{card.routeName}</p>
-                          {card.stopsLabel ? (
-                            <p className="mt-0.5 text-xs text-on-surface-variant">
-                              Stops: {card.stopsLabel}
-                            </p>
-                          ) : null}
+                          <p className="mt-1 font-semibold text-neutral-900">{card.routeLabel}</p>
                         </div>
                         <button
                           type="button"
@@ -296,10 +291,11 @@ function ScheduleTimetableDrawer({
                 <div className="rounded-xl border border-emerald-300/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-lg">
                   <p className="flex items-center gap-2 font-semibold">
                     <Icon name="check_circle" size={18} />
-                    Ready to create
+                    Ready to send for approval
                   </p>
                   <p className="mt-2 leading-relaxed">
-                    All included routes have a bus and driver assigned with no overlaps detected.
+                    Trips will appear on the timetable as pending approval. Drivers are notified only
+                    after the depot manager approves.
                   </p>
                 </div>
               )}
@@ -377,7 +373,7 @@ function ScheduleTimetableDrawer({
                 }
                 className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving ? 'Creating...' : 'Create'}
+                {saving ? 'Sending...' : 'Send for approval'}
               </button>
             </div>
           </div>
@@ -505,7 +501,6 @@ function ScheduleTimetableDrawer({
                           rowStatus === 'conflict' ? 'conflict' : 'incomplete'
                         )
                       : null
-                    const stopsLabel = formatRouteStopsLabel(row)
                     const focusField =
                       missingBus ? 'bus' : missingDriver ? 'driver' : timeErr ? 'departure' : 'bus'
                     return (
@@ -532,15 +527,11 @@ function ScheduleTimetableDrawer({
                           />
                         </td>
                         <td className="py-3 pr-3 align-top">
-                          <p className="font-semibold text-neutral-900">{row.routeName}</p>
-                          <p className="text-xs text-on-surface-variant">
-                            {row.startPoint} → {row.endPoint}
-                            {row.distance != null ? ` · ${row.distance} km` : ''}
+                          <p className="font-semibold text-neutral-900">
+                            {formatRouteEndpointsLabel(row)}
                           </p>
-                          {stopsLabel ? (
-                            <p className="mt-0.5 text-xs text-on-surface-variant">
-                              Stops: {stopsLabel}
-                            </p>
+                          {row.distance != null ? (
+                            <p className="text-xs text-on-surface-variant">{row.distance} km</p>
                           ) : null}
                         </td>
                         <td className="py-3 pr-2 align-top">
