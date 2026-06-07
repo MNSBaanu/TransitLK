@@ -497,6 +497,9 @@ export const createSchedule = async (req, res) => {
       return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
     }
 
+    const allowedCreateStatuses = ['draft', 'pending']
+    const nextStatus = allowedCreateStatuses.includes(status) ? status : 'draft'
+
     const schedule = await Schedule.create({
       routeId,
       busId,
@@ -504,7 +507,8 @@ export const createSchedule = async (req, res) => {
       departureTime,
       arrivalTime,
       tripDate: normalizedTripDate,
-      status: status || 'draft',
+      status: nextStatus,
+      submittedAt: nextStatus === 'pending' ? new Date() : undefined,
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
     })

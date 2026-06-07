@@ -384,20 +384,31 @@ function SchedulesPage() {
     setSelected(null)
   }
 
-  const selectTrip = (trip) => {
+  const syncTripForm = (trip) => ({
+    departureTime: trip.departureTime,
+    arrivalTime: trip.arrivalTime,
+    busId: trip.busId?._id || trip.busId || '',
+    driverId: trip.driverId?._id || trip.driverId || '',
+    status: trip.status || 'scheduled',
+    reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
+    notes: trip.adjustmentNotes || '',
+  })
+
+  const closeScheduleModals = ({ clearSelection = false } = {}) => {
+    setShowAdjustDrawer(false)
+    setShowConflictPanel(false)
+    setShowTimetable(false)
+    setMaintenanceConfirm(false)
+    maintenanceOfflineTripRef.current = null
+    if (clearSelection) setSelected(null)
+  }
+
+  const selectTrip = (trip, { openDrawer = true } = {}) => {
     setSelected(trip)
     setShowConflictPanel(false)
     if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
-    setAdjustForm({
-      departureTime: trip.departureTime,
-      arrivalTime: trip.arrivalTime,
-      busId: trip.busId?._id || trip.busId || '',
-      driverId: trip.driverId?._id || trip.driverId || '',
-      status: trip.status || 'scheduled',
-      reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
-      notes: trip.adjustmentNotes || '',
-    })
-    setShowAdjustDrawer(true)
+    setAdjustForm(syncTripForm(trip))
+    if (openDrawer) setShowAdjustDrawer(true)
   }
 
   const openTimetableDrawer = () => {
@@ -479,11 +490,7 @@ function SchedulesPage() {
   }
 
   const closeMaintenanceOfflineUi = useCallback(() => {
-    maintenanceOfflineTripRef.current = null
-    setMaintenanceConfirm(false)
-    setShowAdjustDrawer(false)
-    setShowConflictPanel(false)
-    setSelected(null)
+    closeScheduleModals({ clearSelection: true })
     setAdjustForm({
       departureTime: '08:00',
       arrivalTime: '12:00',
@@ -597,7 +604,7 @@ function SchedulesPage() {
           driverId: row.driverId,
           departureTime: row.departureTime,
           arrivalTime: row.arrivalTime,
-          status: 'draft',
+          status: 'pending',
           adjustmentReason: emergencyMode ? 'emergency' : 'normal',
         }
         for (const day of dates) {
@@ -613,13 +620,13 @@ function SchedulesPage() {
       }
 
       if (created > 0) {
-        setShowTimetable(false)
+        closeScheduleModals()
         setViewMode(timetablePeriod)
         setViewDate(timetableAnchor)
         invalidateRelatedPages()
         showToast(
-          `${timetablePeriod.charAt(0).toUpperCase() + timetablePeriod.slice(1)} timetable: ${created} trip(s) created${
-            skipped.length ? `, ${skipped.length} skipped` : ''
+          `${created} trip(s) sent for depot manager approval${
+            skipped.length ? ` (${skipped.length} skipped)` : ''
           }`
         )
         await loadData({
@@ -654,7 +661,8 @@ function SchedulesPage() {
       await api.post(`/schedules/${selected._id}/submit`)
       invalidateRelatedPages()
       showToast('Submitted for approval')
-      loadData({ force: true, keepContent: true })
+      closeScheduleModals()
+      await loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Submit failed')
     } finally {
@@ -726,8 +734,7 @@ function SchedulesPage() {
       )
       invalidateRelatedPages()
       showToast('Trip cancelled')
-      setSelected(null)
-      setShowAdjustDrawer(false)
+      closeScheduleModals({ clearSelection: true })
       await loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to cancel trip')
@@ -765,11 +772,22 @@ function SchedulesPage() {
         tripDate: selected.tripDate,
         routeId: selected.routeId?._id || selected.routeId,
       })
-      setSelected(data)
-      selectTrip(data)
+      setSchedules((prev) =>
+        prev.map((s) => (String(s._id) === String(data._id) ? data : s))
+      )
+      const terminal = ['completed', 'cancelled'].includes(data.status)
+      if (terminal) {
+        closeScheduleModals({ clearSelection: true })
+        showToast(
+          data.status === 'completed' ? 'Trip marked completed' : 'Schedule updated'
+        )
+      } else {
+        selectTrip(data, { openDrawer: false })
+        closeScheduleModals()
+        showToast('Schedule updated')
+      }
       invalidateRelatedPages()
-      showToast('Schedule updated')
-      loadData({ force: true, keepContent: true })
+      await loadData({ force: true, keepContent: true })
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to update schedule'
       const conflictsData = err.response?.data?.conflicts
