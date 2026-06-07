@@ -187,6 +187,34 @@ function FleetTab({ addTrigger, onAddClose }) {
 
   return (
     <>
+      {/* Summary Cards */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <p className="text-xs text-on-surface-variant">Active Fleet Health</p>
+          <p className="mt-1 text-3xl font-bold text-neutral-900">{healthPct}%</p>
+          <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container">
+            <div className="h-1.5 rounded-full bg-blue-600 transition-all" style={{ width: `${healthPct}%` }} />
+          </div>
+        </div>
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <p className="text-xs text-on-surface-variant">Maintenance Pending</p>
+          <p className="mt-1 text-3xl font-bold text-red-600">{maintenanceBuses.length}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">Vehicles offline</p>
+          <div className="mt-2 flex gap-1">
+            {maintenanceBuses.slice(0, 4).map((b) => (
+              <span key={b._id} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-600">
+                {b.regNumber?.split('-')[0]}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
+          <p className="text-xs text-blue-200">Total Fleet</p>
+          <p className="mt-1 text-3xl font-bold">{buses.length}</p>
+          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
@@ -280,34 +308,6 @@ function FleetTab({ addTrigger, onAddClose }) {
           </div>
         </div>
       )}
-
-      {/* Summary Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Active Fleet Health</p>
-          <p className="mt-1 text-3xl font-bold text-neutral-900">{healthPct}%</p>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container">
-            <div className="h-1.5 rounded-full bg-blue-600 transition-all" style={{ width: `${healthPct}%` }} />
-          </div>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Maintenance Pending</p>
-          <p className="mt-1 text-3xl font-bold text-red-600">{maintenanceBuses.length}</p>
-          <p className="mt-1 text-xs text-on-surface-variant">Vehicles offline</p>
-          <div className="mt-2 flex gap-1">
-            {maintenanceBuses.slice(0, 4).map((b) => (
-              <span key={b._id} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-600">
-                {b.regNumber?.split('-')[0]}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
-          <p className="text-xs text-blue-200">Total Fleet</p>
-          <p className="mt-1 text-3xl font-bold">{buses.length}</p>
-          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
-        </div>
-      </div>
 
       {modal && (
         <BusModal
@@ -494,6 +494,38 @@ function DriversTab({ addTrigger, onAddClose }) {
 
   return (
     <>
+      {/* Summary Cards */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total Drivers</p>
+            <Icon name="group" size={20} className="text-outline" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-neutral-900">{drivers.length}</p>
+          <p className="mt-1 text-xs text-green-600">Registered in system</p>
+        </div>
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Duty</p>
+            <Icon name="directions_run" size={20} className="text-outline" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-neutral-900">
+            {drivers.filter((d) => d.workingHours).length}
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">With assigned working hours</p>
+        </div>
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Depot Assigned</p>
+            <Icon name="warehouse" size={20} className="text-outline" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-neutral-900">
+            {drivers.length}
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">Total registered</p>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative w-64">
@@ -617,38 +649,6 @@ function DriversTab({ addTrigger, onAddClose }) {
             className="rounded-lg p-1.5 hover:bg-surface-container disabled:opacity-40">
             <Icon name="chevron_right" size={18} />
           </button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total Drivers</p>
-            <Icon name="group" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">{drivers.length}</p>
-          <p className="mt-1 text-xs text-green-600">Registered in system</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Duty</p>
-            <Icon name="directions_run" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.filter((d) => d.workingHours).length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">With assigned working hours</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Depot Assigned</p>
-            <Icon name="warehouse" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">Total registered</p>
         </div>
       </div>
 
