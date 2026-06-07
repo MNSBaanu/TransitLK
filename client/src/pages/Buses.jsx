@@ -10,7 +10,7 @@ import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import ConfirmDialog from '../components/ConfirmDialog'
 import FieldError from '../components/FieldError'
 import ThemeTimeInput from '../components/ThemeTimeInput'
-import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
+import { ModuleHeader, ModulePrimaryButton, ModuleStats } from '../components/layout/ModuleLayout'
 import {
   depotLabel,
   depotIdValue,
@@ -198,10 +198,11 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   }
 
   const activeBuses = buses.filter((b) => b.status === 'available' || b.status === 'in-service')
+  const inServiceBuses = buses.filter((b) => b.status === 'in-service')
+  const availableBuses = buses.filter((b) => b.status === 'available')
   const maintenanceBuses = buses.filter((b) => b.status === 'maintenance')
   const healthPct = buses.length ? Math.round((activeBuses.length / buses.length) * 100) : 0
 
-  // Calculate buses nearing maintenance (within 1 week of nextMaintenanceDate)
   const today = new Date()
   const oneWeekFromNow = new Date(today)
   oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
@@ -211,33 +212,49 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
     return nextDate <= oneWeekFromNow && nextDate >= today
   })
 
+  const fleetStatItems = [
+    {
+      label: 'Total fleet',
+      value: buses.length,
+      hint: `${inServiceBuses.length} in service · ${availableBuses.length} available`,
+      icon: 'directions_bus',
+    },
+    {
+      label: 'Fleet health',
+      value: `${healthPct}%`,
+      hint: healthPct >= 75 ? 'Operational readiness' : 'Review offline vehicles',
+      hintClass: healthPct >= 75 ? 'text-depot-blue-light' : 'text-red-600',
+      icon: 'check_circle',
+    },
+    {
+      label: 'In maintenance',
+      value: maintenanceBuses.length,
+      hint: maintenanceBuses.length
+        ? maintenanceBuses.slice(0, 3).map((b) => b.regNumber).join(' · ')
+        : 'No vehicles offline',
+      hintClass: maintenanceBuses.length ? 'text-red-600' : undefined,
+      icon: 'build',
+    },
+    {
+      label: 'Service due soon',
+      value: busesNeedingMaintenance.length,
+      hint: busesNeedingMaintenance.length ? 'Within the next 7 days' : 'No upcoming service',
+      hintClass: busesNeedingMaintenance.length ? 'text-amber-700' : undefined,
+      icon: 'schedule',
+    },
+  ]
+
   return (
     <>
-      {/* Summary Cards */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Active Fleet Health</p>
-          <p className="mt-1 text-3xl font-bold text-neutral-900">{healthPct}%</p>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container">
-            <div className="h-1.5 rounded-full bg-blue-600 transition-all" style={{ width: `${healthPct}%` }} />
-          </div>
+      <ModuleStats items={fleetStatItems} />
+
+      <div className="mb-4 rounded-xl border border-outline-variant bg-white px-4 py-3 shadow-sm">
+        <div className="mb-1.5 flex items-center justify-between text-xs">
+          <span className="font-medium text-fleet-ink">Operational readiness</span>
+          <span className="font-semibold text-depot-navy">{healthPct}%</span>
         </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Maintenance Pending</p>
-          <p className="mt-1 text-3xl font-bold text-red-600">{maintenanceBuses.length}</p>
-          <p className="mt-1 text-xs text-on-surface-variant">Vehicles offline</p>
-          <div className="mt-2 flex gap-1">
-            {maintenanceBuses.slice(0, 4).map((b) => (
-              <span key={b._id} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-600">
-                {b.regNumber?.split('-')[0]}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
-          <p className="text-xs text-blue-200">Total Fleet</p>
-          <p className="mt-1 text-3xl font-bold">{buses.length}</p>
-          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
+        <div className="h-2.5 w-full rounded-full bg-fleet-muted">
+          <div className="h-2.5 rounded-full bg-depot-navy transition-all" style={{ width: `${healthPct}%` }} />
         </div>
       </div>
 
@@ -687,39 +704,45 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   // derive a short driver ID from mongo _id
   const driverId = (d) => `#DR-${d._id.slice(-4).toUpperCase()}`
 
+  const availableDrivers = drivers.filter((d) => d.status === 'available')
+  const onLeaveDrivers = drivers.filter((d) => d.status === 'on-leave')
+  const offDutyDrivers = drivers.filter((d) => d.status === 'off-duty')
+  const expiringLicenses = drivers.filter(
+    (d) => getLicenseStatus(d.licenseExpiry)?.label === 'Expiring Soon'
+  ).length
+
+  const driverStatItems = [
+    {
+      label: 'Total drivers',
+      value: drivers.length,
+      hint: 'Registered in depot roster',
+      icon: 'group',
+    },
+    {
+      label: 'Available',
+      value: availableDrivers.length,
+      hint: `${onLeaveDrivers.length} on leave · ${offDutyDrivers.length} off duty`,
+      hintClass: 'text-depot-blue-light',
+      icon: 'directions_run',
+    },
+    {
+      label: 'With shifts',
+      value: drivers.filter((d) => d.workingHours).length,
+      hint: 'Assigned working hours',
+      icon: 'schedule',
+    },
+    {
+      label: 'Licenses expiring',
+      value: expiringLicenses,
+      hint: expiringLicenses ? 'Renew within 30 days' : 'No licenses expiring soon',
+      hintClass: expiringLicenses ? 'text-amber-700' : undefined,
+      icon: 'report_problem',
+    },
+  ]
+
   return (
     <>
-      {/* Summary Cards */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total Drivers</p>
-            <Icon name="group" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">{drivers.length}</p>
-          <p className="mt-1 text-xs text-green-600">Registered in system</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Duty</p>
-            <Icon name="directions_run" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.filter((d) => d.workingHours).length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">With assigned working hours</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Depot Assigned</p>
-            <Icon name="warehouse" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">Total registered</p>
-        </div>
-      </div>
+      <ModuleStats items={driverStatItems} />
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
