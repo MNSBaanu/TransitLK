@@ -1,8 +1,10 @@
 import Icon from '../Icon'
 import {
+  formatScheduleStatusLabel,
   formatTimeRange,
   getMonthDayDates,
   scheduleCode,
+  scheduleStatusClass,
   toDateInputValue,
   tripDateKey,
 } from '../../utils/scheduleHelpers'
@@ -62,7 +64,7 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
                     <button
                       type="button"
                       onClick={() => onSelectTrip(trip)}
-                      className={`w-full rounded px-1 py-0.5 text-left text-[10px] leading-tight ${
+                      className={`w-full rounded px-1.5 py-1 text-left text-xs leading-snug ${
                         selectedId === trip._id
                           ? 'bg-depot-blue-light text-white'
                           : 'bg-surface-container hover:bg-depot-navy/10'
@@ -73,6 +75,15 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
                       </span>
                       <span className="block truncate opacity-90">
                         {trip.routeId?.routeName || scheduleCode(trip)}
+                      </span>
+                      <span
+                        className={`mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          selectedId === trip._id
+                            ? 'bg-white/20 text-white'
+                            : scheduleStatusClass(trip.status)
+                        }`}
+                      >
+                        {formatScheduleStatusLabel(trip.status)}
                       </span>
                     </button>
                   </li>

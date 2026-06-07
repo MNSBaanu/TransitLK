@@ -667,7 +667,7 @@ function SchedulesPage() {
     try {
       await api.post(`/schedules/${id}/approve`)
       invalidateRelatedPages()
-      showToast('Schedule approved')
+      showToast('Schedule approved — driver can view the trip in My trips')
       loadData({ force: true, keepContent: true })
     } catch (err) {
       const msg = err.response?.data?.message || 'Approve failed'
