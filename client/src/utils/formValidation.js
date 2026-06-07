@@ -111,7 +111,7 @@ export function validateBusForm(form) {
   return errors
 }
 
-export function validateDriverForm(form, { isEdit = false } = {}) {
+export function validateDriverForm(form, { isEdit = false, resetPassword = false } = {}) {
   const errors = {}
   const nameErr = requiredText(form.name, 'Full name', 2)
   if (nameErr) errors.name = nameErr
@@ -127,17 +127,22 @@ export function validateDriverForm(form, { isEdit = false } = {}) {
 
   const email = trim(form.email)
   const password = form.password || ''
-  const wantsLogin = Boolean(email || password)
 
-  if (wantsLogin) {
-    if (!email) errors.email = 'Email is required when setting up driver login'
-    else if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address'
+  if (isEdit) {
+    if (email && !EMAIL_RE.test(email)) errors.email = 'Enter a valid email address'
+    if (resetPassword) {
+      const passErr = passwordField(password, { required: true })
+      if (passErr) errors.password = passErr
+    }
+  } else {
+    const wantsLogin = Boolean(email || password)
+    if (wantsLogin) {
+      if (!email) errors.email = 'Email is required when setting up driver login'
+      else if (!EMAIL_RE.test(email)) errors.email = 'Enter a valid email address'
 
-    const passErr = passwordField(password, { required: !isEdit || Boolean(email) })
-    if (passErr) errors.password = passErr
-  } else if (isEdit && password) {
-    const passErr = passwordField(password, { required: false })
-    if (passErr) errors.password = passErr
+      const passErr = passwordField(password, { required: true })
+      if (passErr) errors.password = passErr
+    }
   }
 
   const start = trim(form.workingHoursStart)

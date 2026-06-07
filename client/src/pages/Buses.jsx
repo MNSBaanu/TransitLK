@@ -420,7 +420,9 @@ function driverFormState(driver) {
 
 // ── Driver Personnel Tab ──────────────────────────────────────────────────────
 function DriverModal({ driver, onClose, onSave }) {
+  const isEdit = Boolean(driver)
   const [form, setForm] = useState(() => driverFormState(driver))
+  const [resetPassword, setResetPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -437,9 +439,15 @@ function DriverModal({ driver, onClose, onSave }) {
     }))
   }
 
+  const toggleResetPassword = () => {
+    setResetPassword((prev) => !prev)
+    setForm((prev) => ({ ...prev, password: '' }))
+    setFieldErrors((prev) => ({ ...prev, password: undefined }))
+  }
+
   const submit = async (e) => {
     e.preventDefault()
-    const errors = validateDriverForm(form, { isEdit: Boolean(driver) })
+    const errors = validateDriverForm(form, { isEdit, resetPassword })
     setFieldErrors(errors)
     if (hasErrors(errors)) return
 
@@ -449,6 +457,10 @@ function DriverModal({ driver, onClose, onSave }) {
     }
     delete payload.workingHoursStart
     delete payload.workingHoursEnd
+    delete payload.password
+    if (!isEdit || resetPassword) {
+      if (form.password) payload.password = form.password
+    }
 
     setSaving(true)
     setError('')
@@ -504,15 +516,49 @@ function DriverModal({ driver, onClose, onSave }) {
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.contactNo)}`} />
             <FieldError message={fieldErrors.contactNo} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
-              <input name="email" type="email" value={form.email} onChange={handle}
-                placeholder="driver@transitlk.com"
-                autoComplete="off"
-                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.email)}`} />
-              <FieldError message={fieldErrors.email} />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
+            <input name="email" type="email" value={form.email} onChange={handle}
+              placeholder="driver@transitlk.com"
+              autoComplete="off"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.email)}`} />
+            <FieldError message={fieldErrors.email} />
+          </div>
+          {isEdit ? (
+            <div className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium text-neutral-700">Driver login password</p>
+                  <p className="text-[11px] text-neutral-500">
+                    {driver?.email ? 'Password is not shown for security.' : 'Set an email above, then reset the password.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleResetPassword}
+                  className="shrink-0 rounded-lg border border-outline-variant bg-white px-3 py-1.5 text-xs font-semibold text-neutral-900 hover:bg-surface-container"
+                >
+                  {resetPassword ? 'Cancel reset' : 'Reset password'}
+                </button>
+              </div>
+              {resetPassword && (
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-neutral-600">New password</label>
+                  <input
+                    name="password"
+                    type="password"
+                    value={form.password}
+                    onChange={handle}
+                    placeholder="Min. 6 characters"
+                    autoComplete="new-password"
+                    minLength={6}
+                    className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.password)}`}
+                  />
+                  <FieldError message={fieldErrors.password} />
+                </div>
+              )}
             </div>
+          ) : (
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Password</label>
               <input name="password" type="password" value={form.password} onChange={handle}
@@ -522,7 +568,7 @@ function DriverModal({ driver, onClose, onSave }) {
                 className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.password)}`} />
               <FieldError message={fieldErrors.password} />
             </div>
-          </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Working Hours</label>
             <p className="mb-2 text-[11px] text-neutral-500">Daily shift window (e.g. 06:00 – 18:00)</p>
