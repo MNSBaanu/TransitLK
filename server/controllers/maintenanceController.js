@@ -1,5 +1,37 @@
 import Maintenance from '../models/Maintenance.js'
 import Bus from '../models/Bus.js'
+import { buildFuelMaintenanceReport } from '../services/fuelMaintenanceReport.js'
+import { createFuelMaintenanceReportPdfStream } from '../services/fuelMaintenanceReportPdf.js'
+
+// @desc    Fuel & maintenance summary report for a date range
+// @route   GET /api/maintenance/report
+// @access  Protected
+export const getFuelMaintenanceReport = async (req, res) => {
+  try {
+    const data = await buildFuelMaintenanceReport(req.query)
+    res.json(data)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
+
+// @desc    Export fuel & maintenance summary as PDF
+// @route   GET /api/maintenance/report/pdf
+// @access  Protected
+export const exportFuelMaintenanceReportPdf = async (req, res) => {
+  try {
+    const data = await buildFuelMaintenanceReport(req.query)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="fuel-maintenance-${data.period.from}-${data.period.to}.pdf"`
+    )
+    const doc = createFuelMaintenanceReportPdfStream(data)
+    doc.pipe(res)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+}
 
 // @desc    Create a maintenance record
 // @route   POST /api/maintenance
