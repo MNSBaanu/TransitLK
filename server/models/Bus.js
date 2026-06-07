@@ -33,6 +33,14 @@ const busSchema = new mongoose.Schema(
       ref: 'Depot',
       default: undefined,
     },
+    lastMaintenanceDate: {
+      type: Date,
+      default: null,
+    },
+    nextMaintenanceDate: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true, collection: 'buses' }
 )

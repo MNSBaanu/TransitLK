@@ -2,6 +2,7 @@
 // Module: Fleet & Personnel — Vehicle Management
 
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
@@ -146,6 +147,7 @@ function BusModal({ bus, onClose, onSave }) {
 
 // ── Fleet Inventory Tab ───────────────────────────────────────────────────────
 function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -172,8 +174,89 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   const maintenanceBuses = buses.filter((b) => b.status === 'maintenance')
   const healthPct = buses.length ? Math.round((activeBuses.length / buses.length) * 100) : 0
 
+  // Calculate buses nearing maintenance (within 1 week of nextMaintenanceDate)
+  const today = new Date()
+  const oneWeekFromNow = new Date(today)
+  oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
+  const busesNeedingMaintenance = buses.filter((b) => {
+    if (!b.nextMaintenanceDate || b.status === 'maintenance') return false
+    const nextDate = new Date(b.nextMaintenanceDate)
+    return nextDate <= oneWeekFromNow && nextDate >= today
+  })
+
   return (
     <>
+      {/* Summary Cards */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <p className="text-xs text-on-surface-variant">Active Fleet Health</p>
+          <p className="mt-1 text-3xl font-bold text-neutral-900">{healthPct}%</p>
+          <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container">
+            <div className="h-1.5 rounded-full bg-blue-600 transition-all" style={{ width: `${healthPct}%` }} />
+          </div>
+        </div>
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <p className="text-xs text-on-surface-variant">Maintenance Pending</p>
+          <p className="mt-1 text-3xl font-bold text-red-600">{maintenanceBuses.length}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">Vehicles offline</p>
+          <div className="mt-2 flex gap-1">
+            {maintenanceBuses.slice(0, 4).map((b) => (
+              <span key={b._id} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-600">
+                {b.regNumber?.split('-')[0]}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
+          <p className="text-xs text-blue-200">Total Fleet</p>
+          <p className="mt-1 text-3xl font-bold">{buses.length}</p>
+          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
+        </div>
+      </div>
+
+      {/* Maintenance Alerts */}
+      {busesNeedingMaintenance.length > 0 && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Icon name="warning" size={20} className="text-red-600" />
+              <h3 className="text-sm font-semibold text-red-900">Maintenance Due Soon</h3>
+              <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-semibold text-red-800">
+                {busesNeedingMaintenance.length}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {busesNeedingMaintenance.map((bus) => {
+              const nextDate = new Date(bus.nextMaintenanceDate)
+              const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24))
+              const isOverdue = daysUntil < 0
+              return (
+                <div key={bus._id} className="flex items-center justify-between rounded-lg bg-white p-3 border border-red-200">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600 font-bold text-sm">
+                      {bus.regNumber?.split('-')[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-neutral-900">{bus.regNumber}</p>
+                      <p className="text-xs text-neutral-600">
+                        {isOverdue ? `Overdue by ${Math.abs(daysUntil)} days` : `Due in ${daysUntil} days`} · {nextDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/maintenance?busId=${bus._id}`)}
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                  >
+                    Add to Maintenance
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
@@ -205,15 +288,16 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Capacity</th>
               <th className="px-4 py-3 text-left">Mileage</th>
               <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Last Maintenance</th>
               <th className="px-4 py-3 text-left">Depot</th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={7} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
             ) : paginated.map((bus) => (
               <tr key={bus._id} className="hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
@@ -225,6 +309,12 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
                     {bus.status}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-neutral-600">
+                  {bus.lastMaintenanceDate
+                    ? new Date(bus.lastMaintenanceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : <span className="text-neutral-400">—</span>
+                  }
                 </td>
                 <td className="px-4 py-3 text-neutral-500">{depotLabel(bus.depotId)}</td>
                 <td className="px-4 py-3">
@@ -267,34 +357,6 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
           </div>
         </div>
       )}
-
-      {/* Summary Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Active Fleet Health</p>
-          <p className="mt-1 text-3xl font-bold text-neutral-900">{healthPct}%</p>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container">
-            <div className="h-1.5 rounded-full bg-blue-600 transition-all" style={{ width: `${healthPct}%` }} />
-          </div>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Maintenance Pending</p>
-          <p className="mt-1 text-3xl font-bold text-red-600">{maintenanceBuses.length}</p>
-          <p className="mt-1 text-xs text-on-surface-variant">Vehicles offline</p>
-          <div className="mt-2 flex gap-1">
-            {maintenanceBuses.slice(0, 4).map((b) => (
-              <span key={b._id} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-600">
-                {b.regNumber?.split('-')[0]}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
-          <p className="text-xs text-blue-200">Total Fleet</p>
-          <p className="mt-1 text-3xl font-bold">{buses.length}</p>
-          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
-        </div>
-      </div>
 
       {modal && (
         <BusModal
@@ -476,6 +538,38 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
   return (
     <>
+      {/* Summary Cards */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total Drivers</p>
+            <Icon name="group" size={20} className="text-outline" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-neutral-900">{drivers.length}</p>
+          <p className="mt-1 text-xs text-green-600">Registered in system</p>
+        </div>
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Duty</p>
+            <Icon name="directions_run" size={20} className="text-outline" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-neutral-900">
+            {drivers.filter((d) => d.workingHours).length}
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">With assigned working hours</p>
+        </div>
+        <div className="rounded-xl border border-outline-variant bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Depot Assigned</p>
+            <Icon name="warehouse" size={20} className="text-outline" />
+          </div>
+          <p className="mt-2 text-3xl font-bold text-neutral-900">
+            {drivers.length}
+          </p>
+          <p className="mt-1 text-xs text-on-surface-variant">Total registered</p>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative w-64">
@@ -600,38 +694,6 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
             className="rounded-lg p-1.5 hover:bg-surface-container disabled:opacity-40">
             <Icon name="chevron_right" size={18} />
           </button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total Drivers</p>
-            <Icon name="group" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">{drivers.length}</p>
-          <p className="mt-1 text-xs text-green-600">Registered in system</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Duty</p>
-            <Icon name="directions_run" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.filter((d) => d.status === 'available' || !d.status).length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">Available for assignment</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Depot Assigned</p>
-            <Icon name="warehouse" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">Total registered</p>
         </div>
       </div>
 
