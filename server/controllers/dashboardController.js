@@ -3,6 +3,7 @@ import Driver from '../models/Driver.js'
 import Maintenance from '../models/Maintenance.js'
 import Schedule from '../models/Schedule.js'
 import Route from '../models/Route.js'
+import { startOfMonth, endOfMonth } from '../utils/scheduleHelpers.js'
 
 const MILEAGE_SERVICE_THRESHOLD = 150_000
 const MILEAGE_NO_HISTORY_THRESHOLD = 100_000
@@ -116,6 +117,9 @@ export const getDashboardSummary = async (req, res) => {
   try {
     const operationalStatuses = ['scheduled', 'on-time', 'delayed', 'completed', 'cancelled']
 
+    const monthStart = startOfMonth(new Date())
+    const monthEnd = endOfMonth(new Date())
+
     const [
       allBuses,
       allDrivers,
@@ -124,6 +128,7 @@ export const getDashboardSummary = async (req, res) => {
       totalOperational,
       completedCount,
       schedules,
+      monthSchedules,
     ] = await Promise.all([
       Bus.find({}).lean(),
       Driver.find({}).lean(),
@@ -137,6 +142,12 @@ export const getDashboardSummary = async (req, res) => {
         .populate('driverId', 'name')
         .sort({ tripDate: -1, departureTime: -1 })
         .limit(8)
+        .lean(),
+      Schedule.find({
+        tripDate: { $gte: monthStart, $lte: monthEnd },
+        status: { $ne: 'cancelled' },
+      })
+        .select('busId')
         .lean(),
     ])
 
@@ -159,7 +170,7 @@ export const getDashboardSummary = async (req, res) => {
 
     const drivers = {
       total: allDrivers.length,
-      onDuty: allDrivers.filter((d) => d.status === 'available').length,
+      available: allDrivers.filter((d) => d.status === 'available').length,
       onLeave: allDrivers.filter((d) => d.status === 'on-leave').length,
       offDuty: allDrivers.filter((d) => d.status === 'off-duty').length,
     }
@@ -178,6 +189,16 @@ export const getDashboardSummary = async (req, res) => {
       ? Math.round((completedCount / totalOperational) * 100)
       : 0
 
+    const busesUsed = new Set(
+      monthSchedules.map((s) => String(s.busId)).filter(Boolean)
+    )
+    const busesTotal = allBuses.length
+    const vehicleUtilization = {
+      rate: busesTotal > 0 ? Math.round((busesUsed.size / busesTotal) * 1000) / 10 : 0,
+      busesUsed: busesUsed.size,
+      busesTotal,
+    }
+
     const recentSchedules = schedules.map((s) => ({
       _id: s._id,
       routeName: s.routeId?.routeName || '—',
@@ -190,7 +211,15 @@ export const getDashboardSummary = async (req, res) => {
       status: s.status,
     }))
 
-    res.json({ buses, drivers, maintenance, recentSchedules, totalRoutes, tripCompletion })
+    res.json({
+      buses,
+      drivers,
+      maintenance,
+      recentSchedules,
+      totalRoutes,
+      tripCompletion,
+      vehicleUtilization,
+    })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
