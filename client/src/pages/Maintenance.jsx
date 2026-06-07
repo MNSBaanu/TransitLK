@@ -16,7 +16,7 @@ import {
   validateFuelForm,
   validateMaintenanceForm,
 } from '../utils/formValidation'
-import { applyReportPeriodRange } from '../utils/scheduleHelpers'
+import { applyReportPeriodRange, formatReportRangeLabel } from '../utils/scheduleHelpers'
 
 const ITEMS_PER_PAGE = 8
 
@@ -275,7 +275,7 @@ function LogActivityModal({ onClose, onSave }) {
   )
 }
 
-// ── Summary Report Tab ────────────────────────────────────────────────────────
+// ── Report Tab ────────────────────────────────────────────────────────────────
 const INSIGHT_STYLES = {
   warning: 'border-amber-200 bg-amber-50 text-amber-900',
   info: 'border-blue-200 bg-blue-50 text-blue-900',
@@ -456,35 +456,25 @@ function SummaryReportPanel({ formatCurrency }) {
       )}
 
       {loading && !report ? (
-        <p className="py-12 text-center text-sm text-on-surface-variant">Loading summary report...</p>
+        <p className="py-12 text-center text-sm text-on-surface-variant">Loading report...</p>
       ) : report ? (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total spend</p>
-              <p className="mt-1 text-xl font-bold text-neutral-900">{formatCurrency(report.combined.totalOperationalCost)}</p>
-              <p className="mt-1 text-xs text-on-surface-variant">Fuel + maintenance</p>
-            </div>
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Fuel</p>
-              <p className="mt-1 text-xl font-bold text-neutral-900">{formatCurrency(report.fuel.totalCost)}</p>
-              <p className="mt-1 text-xs text-on-surface-variant">{report.fuel.totalLiters} L · {report.combined.fuelSharePct}% share</p>
-            </div>
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Maintenance</p>
-              <p className="mt-1 text-xl font-bold text-neutral-900">{formatCurrency(report.maintenance.totalCost)}</p>
-              <p className="mt-1 text-xs text-on-surface-variant">{report.maintenance.totalEntries} records · {report.combined.maintenanceSharePct}% share</p>
-            </div>
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Eco alerts</p>
-              <p className="mt-1 text-xl font-bold text-neutral-900">{report.combined.highFuelVehicleCount}</p>
-              <p className="mt-1 text-xs text-on-surface-variant">High-fuel vehicles</p>
-            </div>
+          <div className="rounded-xl border border-outline-variant bg-surface-container-low px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              {period.charAt(0).toUpperCase() + period.slice(1)} report · {formatReportRangeLabel(fromDate, toDate)}
+            </p>
+            <p className="mt-2 text-sm text-neutral-800">
+              Operational spend of {formatCurrency(report.combined.totalOperationalCost)} in this period
+              {' '}(fuel {report.combined.fuelSharePct}% · maintenance {report.combined.maintenanceSharePct}%).
+              {report.combined.highFuelVehicleCount > 0
+                ? ` ${report.combined.highFuelVehicleCount} vehicle(s) flagged for high fuel use.`
+                : ' No vehicles flagged for excessive fuel use.'}
+            </p>
           </div>
 
           {report.insights.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-neutral-900">Cost & efficiency insights</h4>
+              <h4 className="text-sm font-semibold text-neutral-900">Findings & recommendations</h4>
               {report.insights.map((insight, i) => (
                 <div
                   key={i}
@@ -498,55 +488,59 @@ function SummaryReportPanel({ formatCurrency }) {
 
           <div className="grid gap-5 lg:grid-cols-2">
             <div className="rounded-xl border border-outline-variant p-4">
-              <h4 className="mb-3 text-sm font-semibold text-neutral-900">Fuel trend</h4>
+              <h4 className="mb-3 text-sm font-semibold text-neutral-900">
+                {period === 'weekly' ? 'Daily fuel trend' : 'Weekly fuel trend'}
+              </h4>
               {report.fuel.trend.some((t) => t.liters > 0) ? (
                 <TrendBars items={report.fuel.trend} valueKey="liters" colorClass="bg-yellow-500" />
               ) : (
-                <p className="py-6 text-center text-sm text-on-surface-variant">No fuel data in range</p>
+                <p className="py-6 text-center text-sm text-on-surface-variant">No fuel activity in this period</p>
               )}
             </div>
             <div className="rounded-xl border border-outline-variant p-4">
-              <h4 className="mb-3 text-sm font-semibold text-neutral-900">Maintenance trend</h4>
+              <h4 className="mb-3 text-sm font-semibold text-neutral-900">
+                {period === 'weekly' ? 'Daily maintenance cost' : 'Weekly maintenance cost'}
+              </h4>
               {report.maintenance.trend.some((t) => t.cost > 0) ? (
                 <TrendBars items={report.maintenance.trend} valueKey="cost" colorClass="bg-blue-600" />
               ) : (
-                <p className="py-6 text-center text-sm text-on-surface-variant">No maintenance data in range</p>
+                <p className="py-6 text-center text-sm text-on-surface-variant">No maintenance activity in this period</p>
               )}
             </div>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="overflow-x-auto rounded-xl border border-outline-variant">
-              <div className="border-b border-outline-variant px-4 py-3">
-                <h4 className="text-sm font-semibold text-neutral-900">Fuel by vehicle</h4>
+          {(report.vehiclesOfConcern?.length > 0) && (
+            <div className="overflow-x-auto rounded-xl border border-amber-200 bg-amber-50/30">
+              <div className="border-b border-amber-200 px-4 py-3">
+                <h4 className="text-sm font-semibold text-amber-950">Vehicles requiring attention</h4>
+                <p className="text-xs text-amber-800/80">High fuel use relative to fleet average</p>
               </div>
               <table className="w-full text-sm">
-                <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                <thead className="bg-amber-100/60 text-xs font-semibold uppercase tracking-wide text-amber-950">
                   <tr>
                     <th className="px-4 py-2 text-left">Vehicle</th>
                     <th className="px-4 py-2 text-right">Liters</th>
-                    <th className="px-4 py-2 text-right">Cost</th>
-                    <th className="px-4 py-2 text-right">Avg/entry</th>
+                    <th className="px-4 py-2 text-right">Fleet share</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {report.fuel.byVehicle.length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-6 text-center text-on-surface-variant">No fuel records</td></tr>
-                  ) : report.fuel.byVehicle.map((v) => (
-                    <tr key={v.busId} className="hover:bg-surface-container-low">
-                      <td className="px-4 py-2 font-medium text-blue-700">{v.regNumber}</td>
+                <tbody className="divide-y divide-amber-200/60">
+                  {report.vehiclesOfConcern.map((v) => (
+                    <tr key={v.busId}>
+                      <td className="px-4 py-2 font-medium text-amber-950">{v.regNumber}</td>
                       <td className="px-4 py-2 text-right">{v.liters} L</td>
-                      <td className="px-4 py-2 text-right">{formatCurrency(v.amount)}</td>
-                      <td className="px-4 py-2 text-right">{v.avgLitersPerEntry ?? '—'} L</td>
+                      <td className="px-4 py-2 text-right">{v.fuelShare}%</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
 
+          {report.maintenance.byServiceType.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-outline-variant">
               <div className="border-b border-outline-variant px-4 py-3">
-                <h4 className="text-sm font-semibold text-neutral-900">Maintenance by service type</h4>
+                <h4 className="text-sm font-semibold text-neutral-900">Maintenance cost breakdown</h4>
+                <p className="text-xs text-on-surface-variant">By service type for this period</p>
               </div>
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
@@ -557,39 +551,11 @@ function SummaryReportPanel({ formatCurrency }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
-                  {report.maintenance.byServiceType.length === 0 ? (
-                    <tr><td colSpan={3} className="px-4 py-6 text-center text-on-surface-variant">No maintenance records</td></tr>
-                  ) : report.maintenance.byServiceType.map((r) => (
+                  {report.maintenance.byServiceType.slice(0, 5).map((r) => (
                     <tr key={r.type} className="hover:bg-surface-container-low">
                       <td className="px-4 py-2">{r.type}</td>
                       <td className="px-4 py-2 text-right">{r.count}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(r.cost)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {report.maintenance.byVehicle.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border border-outline-variant">
-              <div className="border-b border-outline-variant px-4 py-3">
-                <h4 className="text-sm font-semibold text-neutral-900">Maintenance by vehicle</h4>
-              </div>
-              <table className="w-full text-sm">
-                <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Vehicle</th>
-                    <th className="px-4 py-2 text-right">Entries</th>
-                    <th className="px-4 py-2 text-right">Cost</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {report.maintenance.byVehicle.map((v) => (
-                    <tr key={v.busId} className="hover:bg-surface-container-low">
-                      <td className="px-4 py-2 font-medium text-blue-700">{v.regNumber}</td>
-                      <td className="px-4 py-2 text-right">{v.entries}</td>
-                      <td className="px-4 py-2 text-right">{formatCurrency(v.cost)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -697,7 +663,8 @@ function Maintenance() {
 
 
 
-      {/* Stats Cards */}
+      {/* Stats Cards — hidden on report tab (live totals shown in logs; report is period analysis) */}
+      {tab !== 'report' && (
       <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-outline-variant bg-white p-4">
           <div className="flex items-center justify-between mb-2">
@@ -741,6 +708,7 @@ function Maintenance() {
           <p className="mt-1 text-xs text-on-surface-variant">In depot workshop</p>
         </div>
       </div>
+      )}
 
       {/* Tabs + Table */}
       <div className="rounded-xl border border-outline-variant bg-white shadow-sm">
@@ -750,7 +718,7 @@ function Maintenance() {
             {[
               { key: 'maintenance', label: 'Maintenance Logs' },
               { key: 'fuel', label: 'Fuel Logs' },
-              { key: 'report', label: 'Summary Report' },
+              { key: 'report', label: 'Report' },
             ].map(({ key, label }) => (
               <button key={key} onClick={() => { setTab(key); setPage(1); setSearch(''); setMinAmount('') }}
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
@@ -786,7 +754,7 @@ function Maintenance() {
           </div>        </div>
 
         <div className="p-5">
-          {/* Summary Report */}
+          {/* Report */}
           {tab === 'report' && (
             <SummaryReportPanel formatCurrency={formatCurrency} />
           )}
