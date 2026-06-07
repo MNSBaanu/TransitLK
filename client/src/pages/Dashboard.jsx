@@ -15,11 +15,12 @@ const EMPTY_DASHBOARD = {
     byServiceType: { express: 0, ordinary: 0, semiLuxury: 0 },
     byServiceTypeTotal: { express: 0, ordinary: 0, semiLuxury: 0 },
   },
-  drivers: { total: 0, onDuty: 0, onLeave: 0, offDuty: 0 },
+  drivers: { total: 0, available: 0, onLeave: 0, offDuty: 0 },
   maintenance: { totalCost: 0, alerts: [], urgentCount: 0 },
   recentSchedules: [],
   totalRoutes: 0,
   tripCompletion: 0,
+  vehicleUtilization: { rate: 0, busesUsed: 0, busesTotal: 0 },
 }
 
 const STATUS_STYLES = {
@@ -91,8 +92,15 @@ function Dashboard() {
     )
   }
 
-  const { buses, drivers, maintenance, recentSchedules, totalRoutes, tripCompletion } =
-    data || EMPTY_DASHBOARD
+  const {
+    buses,
+    drivers,
+    maintenance,
+    recentSchedules,
+    totalRoutes,
+    tripCompletion,
+    vehicleUtilization,
+  } = data || EMPTY_DASHBOARD
 
   const typeTotals = buses.byServiceTypeTotal || buses.byServiceType
 
@@ -117,10 +125,15 @@ function Dashboard() {
       {refreshing && (
         <p className="text-right text-xs text-on-surface-variant">Updating live data…</p>
       )}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Total Active Routes" value={totalRoutes} sub="Active routes" subColor="text-green-600" />
         <StatCard label="Buses Available" value={buses.available} sub={`${buses.inService || 0} in service · ${buses.maintenance} in maintenance`} />
-        <StatCard label="Drivers on Duty" value={drivers.onDuty} sub="Shift A" />
+        <StatCard label="Available Drivers" value={drivers.available} />
+        <StatCard
+          label="Vehicle Utilization"
+          value={`${vehicleUtilization.rate}%`}
+          sub={`${vehicleUtilization.busesUsed} of ${vehicleUtilization.busesTotal} buses on trips this month`}
+        />
         <StatCard label="Trip Completion" value={`${tripCompletion}%`} />
       </div>
 
