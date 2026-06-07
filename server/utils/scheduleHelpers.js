@@ -146,3 +146,82 @@ export function validateTimetableRows(rows) {
   }
   return errors
 }
+
+export function tripDateKey(trip) {
+  if (!trip?.tripDate) return ''
+  const raw = trip.tripDate
+  if (typeof raw === 'string') {
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (match) return match[1]
+  }
+  const d = parseDateInput(raw)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function appendOverlapConflicts(a, b, conflicts) {
+  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    return
+  }
+  const busA = String(a.busId?._id || a.busId)
+  const busB = String(b.busId?._id || b.busId)
+  const driverA = String(a.driverId?._id || a.driverId)
+  const driverB = String(b.driverId?._id || b.driverId)
+  const routeA = String(a.routeId?._id || a.routeId)
+  const routeB = String(b.routeId?._id || b.routeId)
+
+  if (busA === busB) {
+    conflicts.push({
+      type: 'bus',
+      a,
+      b,
+      message: `Bus overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+    })
+  }
+  if (driverA === driverB) {
+    conflicts.push({
+      type: 'driver',
+      a,
+      b,
+      message: `Driver overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+    })
+  }
+  if (routeA === routeB) {
+    conflicts.push({
+      type: 'route',
+      a,
+      b,
+      message: `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+    })
+  }
+}
+
+export function detectDayConflicts(schedules) {
+  const conflicts = []
+  for (let i = 0; i < schedules.length; i++) {
+    for (let j = i + 1; j < schedules.length; j++) {
+      const a = schedules[i]
+      const b = schedules[j]
+      appendOverlapConflicts(a, b, conflicts)
+    }
+  }
+  return conflicts
+}
+
+export function detectPeriodConflicts(schedules) {
+  const byDay = new Map()
+  for (const s of schedules) {
+    if (s.status === 'cancelled') continue
+    const key = tripDateKey(s)
+    if (!byDay.has(key)) byDay.set(key, [])
+    byDay.get(key).push(s)
+  }
+  const conflicts = []
+  for (const daySchedules of byDay.values()) {
+    conflicts.push(...detectDayConflicts(daySchedules))
+  }
+  return conflicts
+}
