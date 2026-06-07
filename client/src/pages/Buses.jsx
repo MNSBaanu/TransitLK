@@ -8,6 +8,7 @@ import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import FieldError from '../components/FieldError'
+import ThemeTimeInput from '../components/ThemeTimeInput'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
 import {
   depotLabel,
@@ -308,6 +309,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
+              <th className="w-12 px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Registration</th>
               <th className="px-4 py-3 text-left">Type</th>
               <th className="px-4 py-3 text-left">Capacity</th>
@@ -320,11 +322,12 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
-            ) : paginated.map((bus) => (
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+            ) : paginated.map((bus, index) => (
               <tr key={bus._id} className="hover:bg-surface-container-low transition-colors">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
                 <td className="px-4 py-3 text-neutral-500 capitalize">{bus.serviceType || '—'}</td>
                 <td className="px-4 py-3 text-neutral-700">{bus.capacity} Pax</td>
@@ -522,26 +525,27 @@ function DriverModal({ driver, onClose, onSave }) {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Working Hours</label>
+            <p className="mb-2 text-[11px] text-neutral-500">Daily shift window (e.g. 06:00 – 18:00)</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <span className="mb-1 block text-[11px] text-neutral-500">Start time</span>
-                <input
+                <span className="mb-1 block text-[11px] font-medium text-neutral-500">Start time</span>
+                <ThemeTimeInput
                   name="workingHoursStart"
-                  type="time"
                   value={form.workingHoursStart}
                   onChange={handle}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.workingHoursStart)}`}
+                  placeholder="06:00"
+                  hasError={Boolean(fieldErrors.workingHoursStart)}
                 />
                 <FieldError message={fieldErrors.workingHoursStart} />
               </div>
               <div>
-                <span className="mb-1 block text-[11px] text-neutral-500">End time</span>
-                <input
+                <span className="mb-1 block text-[11px] font-medium text-neutral-500">End time</span>
+                <ThemeTimeInput
                   name="workingHoursEnd"
-                  type="time"
                   value={form.workingHoursEnd}
                   onChange={handle}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.workingHoursEnd)}`}
+                  placeholder="18:00"
+                  hasError={Boolean(fieldErrors.workingHoursEnd)}
                 />
                 <FieldError message={fieldErrors.workingHoursEnd} />
               </div>
@@ -660,30 +664,29 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative w-64">
+        <div className="relative w-56 sm:w-64">
           <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder="Filter drivers by name or ID..."
             className="w-full rounded-lg border border-outline-variant bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-neutral-900" />
         </div>
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
-          <option value="">All Statuses</option>
-          <option value="available">Available</option>
-          <option value="on-leave">On Leave</option>
-          <option value="off-duty">Off Duty</option>
-        </select>
-        <select value={licenseFilter} onChange={(e) => { setLicenseFilter(e.target.value); setPage(1) }}
-          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
-          <option value="">All License Status</option>
-          <option value="valid">Valid</option>
-          <option value="expiring">Expiring Soon</option>
-          <option value="expired">Expired</option>
-          <option value="none">No Expiry Set</option>
-        </select>
-        <span className="ml-auto text-sm text-on-surface-variant">
-          Showing 1 to {Math.min(paginated.length, ITEMS_PER_PAGE)} of {filtered.length} drivers
-        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+            className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
+            <option value="">All Statuses</option>
+            <option value="available">Available</option>
+            <option value="on-leave">On Leave</option>
+            <option value="off-duty">Off Duty</option>
+          </select>
+          <select value={licenseFilter} onChange={(e) => { setLicenseFilter(e.target.value); setPage(1) }}
+            className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
+            <option value="">All License Status</option>
+            <option value="valid">Valid</option>
+            <option value="expiring">Expiring Soon</option>
+            <option value="expired">Expired</option>
+            <option value="none">No Expiry Set</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -691,6 +694,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
+              <th className="w-12 px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Driver ID</th>
               <th className="px-4 py-3 text-left">Name</th>
               <th className="px-4 py-3 text-left">Status</th>
@@ -704,11 +708,12 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && drivers.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
-            ) : paginated.map((d) => (
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+            ) : paginated.map((d, index) => (
               <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">

@@ -326,7 +326,7 @@ function ScheduleQuickAdjust({
                   value={form.departureTime}
                   onChange={onAdjustChange}
                   disabled={!selected}
-                  className={`${inputClass} mt-1`}
+                  className={`${inputClass} time-field mt-1`}
                 />
               </label>
               <label className="block">
@@ -337,7 +337,7 @@ function ScheduleQuickAdjust({
                   value={form.arrivalTime}
                   onChange={onAdjustChange}
                   disabled={!selected}
-                  className={`${inputClass} mt-1`}
+                  className={`${inputClass} time-field mt-1`}
                 />
               </label>
             </div>

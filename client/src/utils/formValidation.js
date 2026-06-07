@@ -3,8 +3,6 @@ export const PHONE_LK_RE = /^(\+94|0)?[\s-]?[0-9]{2,3}[\s-]?[0-9]{3}[\s-]?[0-9]{
 export const MONGO_ID_RE = /^[a-f\d]{24}$/i
 export const REG_NUMBER_RE = /^[A-Z0-9-]{2,20}$/i
 export const DEPOT_CODE_RE = /^[A-Z0-9]{1,6}$/
-export const WORKING_HOURS_RE = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/
-
 export function trim(value) {
   return typeof value === 'string' ? value.trim() : value
 }
