@@ -149,74 +149,54 @@ function insightMessageStyle(type) {
 }
 
 export function buildFuelMaintenanceReportSpreadsheet(data) {
-  const { period, combined, fuel, maintenance, insights } = data
+  const { period, combined, fuel, maintenance, insights, vehiclesOfConcern } = data
   const generatedAt = new Date().toISOString()
+  const concernRows = vehiclesOfConcern || fuel.byVehicle?.filter((v) => v.highUsage) || []
 
   const body = [
-    fullWidthRow('TransitLK Fuel & Maintenance Summary Report', 'Title'),
+    fullWidthRow('TransitLK Fuel & Maintenance Report', 'Title'),
     emptyRow(),
     metaRow('Generated at', generatedAt),
     metaRow('Period', period.mode),
     metaRow('From', period.from),
     metaRow('To', period.to),
     emptyRow(),
-    ...keyValueSection('Combined summary', [
+    ...keyValueSection('Period overview', [
       ['Total operational cost (LKR)', combined.totalOperationalCost],
       ['Fuel share (%)', combined.fuelSharePct],
       ['Maintenance share (%)', combined.maintenanceSharePct],
       ['High-fuel vehicles', combined.highFuelVehicleCount],
     ]),
-    ...keyValueSection('Fuel summary', [
-      ['Total liters', fuel.totalLiters],
-      ['Total cost (LKR)', fuel.totalCost],
-      ['Entries', fuel.totalEntries],
-      ['Avg liters per entry', fuel.avgLitersPerEntry],
-      ['Avg cost per liter (LKR)', fuel.avgCostPerLiter],
-    ]),
-    ...tableSection(
-      'Fuel by vehicle',
-      ['Registration number', 'Liters', 'Cost (LKR)', 'Entries', 'Avg L/entry', 'High usage'],
-      (fuel.byVehicle || []).map((v) => [
-        v.regNumber,
-        v.liters,
-        v.amount,
-        v.entries,
-        v.avgLitersPerEntry ?? '',
-        v.highUsage ? 'Yes' : 'No',
-      ]),
-      { highlightRow: (r) => r[5] === 'Yes' }
-    ),
-    ...tableSection(
-      'Fuel trend',
-      ['Period bucket', 'Liters', 'Cost (LKR)'],
-      (fuel.trend || []).map((t) => [t.label, t.liters, t.cost])
-    ),
-    ...keyValueSection('Maintenance summary', [
-      ['Total cost (LKR)', maintenance.totalCost],
-      ['Entries', maintenance.totalEntries],
-      ['Vehicles serviced', maintenance.vehiclesServiced],
-    ]),
-    ...tableSection(
-      'Maintenance by service type',
-      ['Service type', 'Count', 'Cost (LKR)'],
-      (maintenance.byServiceType || []).map((r) => [r.type, r.count, r.cost])
-    ),
-    ...tableSection(
-      'Maintenance by vehicle',
-      ['Registration number', 'Entries', 'Cost (LKR)'],
-      (maintenance.byVehicle || []).map((v) => [v.regNumber, v.entries, v.cost])
-    ),
-    ...tableSection(
-      'Maintenance trend',
-      ['Period bucket', 'Cost (LKR)'],
-      (maintenance.trend || []).map((t) => [t.label, t.cost])
-    ),
-    ...sectionTitle('Insights'),
+    ...sectionTitle('Findings & recommendations'),
     ...(insights || []).map((i) =>
       row([
         cell(i.type, insightTypeStyle(i.type)),
         mergedCell(i.text, insightMessageStyle(i.type), SHEET_COLS - 2),
       ])
+    ),
+    emptyRow(),
+    ...tableSection(
+      period.mode === 'weekly' ? 'Daily fuel trend' : 'Weekly fuel trend',
+      ['Period bucket', 'Liters', 'Cost (LKR)'],
+      (fuel.trend || []).map((t) => [t.label, t.liters, t.cost])
+    ),
+    ...tableSection(
+      period.mode === 'weekly' ? 'Daily maintenance cost' : 'Weekly maintenance cost',
+      ['Period bucket', 'Cost (LKR)'],
+      (maintenance.trend || []).map((t) => [t.label, t.cost])
+    ),
+    ...(concernRows.length > 0
+      ? tableSection(
+          'Vehicles requiring attention',
+          ['Registration number', 'Liters', 'Fleet share (%)'],
+          concernRows.map((v) => [v.regNumber, v.liters, v.fuelShare ?? '']),
+          { highlightRow: () => true }
+        )
+      : []),
+    ...tableSection(
+      'Maintenance cost breakdown',
+      ['Service type', 'Count', 'Cost (LKR)'],
+      (maintenance.byServiceType || []).slice(0, 5).map((r) => [r.type, r.count, r.cost])
     ),
   ]
 

@@ -94,19 +94,11 @@ function buildInsights({ fuelByVehicle, totalFuelCost, totalMaintCost, totalLite
           ? `${highFuel[0].regNumber} is flagged for high fuel use (${highFuel[0].liters} L). Schedule inspection to improve eco-efficiency.`
           : `${highFuel.length} vehicles exceed fleet fuel averages: ${highFuel.map((v) => v.regNumber).join(', ')}.`,
     })
-  } else if (fuelByVehicle.length > 0 && totalLiters > 0) {
+  } else if (totalFuelCost > 0 && totalLiters > 0 && fuelByVehicle.length > 0) {
     const top = fuelByVehicle[0]
     insights.push({
       type: 'info',
-      text: `Highest fuel consumer: ${top.regNumber} (${top.liters} L). Monitor for sustained high usage.`,
-    })
-  }
-
-  if (totalFuelCost > 0 && totalLiters > 0) {
-    const avgCostPerLiter = round1(totalFuelCost / totalLiters)
-    insights.push({
-      type: 'info',
-      text: `Average fuel cost is LKR ${avgCostPerLiter.toLocaleString()} per liter across ${fuelByVehicle.length} active vehicle(s).`,
+      text: `Highest fuel consumer this period: ${top.regNumber} (${top.liters} L). Monitor for sustained high usage.`,
     })
   }
 
@@ -214,6 +206,8 @@ export async function buildFuelMaintenanceReport(query = {}) {
     period: mode,
   })
 
+  const vehiclesOfConcern = fuelByVehicle.filter((v) => v.highUsage)
+
   return {
     period: {
       from: start.toISOString().slice(0, 10),
@@ -248,5 +242,6 @@ export async function buildFuelMaintenanceReport(query = {}) {
       trend: maintenanceTrend,
     },
     insights,
+    vehiclesOfConcern,
   }
 }
