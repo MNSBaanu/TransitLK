@@ -7,8 +7,23 @@ import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import ConfirmDialog from '../components/ConfirmDialog'
+import FieldError from '../components/FieldError'
+import ThemeTimeInput from '../components/ThemeTimeInput'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
-import { depotLabel, depotIdValue, formatServiceType } from '../utils/fleetHelpers'
+import {
+  depotLabel,
+  depotIdValue,
+  formatServiceType,
+  formatWorkingHours,
+  parseWorkingHours,
+} from '../utils/fleetHelpers'
+import {
+  fieldBorderClass,
+  hasErrors,
+  validateBusForm,
+  validateDriverForm,
+} from '../utils/formValidation'
 
 function busFormState(bus) {
   if (!bus) {
@@ -44,6 +59,7 @@ function BusModal({ bus, onClose, onSave }) {
   const [mataleDepot, setMataleDepot] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   useEffect(() => {
     api.get('/depots').then(({ data }) => {
@@ -55,10 +71,18 @@ function BusModal({ bus, onClose, onSave }) {
     }).catch(() => {})
   }, [])
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handle = (e) => {
+    const { name, value } = e.target
+    setForm({ ...form, [name]: value })
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateBusForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
     try {
@@ -89,18 +113,21 @@ function BusModal({ bus, onClose, onSave }) {
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Registration Number</label>
             <input name="regNumber" value={form.regNumber} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.regNumber)}`} />
+            <FieldError message={fieldErrors.regNumber} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Capacity (Pax)</label>
-              <input name="capacity" type="number" value={form.capacity} onChange={handle} required
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              <input name="capacity" type="number" min="1" step="1" value={form.capacity} onChange={handle} required
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.capacity)}`} />
+              <FieldError message={fieldErrors.capacity} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Mileage (km)</label>
-              <input name="mileage" type="number" value={form.mileage} onChange={handle}
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              <input name="mileage" type="number" min="0" step="1" value={form.mileage} onChange={handle}
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.mileage)}`} />
+              <FieldError message={fieldErrors.mileage} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -283,6 +310,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
+              <th className="w-12 px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Registration</th>
               <th className="px-4 py-3 text-left">Type</th>
               <th className="px-4 py-3 text-left">Capacity</th>
@@ -295,11 +323,12 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
-            ) : paginated.map((bus) => (
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+            ) : paginated.map((bus, index) => (
               <tr key={bus._id} className="hover:bg-surface-container-low transition-colors">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
                 <td className="px-4 py-3 text-neutral-500 capitalize">{bus.serviceType || '—'}</td>
                 <td className="px-4 py-3 text-neutral-700">{bus.capacity} Pax</td>
@@ -376,25 +405,71 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   )
 }
 
+function driverFormState(driver) {
+  const hours = parseWorkingHours(driver?.workingHours)
+  return {
+    name: driver?.name || '',
+    licenseNo: driver?.licenseNo || '',
+    licenseExpiry: driver?.licenseExpiry || '',
+    email: driver?.email || '',
+    password: '',
+    contactNo: driver?.contactNo || '',
+    workingHoursStart: hours.start,
+    workingHoursEnd: hours.end,
+  }
+}
+
 // ── Driver Personnel Tab ──────────────────────────────────────────────────────
 function DriverModal({ driver, onClose, onSave }) {
-  const [form, setForm] = useState(
-    driver || { name: '', licenseNo: '', licenseExpiry: '', email: '', password: '', contactNo: '', workingHours: '' }
-  )
+  const isEdit = Boolean(driver)
+  const [form, setForm] = useState(() => driverFormState(driver))
+  const [resetPassword, setResetPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handle = (e) => {
+    const { name, value } = e.target
+    setForm({ ...form, [name]: value })
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: undefined,
+      ...(name === 'workingHoursStart' || name === 'workingHoursEnd'
+        ? { workingHoursStart: undefined, workingHoursEnd: undefined }
+        : {}),
+    }))
+  }
+
+  const toggleResetPassword = () => {
+    setResetPassword((prev) => !prev)
+    setForm((prev) => ({ ...prev, password: '' }))
+    setFieldErrors((prev) => ({ ...prev, password: undefined }))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateDriverForm(form, { isEdit, resetPassword })
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
+    const payload = {
+      ...form,
+      workingHours: formatWorkingHours(form.workingHoursStart, form.workingHoursEnd),
+    }
+    delete payload.workingHoursStart
+    delete payload.workingHoursEnd
+    delete payload.password
+    if (!isEdit || resetPassword) {
+      if (form.password) payload.password = form.password
+    }
+
     setSaving(true)
     setError('')
     try {
       if (driver) {
-        await api.put(`/drivers/${driver._id}`, form)
+        await api.put(`/drivers/${driver._id}`, payload)
       } else {
-        await api.post('/drivers', form)
+        await api.post('/drivers', payload)
       }
       onSave()
     } catch (err) {
@@ -417,47 +492,111 @@ function DriverModal({ driver, onClose, onSave }) {
         <form onSubmit={submit} className="space-y-3" autoComplete="off">
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Full Name</label>
-            <input name="name" value={form.name} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <input name="name" value={form.name} onChange={handle} required minLength={2}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.name)}`} />
+            <FieldError message={fieldErrors.name} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">License Number</label>
               <input name="licenseNo" value={form.licenseNo} onChange={handle} required
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.licenseNo)}`} />
+              <FieldError message={fieldErrors.licenseNo} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">License Expiry Date</label>
               <input name="licenseExpiry" type="date" value={form.licenseExpiry ? form.licenseExpiry.slice(0, 10) : ''} onChange={handle}
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.licenseExpiry)}`} />
+              <FieldError message={fieldErrors.licenseExpiry} />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Contact Number</label>
             <input name="contactNo" value={form.contactNo} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              placeholder="077 123 4567"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.contactNo)}`} />
+            <FieldError message={fieldErrors.contactNo} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
-              <input name="email" type="email" value={form.email} onChange={handle}
-                placeholder="driver@transitlk.com"
-                autoComplete="off"
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
+            <input name="email" type="email" value={form.email} onChange={handle}
+              placeholder="driver@transitlk.com"
+              autoComplete="off"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.email)}`} />
+            <FieldError message={fieldErrors.email} />
+          </div>
+          {isEdit ? (
+            <div className="rounded-lg border border-outline-variant bg-surface-container-low px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium text-neutral-700">Driver login password</p>
+                  <p className="text-[11px] text-neutral-500">
+                    {driver?.email ? 'Password is not shown for security.' : 'Set an email above, then reset the password.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleResetPassword}
+                  className="shrink-0 rounded-lg border border-outline-variant bg-white px-3 py-1.5 text-xs font-semibold text-neutral-900 hover:bg-surface-container"
+                >
+                  {resetPassword ? 'Cancel reset' : 'Reset password'}
+                </button>
+              </div>
+              {resetPassword && (
+                <div className="mt-3">
+                  <label className="mb-1 block text-xs font-medium text-neutral-600">New password</label>
+                  <input
+                    name="password"
+                    type="password"
+                    value={form.password}
+                    onChange={handle}
+                    placeholder="Min. 6 characters"
+                    autoComplete="new-password"
+                    minLength={6}
+                    className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.password)}`}
+                  />
+                  <FieldError message={fieldErrors.password} />
+                </div>
+              )}
             </div>
+          ) : (
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Password</label>
               <input name="password" type="password" value={form.password} onChange={handle}
                 placeholder="Min. 6 characters"
                 autoComplete="new-password"
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                minLength={6}
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.password)}`} />
+              <FieldError message={fieldErrors.password} />
             </div>
-          </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Working Hours</label>
-            <input name="workingHours" value={form.workingHours} onChange={handle}
-              placeholder="e.g. 06:00 - 14:00"
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <p className="mb-2 text-[11px] text-neutral-500">Daily shift window (e.g. 06:00 – 18:00)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="mb-1 block text-[11px] font-medium text-neutral-500">Start time</span>
+                <ThemeTimeInput
+                  name="workingHoursStart"
+                  value={form.workingHoursStart}
+                  onChange={handle}
+                  placeholder="06:00"
+                  hasError={Boolean(fieldErrors.workingHoursStart)}
+                />
+                <FieldError message={fieldErrors.workingHoursStart} />
+              </div>
+              <div>
+                <span className="mb-1 block text-[11px] font-medium text-neutral-500">End time</span>
+                <ThemeTimeInput
+                  name="workingHoursEnd"
+                  value={form.workingHoursEnd}
+                  onChange={handle}
+                  placeholder="18:00"
+                  hasError={Boolean(fieldErrors.workingHoursEnd)}
+                />
+                <FieldError message={fieldErrors.workingHoursEnd} />
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
@@ -506,6 +645,9 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
   const [viewDriver, setViewDriver] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
@@ -526,11 +668,20 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this driver?')) return
-    await api.delete(`/drivers/${id}`)
-    invalidatePageData('/buses')
-    onRefresh({ keepContent: true, force: true })
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await api.delete(`/drivers/${deleteTarget._id}`)
+      setDeleteTarget(null)
+      invalidatePageData('/buses')
+      onRefresh({ keepContent: true, force: true })
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Could not delete driver')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   // derive a short driver ID from mongo _id
@@ -572,30 +723,29 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative w-64">
+        <div className="relative w-56 sm:w-64">
           <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder="Filter drivers by name or ID..."
             className="w-full rounded-lg border border-outline-variant bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-neutral-900" />
         </div>
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
-          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
-          <option value="">All Statuses</option>
-          <option value="available">Available</option>
-          <option value="on-leave">On Leave</option>
-          <option value="off-duty">Off Duty</option>
-        </select>
-        <select value={licenseFilter} onChange={(e) => { setLicenseFilter(e.target.value); setPage(1) }}
-          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
-          <option value="">All License Status</option>
-          <option value="valid">Valid</option>
-          <option value="expiring">Expiring Soon</option>
-          <option value="expired">Expired</option>
-          <option value="none">No Expiry Set</option>
-        </select>
-        <span className="ml-auto text-sm text-on-surface-variant">
-          Showing 1 to {Math.min(paginated.length, ITEMS_PER_PAGE)} of {filtered.length} drivers
-        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+            className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
+            <option value="">All Statuses</option>
+            <option value="available">Available</option>
+            <option value="on-leave">On Leave</option>
+            <option value="off-duty">Off Duty</option>
+          </select>
+          <select value={licenseFilter} onChange={(e) => { setLicenseFilter(e.target.value); setPage(1) }}
+            className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
+            <option value="">All License Status</option>
+            <option value="valid">Valid</option>
+            <option value="expiring">Expiring Soon</option>
+            <option value="expired">Expired</option>
+            <option value="none">No Expiry Set</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -603,6 +753,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
         <table className="w-full text-sm">
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
+              <th className="w-12 px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Driver ID</th>
               <th className="px-4 py-3 text-left">Name</th>
               <th className="px-4 py-3 text-left">Status</th>
@@ -616,11 +767,12 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && drivers.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
-            ) : paginated.map((d) => (
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+            ) : paginated.map((d, index) => (
               <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -664,7 +816,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="Edit">
                       <Icon name="edit" size={16} />
                     </button>
-                    <button onClick={() => handleDelete(d._id)}
+                    <button onClick={() => { setDeleteError(''); setDeleteTarget(d) }}
                       className="rounded-lg p-1.5 text-red-400 hover:bg-red-50" title="Delete">
                       <Icon name="delete" size={16} />
                     </button>
@@ -755,6 +907,28 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete this driver?"
+        message={
+          deleteError
+            ? deleteError
+            : deleteTarget
+              ? `${deleteTarget.name} (${driverId(deleteTarget)}) will be permanently removed. This cannot be undone.`
+              : 'This driver will be permanently removed. This cannot be undone.'
+        }
+        confirmLabel="Delete driver"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          if (deleting) return
+          setDeleteTarget(null)
+          setDeleteError('')
+        }}
+      />
     </>
   )
 }
