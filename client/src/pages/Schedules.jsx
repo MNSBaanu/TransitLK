@@ -794,6 +794,13 @@ function SchedulesPage() {
       ? formatTripDate(viewDate)
       : formatPeriodLabel(viewMode, viewDate)
 
+  const isScheduler = user?.role === ROLES.TRANSPORT_SCHEDULER
+  const isAdministrator = user?.role === ROLES.ADMINISTRATOR
+  const isDepotManager = user?.role === ROLES.DEPOT_MANAGER
+  const canPlanSchedules = isScheduler || isAdministrator
+  const canApproveSchedules = isDepotManager
+  const canAdjustSchedules = canPlanSchedules || isDepotManager
+
   return (
     <div className="w-full">
       <ModuleToast message={toast} />
@@ -802,23 +809,29 @@ function SchedulesPage() {
         title="Schedule Management"
         subtitle="Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval."
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
-              Create Timetable
-            </ModulePrimaryButton>
-            <ModuleSecondaryButton
-              icon="tune"
-              onClick={() => {
-                if (selected) {
-                  setShowAdjustDrawer(true)
-                } else {
-                  showToast('Select a trip on the timetable to adjust it')
-                }
-              }}
-            >
-              Adjust
-            </ModuleSecondaryButton>
-          </div>
+          canPlanSchedules || canAdjustSchedules ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {canPlanSchedules && (
+                <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
+                  Create Timetable
+                </ModulePrimaryButton>
+              )}
+              {canAdjustSchedules && (
+                <ModuleSecondaryButton
+                  icon="tune"
+                  onClick={() => {
+                    if (selected) {
+                      setShowAdjustDrawer(true)
+                    } else {
+                      showToast('Select a trip on the timetable to adjust it')
+                    }
+                  }}
+                >
+                  Adjust
+                </ModuleSecondaryButton>
+              )}
+            </div>
+          ) : null
         }
       />
 
@@ -898,10 +911,7 @@ function SchedulesPage() {
         saving={saving}
         onApprove={handleApprove}
         onReject={handleReject}
-        canApprove={
-          user?.role === ROLES.DEPOT_MANAGER ||
-          user?.role === ROLES.ADMINISTRATOR
-        }
+        canApprove={canApproveSchedules}
       />
 
       {error && !showTimetable && (
@@ -1055,10 +1065,7 @@ function SchedulesPage() {
         onApply={handleApply}
         onCancelTrip={handleCancelTrip}
         onSubmitDraft={handleSubmitDraft}
-        canSubmitDraft={
-          user?.role === ROLES.TRANSPORT_SCHEDULER ||
-          user?.role === ROLES.ADMINISTRATOR
-        }
+        canSubmitDraft={canPlanSchedules}
         adjustConflict={adjustConflict}
         onPickMaintenanceBus={handlePickMaintenanceBus}
         onMaintenanceOffline={() => {
