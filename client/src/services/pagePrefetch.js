@@ -1,6 +1,6 @@
 import api from './api'
 import { ROLE_ALLOWED_PATHS } from '../config/roles'
-import { getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
+import { applyReportPeriodRange, getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
 
 const CACHE_TTL_MS = 60 * 1000
 const pageCache = new Map()
@@ -13,16 +13,6 @@ function asArray(value) {
   return []
 }
 
-function startOfMonth(date) {
-  const d = new Date(date)
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
-
-function endOfMonth(date) {
-  const d = new Date(date)
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
-}
-
 function getDefaultScheduleOptions() {
   return {
     viewMode: 'daily',
@@ -31,15 +21,11 @@ function getDefaultScheduleOptions() {
 }
 
 function getDefaultReportOptions() {
-  const today = new Date()
-  today.setHours(23, 59, 59, 999)
-  const start = startOfMonth(today)
-  const end = endOfMonth(today)
-
+  const { from, to } = applyReportPeriodRange('monthly')
   return {
     period: 'monthly',
-    fromDate: toDateInputValue(start),
-    toDate: toDateInputValue(end > today ? today : end),
+    fromDate: from,
+    toDate: to,
   }
 }
 
