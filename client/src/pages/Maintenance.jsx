@@ -301,46 +301,6 @@ function TrendBars({ items, valueKey, colorClass = 'bg-neutral-900' }) {
   )
 }
 
-function buildReportCsv(report, from, to, period) {
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const rows = [
-    ['Fuel & Maintenance Summary Report'],
-    ['Period', period],
-    ['From', from],
-    ['To', to],
-    [],
-    ['Combined'],
-    ['Total operational cost (LKR)', report.combined.totalOperationalCost],
-    ['Fuel share (%)', report.combined.fuelSharePct],
-    ['Maintenance share (%)', report.combined.maintenanceSharePct],
-    [],
-    ['Fuel summary'],
-    ['Total liters', report.fuel.totalLiters],
-    ['Total cost (LKR)', report.fuel.totalCost],
-    ['Entries', report.fuel.totalEntries],
-    ['Avg liters per entry', report.fuel.avgLitersPerEntry],
-    ['Avg cost per liter (LKR)', report.fuel.avgCostPerLiter],
-    [],
-    ['Fuel by vehicle', 'Reg', 'Liters', 'Cost (LKR)', 'Entries', 'Avg L/entry'],
-    ...report.fuel.byVehicle.map((v) => ['', v.regNumber, v.liters, v.amount, v.entries, v.avgLitersPerEntry]),
-    [],
-    ['Maintenance summary'],
-    ['Total cost (LKR)', report.maintenance.totalCost],
-    ['Entries', report.maintenance.totalEntries],
-    ['Vehicles serviced', report.maintenance.vehiclesServiced],
-    [],
-    ['Maintenance by service type', 'Type', 'Count', 'Cost (LKR)'],
-    ...report.maintenance.byServiceType.map((r) => ['', r.type, r.count, r.cost]),
-    [],
-    ['Maintenance by vehicle', 'Reg', 'Cost (LKR)', 'Entries'],
-    ...report.maintenance.byVehicle.map((v) => ['', v.regNumber, v.cost, v.entries]),
-    [],
-    ['Insights'],
-    ...report.insights.map((i) => [i.type, i.text]),
-  ]
-  return rows.map((r) => r.map(esc).join(',')).join('\n')
-}
-
 function SummaryReportPanel({ formatCurrency }) {
   const initialRange = applyReportPeriodRange('monthly')
   const [period, setPeriod] = useState('monthly')
@@ -349,6 +309,7 @@ function SummaryReportPanel({ formatCurrency }) {
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState(false)
   const [error, setError] = useState('')
   const [dateRangeError, setDateRangeError] = useState('')
 
@@ -387,16 +348,29 @@ function SummaryReportPanel({ formatCurrency }) {
     setToDate(to)
   }
 
-  const handleExportCsv = () => {
-    if (!report) return
-    const csv = buildReportCsv(report, fromDate, toDate, period)
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `fuel-maintenance-summary-${fromDate}-${toDate}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  const handleExportCsv = async () => {
+    const rangeErrors = validateDateRange(fromDate, toDate)
+    if (hasErrors(rangeErrors)) {
+      setDateRangeError(rangeErrors.toDate || rangeErrors.fromDate)
+      return
+    }
+    setExportingCsv(true)
+    try {
+      const { data: blob } = await api.get('/maintenance/report/csv', {
+        params: { from: fromDate, to: toDate, period },
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/vnd.ms-excel' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `transitlk-fuel-maintenance-${period}-${fromDate}-${toDate}.xls`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setError('CSV export failed')
+    } finally {
+      setExportingCsv(false)
+    }
   }
 
   const handleExportPdf = async () => {
@@ -465,8 +439,8 @@ function SummaryReportPanel({ formatCurrency }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ModuleSecondaryButton icon="download" onClick={handleExportCsv} disabled={!report}>
-            Export CSV
+          <ModuleSecondaryButton icon="download" onClick={handleExportCsv} disabled={exportingCsv}>
+            {exportingCsv ? 'Exporting...' : 'Export CSV'}
           </ModuleSecondaryButton>
           <ModuleSecondaryButton icon="picture_as_pdf" onClick={handleExportPdf} disabled={exportingPdf}>
             {exportingPdf ? 'Downloading...' : 'Download PDF'}
