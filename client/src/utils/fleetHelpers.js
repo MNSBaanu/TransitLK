@@ -16,6 +16,24 @@ export function formatServiceType(type) {
   return type.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+/** Parse "06:00-18:00" or "06:00 - 18:00" into time inputs */
+export function parseWorkingHours(workingHours) {
+  if (!workingHours?.trim()) return { start: '', end: '' }
+  const match = workingHours.match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/i)
+  if (!match) return { start: '', end: '' }
+  const pad = (h, m) => `${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
+  return {
+    start: pad(match[1], match[2]),
+    end: pad(match[3], match[4]),
+  }
+}
+
+/** Format start/end time pickers for storage */
+export function formatWorkingHours(start, end) {
+  if (!start?.trim() || !end?.trim()) return ''
+  return `${start.trim()} - ${end.trim()}`
+}
+
 /** Parse "06:00-18:00" style working hours */
 export function isWithinWorkingHours(workingHours) {
   if (!workingHours?.trim()) return true
