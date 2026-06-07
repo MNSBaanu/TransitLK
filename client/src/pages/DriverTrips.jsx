@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import api from '../services/api'
+import { useCallback, useState } from 'react'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData } from '../services/pagePrefetch'
 import { formatTripDate, formatTimeRange } from '../utils/scheduleHelpers'
 import { ModuleHeader, ModuleCard } from '../components/layout/ModuleLayout'
 
@@ -15,35 +16,15 @@ const STATUS_STYLES = {
 
 function DriverTrips() {
   const { user } = useAuth()
-  const [trips, setTrips] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [trips, setTrips] = useState(() => getStalePageData('/my-trips')?.trips || [])
   const [error, setError] = useState('')
 
-  const loadTrips = useCallback(async () => {
-    setLoading(true)
+  const applyData = useCallback((payload) => {
+    setTrips(payload?.trips || [])
     setError('')
-    try {
-      const from = new Date()
-      from.setDate(from.getDate() - 7)
-      const to = new Date()
-      to.setDate(to.getDate() + 30)
-      const { data } = await api.get('/schedules', {
-        params: {
-          fromDate: from.toISOString().slice(0, 10),
-          toDate: to.toISOString().slice(0, 10),
-        },
-      })
-      setTrips(Array.isArray(data) ? data : [])
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load trips')
-    } finally {
-      setLoading(false)
-    }
   }, [])
 
-  useEffect(() => {
-    loadTrips()
-  }, [loadTrips])
+  const { loading } = useFastPageLoad('/my-trips', { applyData })
 
   const upcoming = trips.filter((t) => t.status !== 'cancelled' && t.status !== 'completed')
 
@@ -78,7 +59,7 @@ function DriverTrips() {
       </div>
 
       <ModuleCard className="overflow-hidden p-0">
-        {loading ? (
+        {loading && trips.length === 0 ? (
           <p className="p-8 text-center text-on-surface-variant">Loading trips...</p>
         ) : trips.length === 0 ? (
           <p className="p-8 text-center text-on-surface-variant">No assigned trips in this period.</p>
