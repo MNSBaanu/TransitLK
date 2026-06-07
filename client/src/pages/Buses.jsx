@@ -7,6 +7,7 @@ import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import ConfirmDialog from '../components/ConfirmDialog'
 import FieldError from '../components/FieldError'
 import ThemeTimeInput from '../components/ThemeTimeInput'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
@@ -644,6 +645,9 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
   const [viewDriver, setViewDriver] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
@@ -664,11 +668,20 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this driver?')) return
-    await api.delete(`/drivers/${id}`)
-    invalidatePageData('/buses')
-    onRefresh({ keepContent: true, force: true })
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await api.delete(`/drivers/${deleteTarget._id}`)
+      setDeleteTarget(null)
+      invalidatePageData('/buses')
+      onRefresh({ keepContent: true, force: true })
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Could not delete driver')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   // derive a short driver ID from mongo _id
@@ -803,7 +816,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="Edit">
                       <Icon name="edit" size={16} />
                     </button>
-                    <button onClick={() => handleDelete(d._id)}
+                    <button onClick={() => { setDeleteError(''); setDeleteTarget(d) }}
                       className="rounded-lg p-1.5 text-red-400 hover:bg-red-50" title="Delete">
                       <Icon name="delete" size={16} />
                     </button>
@@ -894,6 +907,28 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete this driver?"
+        message={
+          deleteError
+            ? deleteError
+            : deleteTarget
+              ? `${deleteTarget.name} (${driverId(deleteTarget)}) will be permanently removed. This cannot be undone.`
+              : 'This driver will be permanently removed. This cannot be undone.'
+        }
+        confirmLabel="Delete driver"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          if (deleting) return
+          setDeleteTarget(null)
+          setDeleteError('')
+        }}
+      />
     </>
   )
 }
