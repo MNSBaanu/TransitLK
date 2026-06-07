@@ -4,6 +4,8 @@ import { Lock } from 'lucide-react'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { homePathForRole } from '../config/roles'
+import { hasErrors, validateLogin } from '../utils/formValidation'
+import FieldError from '../components/FieldError'
 
 const DEPOT_HERO_IMAGE =
   'https://lh3.googleusercontent.com/aida-public/AB6AXuBDCt9bXCsB5Vh1MjlQPOYo_zmY5Yp4geBhw88f-25Mjcj-PZ41qc6IBNR0walea0YgFyBba9rRVByabqc9va-4BFPH3Fc5vf15VKGu4RWcTuPZS7Do-TVjrl-JigmeOfUeCvwbTOoypo6wuXRrii2VC5CDfIv8EbDFQuZilPAs6MD3bdm2PznK3UT_FmGhQuqs2Hfa8TAYiWkUT6xtUfSWTMkxmJmFf9KfrI5U5VRpnzfJEqRveQTlz3ZUoJvObh2Kon3b4kwCsag'
@@ -33,6 +35,7 @@ function Login() {
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -45,6 +48,10 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const errors = validateLogin({ email, password })
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setError('')
     setSubmitting(true)
     try {
@@ -153,13 +160,17 @@ function Login() {
                   name="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setFieldErrors((prev) => ({ ...prev, email: undefined }))
+                  }}
                   required
                   autoComplete="username"
                   placeholder="Enter your work email"
-                  className="block w-full rounded border border-outline-variant bg-white py-2 pl-10 pr-4 text-sm text-fleet-ink placeholder-outline transition-all focus:border-depot-navy focus:outline-none focus:ring-2 focus:ring-depot-navy"
+                  className={`block w-full rounded border bg-white py-2 pl-10 pr-4 text-sm text-fleet-ink placeholder-outline transition-all focus:outline-none focus:ring-2 focus:ring-depot-navy ${fieldErrors.email ? 'border-red-400 focus:border-red-500' : 'border-outline-variant focus:border-depot-navy'}`}
                 />
               </div>
+              <FieldError message={fieldErrors.email} />
             </div>
 
             <div>
@@ -191,13 +202,17 @@ function Login() {
                   name="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setFieldErrors((prev) => ({ ...prev, password: undefined }))
+                  }}
                   required
                   autoComplete="current-password"
                   placeholder="Enter your password"
-                  className="block w-full rounded border border-outline-variant bg-white py-2 pl-10 pr-4 text-sm text-fleet-ink placeholder-outline transition-all focus:border-depot-navy focus:outline-none focus:ring-2 focus:ring-depot-navy"
+                  className={`block w-full rounded border bg-white py-2 pl-10 pr-4 text-sm text-fleet-ink placeholder-outline transition-all focus:outline-none focus:ring-2 focus:ring-depot-navy ${fieldErrors.password ? 'border-red-400 focus:border-red-500' : 'border-outline-variant focus:border-depot-navy'}`}
                 />
               </div>
+              <FieldError message={fieldErrors.password} />
             </div>
 
             <div className="flex items-center">

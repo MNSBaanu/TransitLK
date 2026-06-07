@@ -9,6 +9,7 @@ import Icon from '../components/Icon'
 import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
+import { hasErrors, validateDateRange } from '../utils/formValidation'
 
 const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-fleet-ink-muted'
 
@@ -374,6 +375,7 @@ function Reports() {
   const [data, setData] = useState(() => initialData?.data || null)
   const [loading, setLoading] = useState(!initialData)
   const [error, setError] = useState('')
+  const [dateRangeError, setDateRangeError] = useState('')
   const [toast, setToast] = useState('')
 
   const showToast = (msg) => {
@@ -389,6 +391,15 @@ function Reports() {
   }
 
   const loadReports = useCallback(async ({ force = false, keepContent = false } = {}) => {
+    const rangeErrors = validateDateRange(fromDate, toDate)
+    if (hasErrors(rangeErrors)) {
+      setDateRangeError(rangeErrors.toDate || rangeErrors.fromDate)
+      setData(null)
+      setLoading(false)
+      return
+    }
+    setDateRangeError('')
+
     if (!force) {
       const cached = getCachedPageData('/reports', { period, fromDate, toDate })
       if (cached) {
@@ -431,6 +442,11 @@ function Reports() {
   const reportParams = { from: fromDate, to: toDate, period }
 
   const handleCsv = async () => {
+    const rangeErrors = validateDateRange(fromDate, toDate)
+    if (hasErrors(rangeErrors)) {
+      setDateRangeError(rangeErrors.toDate || rangeErrors.fromDate)
+      return
+    }
     try {
       const { data: blob } = await api.get('/reports/export/csv', {
         params: reportParams,
@@ -449,6 +465,11 @@ function Reports() {
   }
 
   const handlePdf = async () => {
+    const rangeErrors = validateDateRange(fromDate, toDate)
+    if (hasErrors(rangeErrors)) {
+      setDateRangeError(rangeErrors.toDate || rangeErrors.fromDate)
+      return
+    }
     try {
       const { data: blob } = await api.get('/reports/export/pdf', {
         params: reportParams,
@@ -556,17 +577,26 @@ function Reports() {
               <input
                 type="date"
                 value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
+                onChange={(e) => {
+                  setFromDate(e.target.value)
+                  setDateRangeError('')
+                }}
                 className="border-none bg-transparent text-sm outline-none"
               />
               <span className="text-fleet-ink-muted">–</span>
               <input
                 type="date"
                 value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
+                onChange={(e) => {
+                  setToDate(e.target.value)
+                  setDateRangeError('')
+                }}
                 className="border-none bg-transparent text-sm outline-none"
               />
             </div>
+            {dateRangeError && (
+              <p className="text-xs text-red-600">{dateRangeError}</p>
+            )}
             <button type="button" onClick={handleCsv} className="btn-outlined flex items-center gap-1.5">
               <Icon name="download" size={18} />
               CSV

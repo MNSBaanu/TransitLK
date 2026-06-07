@@ -7,8 +7,21 @@ import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import FieldError from '../components/FieldError'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
-import { depotLabel, depotIdValue, formatServiceType } from '../utils/fleetHelpers'
+import {
+  depotLabel,
+  depotIdValue,
+  formatServiceType,
+  formatWorkingHours,
+  parseWorkingHours,
+} from '../utils/fleetHelpers'
+import {
+  fieldBorderClass,
+  hasErrors,
+  validateBusForm,
+  validateDriverForm,
+} from '../utils/formValidation'
 
 function busFormState(bus) {
   if (!bus) {
@@ -44,6 +57,7 @@ function BusModal({ bus, onClose, onSave }) {
   const [mataleDepot, setMataleDepot] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   useEffect(() => {
     api.get('/depots').then(({ data }) => {
@@ -55,10 +69,18 @@ function BusModal({ bus, onClose, onSave }) {
     }).catch(() => {})
   }, [])
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handle = (e) => {
+    const { name, value } = e.target
+    setForm({ ...form, [name]: value })
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateBusForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
     try {
@@ -89,18 +111,21 @@ function BusModal({ bus, onClose, onSave }) {
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Registration Number</label>
             <input name="regNumber" value={form.regNumber} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.regNumber)}`} />
+            <FieldError message={fieldErrors.regNumber} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Capacity (Pax)</label>
-              <input name="capacity" type="number" value={form.capacity} onChange={handle} required
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              <input name="capacity" type="number" min="1" step="1" value={form.capacity} onChange={handle} required
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.capacity)}`} />
+              <FieldError message={fieldErrors.capacity} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Mileage (km)</label>
-              <input name="mileage" type="number" value={form.mileage} onChange={handle}
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              <input name="mileage" type="number" min="0" step="1" value={form.mileage} onChange={handle}
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.mileage)}`} />
+              <FieldError message={fieldErrors.mileage} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -376,25 +401,59 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   )
 }
 
+function driverFormState(driver) {
+  const hours = parseWorkingHours(driver?.workingHours)
+  return {
+    name: driver?.name || '',
+    licenseNo: driver?.licenseNo || '',
+    licenseExpiry: driver?.licenseExpiry || '',
+    email: driver?.email || '',
+    password: '',
+    contactNo: driver?.contactNo || '',
+    workingHoursStart: hours.start,
+    workingHoursEnd: hours.end,
+  }
+}
+
 // ── Driver Personnel Tab ──────────────────────────────────────────────────────
 function DriverModal({ driver, onClose, onSave }) {
-  const [form, setForm] = useState(
-    driver || { name: '', licenseNo: '', licenseExpiry: '', email: '', password: '', contactNo: '', workingHours: '' }
-  )
+  const [form, setForm] = useState(() => driverFormState(driver))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handle = (e) => {
+    const { name, value } = e.target
+    setForm({ ...form, [name]: value })
+    setFieldErrors((prev) => ({
+      ...prev,
+      [name]: undefined,
+      ...(name === 'workingHoursStart' || name === 'workingHoursEnd'
+        ? { workingHoursStart: undefined, workingHoursEnd: undefined }
+        : {}),
+    }))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateDriverForm(form, { isEdit: Boolean(driver) })
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
+    const payload = {
+      ...form,
+      workingHours: formatWorkingHours(form.workingHoursStart, form.workingHoursEnd),
+    }
+    delete payload.workingHoursStart
+    delete payload.workingHoursEnd
+
     setSaving(true)
     setError('')
     try {
       if (driver) {
-        await api.put(`/drivers/${driver._id}`, form)
+        await api.put(`/drivers/${driver._id}`, payload)
       } else {
-        await api.post('/drivers', form)
+        await api.post('/drivers', payload)
       }
       onSave()
     } catch (err) {
@@ -417,25 +476,30 @@ function DriverModal({ driver, onClose, onSave }) {
         <form onSubmit={submit} className="space-y-3" autoComplete="off">
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Full Name</label>
-            <input name="name" value={form.name} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <input name="name" value={form.name} onChange={handle} required minLength={2}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.name)}`} />
+            <FieldError message={fieldErrors.name} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">License Number</label>
               <input name="licenseNo" value={form.licenseNo} onChange={handle} required
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.licenseNo)}`} />
+              <FieldError message={fieldErrors.licenseNo} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">License Expiry Date</label>
               <input name="licenseExpiry" type="date" value={form.licenseExpiry ? form.licenseExpiry.slice(0, 10) : ''} onChange={handle}
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.licenseExpiry)}`} />
+              <FieldError message={fieldErrors.licenseExpiry} />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Contact Number</label>
             <input name="contactNo" value={form.contactNo} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              placeholder="077 123 4567"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.contactNo)}`} />
+            <FieldError message={fieldErrors.contactNo} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -443,21 +507,45 @@ function DriverModal({ driver, onClose, onSave }) {
               <input name="email" type="email" value={form.email} onChange={handle}
                 placeholder="driver@transitlk.com"
                 autoComplete="off"
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.email)}`} />
+              <FieldError message={fieldErrors.email} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Password</label>
               <input name="password" type="password" value={form.password} onChange={handle}
                 placeholder="Min. 6 characters"
                 autoComplete="new-password"
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+                minLength={6}
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.password)}`} />
+              <FieldError message={fieldErrors.password} />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Working Hours</label>
-            <input name="workingHours" value={form.workingHours} onChange={handle}
-              placeholder="e.g. 06:00 - 14:00"
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <span className="mb-1 block text-[11px] text-neutral-500">Start time</span>
+                <input
+                  name="workingHoursStart"
+                  type="time"
+                  value={form.workingHoursStart}
+                  onChange={handle}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.workingHoursStart)}`}
+                />
+                <FieldError message={fieldErrors.workingHoursStart} />
+              </div>
+              <div>
+                <span className="mb-1 block text-[11px] text-neutral-500">End time</span>
+                <input
+                  name="workingHoursEnd"
+                  type="time"
+                  value={form.workingHoursEnd}
+                  onChange={handle}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.workingHoursEnd)}`}
+                />
+                <FieldError message={fieldErrors.workingHoursEnd} />
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}

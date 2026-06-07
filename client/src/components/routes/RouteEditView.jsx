@@ -1,16 +1,19 @@
 import Icon from '../Icon'
 import RouteMap from '../RouteMap'
 import PlacesAutocompleteInput from './PlacesAutocompleteInput'
+import FieldError from '../FieldError'
 import { ModuleCard } from '../layout/ModuleLayout'
 import { formatRouteStatus } from '../../utils/routeHelpers'
+import { fieldBorderClass } from '../../utils/formValidation'
 import RouteFleetAssignment from './RouteFleetAssignment'
 
 const inputClass =
-  'mt-1 w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
+  'mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none'
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surface-variant'
 
 function RouteEditView({
   form,
+  fieldErrors = {},
   isEditing,
   routeCode,
   initialRouteStatus = 'draft',
@@ -48,9 +51,10 @@ function RouteEditView({
                   value={form.routeNo}
                   onChange={onFormChange}
                   required
-                  className={`${inputClass} font-mono tabular-nums`}
+                  className={`${inputClass} font-mono tabular-nums ${fieldBorderClass(fieldErrors.routeNo)}`}
                   placeholder="8 / 593 / 636/1"
                 />
+                <FieldError message={fieldErrors.routeNo} />
               </label>
               <label className="block">
                 <span className={labelClass}>Route status</span>
@@ -70,9 +74,10 @@ function RouteEditView({
                   onChange={onFormChange}
                   onPlaceSelect={onStartPlaceSelect}
                   required
-                  className={inputClass}
+                  className={`${inputClass} ${fieldBorderClass(fieldErrors.startPoint)}`}
                   placeholder="Search start location…"
                 />
+                <FieldError message={fieldErrors.startPoint} />
               </label>
               <label className="block">
                 <span className={labelClass}>End point</span>
@@ -82,9 +87,10 @@ function RouteEditView({
                   onChange={onFormChange}
                   onPlaceSelect={onEndPlaceSelect}
                   required
-                  className={inputClass}
+                  className={`${inputClass} ${fieldBorderClass(fieldErrors.endPoint)}`}
                   placeholder="Search end location…"
                 />
+                <FieldError message={fieldErrors.endPoint} />
               </label>
             </div>
 
@@ -145,8 +151,9 @@ function RouteEditView({
                   value={form.distance}
                   onChange={onFormChange}
                   required
-                  className={`${inputClass} tabular-nums`}
+                  className={`${inputClass} tabular-nums ${fieldBorderClass(fieldErrors.distance)}`}
                 />
+                <FieldError message={fieldErrors.distance} />
               </label>
             </div>
 
