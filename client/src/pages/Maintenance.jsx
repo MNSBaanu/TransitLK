@@ -1,7 +1,8 @@
 // Assigned to: Irfa
 // Module: Fuel & Maintenance Log
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
@@ -24,14 +25,21 @@ function serviceStyle(type) {
 }
 
 // ── Maintenance Modal ─────────────────────────────────────────────────────────
-function MaintenanceModal({ record, onClose, onSave }) {
+function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
   const [form, setForm] = useState(
     record
       ? { bus_id: record.bus_id?._id || record.bus_id, service_date: record.service_date?.slice(0, 10), description: record.description, cost: record.cost }
-      : { bus_id: '', service_date: '', description: '', cost: '' }
+      : { bus_id: preSelectedBusId || '', service_date: new Date().toISOString().slice(0, 10), description: '', cost: '' }
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Update form when preSelectedBusId changes
+  useEffect(() => {
+    if (preSelectedBusId && !record) {
+      setForm(prev => ({ ...prev, bus_id: preSelectedBusId }))
+    }
+  }, [preSelectedBusId, record])
 
   const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -44,6 +52,14 @@ function MaintenanceModal({ record, onClose, onSave }) {
         await api.put(`/maintenance/${record._id}`, form)
       } else {
         await api.post('/maintenance', form)
+        // Update bus status to maintenance and update maintenance dates
+        if (form.bus_id) {
+          await api.put(`/buses/${form.bus_id}`, {
+            status: 'maintenance',
+            lastMaintenanceDate: form.service_date,
+            nextMaintenanceDate: new Date(new Date(form.service_date).getTime() + 28 * 24 * 60 * 60 * 1000).toISOString()
+          })
+        }
       }
       onSave()
     } catch (err) {
@@ -223,6 +239,9 @@ function LogActivityModal({ onClose, onSave }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Maintenance() {
+  const [searchParams] = useSearchParams()
+  const preSelectedBusId = searchParams.get('busId')
+  
   const stale = getStalePageData('/maintenance')
   const [tab, setTab] = useState('maintenance')
   const [maintenance, setMaintenance] = useState(() => stale?.maintenance || [])
@@ -235,6 +254,15 @@ function Maintenance() {
   const [maintenanceModal, setMaintenanceModal] = useState(null)
   const [fuelModal, setFuelModal] = useState(null)
   const [menuOpen, setMenuOpen] = useState(null)
+
+  // Auto-open maintenance modal if busId is in URL
+  useEffect(() => {
+    if (preSelectedBusId) {
+      setMaintenanceModal('new')
+      // Clear the URL param after opening modal
+      window.history.replaceState({}, '', '/maintenance')
+    }
+  }, [preSelectedBusId])
 
   const applyData = useCallback((payload) => {
     setMaintenance(payload?.maintenance || [])
@@ -537,6 +565,7 @@ function Maintenance() {
           record={maintenanceModal === 'new' ? null : maintenanceModal}
           onClose={() => setMaintenanceModal(null)}
           onSave={() => { setMaintenanceModal(null); refreshMaintenance() }}
+          preSelectedBusId={preSelectedBusId}
         />
       )}
       {fuelModal && (
