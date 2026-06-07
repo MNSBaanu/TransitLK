@@ -455,6 +455,120 @@ body {
   }
 }
 
+/* Themed time picker — scrollable hour/minute selects */
+.theme-time-input {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.theme-time-input__sep {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fleet-ink-muted);
+  user-select: none;
+}
+
+.theme-time-input__select {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--fleet-line);
+  background-color: var(--fleet-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235c6578' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  padding: 0.5625rem 1.75rem 0.5625rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fleet-ink);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.theme-time-input__select:hover:not(:disabled) {
+  border-color: #c5cdd8;
+  background-color: var(--fleet-muted-low);
+}
+
+.theme-time-input__select:focus {
+  border-color: var(--fleet-primary);
+  box-shadow: 0 0 0 3px rgb(30 58 138 / 0.15);
+}
+
+.theme-time-input__select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  background-color: var(--fleet-muted-low);
+}
+
+.theme-time-input__select--placeholder {
+  color: var(--fleet-ink-muted);
+}
+
+.theme-time-input__select--error {
+  border-color: #f87171;
+}
+
+.theme-time-input__select--error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.15);
+}
+
+.theme-time-input__select option {
+  color: var(--fleet-ink);
+  background-color: var(--fleet-surface);
+}
+
+.theme-time-input__select option:checked {
+  background: linear-gradient(0deg, var(--fleet-primary-light) 0%, var(--fleet-primary-light) 100%);
+  color: var(--fleet-primary);
+  font-weight: 600;
+}
+
+/* Native time inputs — match TransitLK field styling where used */
+input[type='time'].time-field {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--fleet-line);
+  background-color: var(--fleet-surface);
+  padding: 0.5625rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--fleet-ink);
+  outline: none;
+  color-scheme: light;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input[type='time'].time-field:hover:not(:disabled) {
+  border-color: #c5cdd8;
+}
+
+input[type='time'].time-field:focus {
+  border-color: var(--fleet-primary);
+  box-shadow: 0 0 0 3px rgb(30 58 138 / 0.15);
+}
+
+input[type='time'].time-field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: var(--fleet-muted-low);
+}
+
+input[type='time'].time-field::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.65;
+  filter: invert(18%) sepia(42%) saturate(2000%) hue-rotate(205deg);
+}
+
+input[type='time'].time-field::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* Google Places Autocomplete dropdown (Route editor) */
 .pac-container {
   z-index: 10000 !important;
