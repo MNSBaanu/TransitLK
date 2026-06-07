@@ -8,7 +8,9 @@ const inflightRequests = new Map()
 const ROUTE_SUPPORT_CACHE_KEY = '__routes_support__'
 
 function asArray(value) {
-  return Array.isArray(value) ? value : []
+  if (Array.isArray(value)) return value
+  if (value?.items && Array.isArray(value.items)) return value.items
+  return []
 }
 
 function startOfMonth(date) {

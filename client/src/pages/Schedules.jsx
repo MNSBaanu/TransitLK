@@ -2,6 +2,7 @@
 // Module: Schedule Management
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { getCachedPageData, getStalePageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
@@ -11,7 +12,6 @@ import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
-import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
 import { useAuth } from '../context/AuthContext'
@@ -20,6 +20,8 @@ import {
   detectPeriodConflicts,
   detectTimetableConflicts,
   formatPeriodLabel,
+  formatRouteEndpointsLabel,
+  formatScheduleStatusLabel,
   formatTripDate,
   buildTimetableRows,
   getTimetableDates,
@@ -108,6 +110,7 @@ function SchedulesPage() {
   const [toast, setToast] = useState('')
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
+  const navigate = useNavigate()
 
   const showToast = (msg) => {
     setToast(msg)
@@ -162,7 +165,7 @@ function SchedulesPage() {
   useEffect(() => {
     let cancelled = false
     Promise.resolve().then(() => {
-      if (!cancelled) loadData()
+      if (!cancelled) loadData({ force: true, keepContent: true })
     })
     return () => {
       cancelled = true
@@ -670,42 +673,6 @@ function SchedulesPage() {
     }
   }
 
-  const handleApprove = async (id) => {
-    setSaving(true)
-    try {
-      await api.post(`/schedules/${id}/approve`)
-      invalidateRelatedPages()
-      showToast('Schedule approved — driver can view the trip in My trips')
-      loadData({ force: true, keepContent: true })
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Approve failed'
-      const conflictsData = err.response?.data?.conflicts
-      setError(
-        conflictsData?.length
-          ? `${msg}: ${conflictsData.map((c) => c.message).join('; ')}`
-          : msg
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleReject = async (id) => {
-    const reason = window.prompt('Rejection reason:', 'Incomplete allocation')
-    if (!reason?.trim()) return
-    setSaving(true)
-    try {
-      await api.post(`/schedules/${id}/reject`, { reason })
-      invalidateRelatedPages()
-      showToast('Returned to scheduler')
-      loadData({ force: true, keepContent: true })
-    } catch (err) {
-      setError(err.response?.data?.message || 'Reject failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleCancelTrip = async () => {
     if (!selected) return
     const cancelReason = adjustForm.reason === 'normal' ? 'obstruction' : adjustForm.reason
@@ -816,16 +783,60 @@ function SchedulesPage() {
   const isAdministrator = user?.role === ROLES.ADMINISTRATOR
   const isDepotManager = user?.role === ROLES.DEPOT_MANAGER
   const canPlanSchedules = isScheduler || isAdministrator
-  const canApproveSchedules = isDepotManager
   const canAdjustSchedules = canPlanSchedules || isDepotManager
+
+  const scheduleHeaderTitle = isDepotManager
+    ? 'Schedule Approval & Operations'
+    : 'Schedule Management'
+
+  const scheduleHeaderSubtitle = isDepotManager
+    ? 'Review pending timetables from schedulers, approve trips for drivers, return incomplete plans, and adjust live trips when depot operations change.'
+    : 'Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval.'
+
+  const scheduleStatItems = isDepotManager
+    ? [
+        {
+          label: 'Awaiting approval',
+          value: pendingSchedules.length,
+          hint: pendingSchedules.length ? 'Open pending approvals' : 'No pending trips',
+          icon: 'pending_actions',
+        },
+        {
+          label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
+          value: scheduleStats.trips,
+          icon: 'event',
+        },
+        { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
+        {
+          label: 'Conflicts',
+          value: scheduleStats.conflicts,
+          hint: scheduleStats.conflicts ? 'Resolve in adjust panel' : 'No overlaps',
+          icon: 'warning',
+        },
+      ]
+    : [
+        {
+          label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
+          value: scheduleStats.trips,
+          icon: 'event',
+        },
+        { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
+        {
+          label: 'Conflicts',
+          value: scheduleStats.conflicts,
+          hint: scheduleStats.conflicts ? 'Resolve in panel' : 'No overlaps',
+          icon: 'warning',
+        },
+        { label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' },
+      ]
 
   return (
     <div className="w-full">
       <ModuleToast message={toast} />
 
       <ModuleHeader
-        title="Schedule Management"
-        subtitle="Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval."
+        title={scheduleHeaderTitle}
+        subtitle={scheduleHeaderSubtitle}
         action={
           canPlanSchedules || canAdjustSchedules ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -845,7 +856,16 @@ function SchedulesPage() {
                     }
                   }}
                 >
-                  Adjust
+                  {isDepotManager ? 'Adjust trip' : 'Adjust'}
+                </ModuleSecondaryButton>
+              )}
+              {isDepotManager && (
+                <ModuleSecondaryButton
+                  icon="pending_actions"
+                  onClick={() => navigate('/schedules/approvals')}
+                >
+                  Pending approvals
+                  {pendingSchedules.length > 0 ? ` (${pendingSchedules.length})` : ''}
                 </ModuleSecondaryButton>
               )}
             </div>
@@ -853,23 +873,7 @@ function SchedulesPage() {
         }
       />
 
-      <ModuleStats
-        items={[
-          {
-            label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
-            value: scheduleStats.trips,
-            icon: 'event',
-          },
-          { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
-          {
-            label: 'Conflicts',
-            value: scheduleStats.conflicts,
-            hint: scheduleStats.conflicts ? 'Resolve in panel' : 'No overlaps',
-            icon: 'warning',
-          },
-          { label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' },
-        ]}
-      />
+      <ModuleStats items={scheduleStatItems} />
 
       {/* Conflict & emergency bar */}
       <div
@@ -924,13 +928,53 @@ function SchedulesPage() {
         </div>
       </div>
 
-      <ScheduleApprovalBar
-        pending={pendingSchedules}
-        saving={saving}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        canApprove={canApproveSchedules}
-      />
+      {selected && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 py-3 shadow-sm">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-neutral-900">
+              {scheduleCode(selected)} · {formatRouteEndpointsLabel(selected.routeId)}
+            </p>
+            <p className="text-xs text-on-surface-variant">
+              {formatTripDate(tripDateKey(selected))} · {selected.departureTime}–{selected.arrivalTime}
+              {' · '}
+              <span className="font-medium">{formatScheduleStatusLabel(selected.status)}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canPlanSchedules && selected.status === 'draft' && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSubmitDraft}
+                className="btn-outlined flex items-center gap-1.5 px-3 py-1.5 text-xs"
+              >
+                <Icon name="send" size={16} />
+                Submit for approval
+              </button>
+            )}
+            {canAdjustSchedules && (
+              <button
+                type="button"
+                onClick={() => setShowAdjustDrawer(true)}
+                className="btn-outlined flex items-center gap-1.5 px-3 py-1.5 text-xs"
+              >
+                <Icon name="tune" size={16} />
+                Adjust trip
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSelected(null)
+                setShowAdjustDrawer(false)
+              }}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && !showTimetable && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -948,8 +992,10 @@ function SchedulesPage() {
                   key={mode}
                   type="button"
                   onClick={() => {
+                    if (mode === viewMode) return
                     setViewMode(mode)
                     setSelected(null)
+                    closeScheduleModals()
                   }}
                   className={`rounded-md border px-4 py-2 text-sm capitalize transition-colors ${
                     viewMode === mode
@@ -1031,20 +1077,30 @@ function SchedulesPage() {
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
               </div>
+            ) : displaySchedules.length === 0 ? (
+              <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 text-center text-on-surface-variant">
+                <Icon name="event_busy" size={40} className="text-outline" />
+                <p className="text-sm font-medium text-neutral-800">No trips in this period</p>
+                <p className="max-w-sm text-xs">
+                  {canPlanSchedules
+                    ? 'Create a timetable to add trips, or change the date range to view existing schedules.'
+                    : 'Change the date range or wait for schedulers to submit trips for approval.'}
+                </p>
+              </div>
             ) : viewMode === 'weekly' ? (
               <ScheduleWeekTimetable
                 schedules={displaySchedules}
                 routes={routes}
                 anchorDate={viewDate}
                 selectedId={selected?._id}
-                onSelectTrip={selectTrip}
+                onSelectTrip={(trip) => selectTrip(trip, { openDrawer: false })}
               />
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
                 schedules={displaySchedules}
                 anchorDate={viewDate}
                 selectedId={selected?._id}
-                onSelectTrip={selectTrip}
+                onSelectTrip={(trip) => selectTrip(trip, { openDrawer: false })}
                 onPickDay={handlePickDay}
               />
             ) : (
@@ -1052,7 +1108,7 @@ function SchedulesPage() {
                 rows={ganttRows}
                 selectedId={selected?._id}
                 conflictPairs={conflicts}
-                onSelectTrip={selectTrip}
+                onSelectTrip={(trip) => selectTrip(trip, { openDrawer: false })}
               />
             )}
           </div>

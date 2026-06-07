@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   formatRouteEndpointsLabel,
   formatScheduleStatusLabel,
@@ -14,29 +15,28 @@ const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSelectTrip }) {
   const weekDays = getWeekDayDates(anchorDate)
 
-  const routeRows = routes.length
-    ? routes.map((r) => ({
-        _id: r._id,
-        routeName: r.routeName,
-        startPoint: r.startPoint,
-        endPoint: r.endPoint,
-        stops: r.stops,
-        viaDescription: r.viaDescription,
-      }))
-    : [...new Set(schedules.map((s) => s.routeId?._id || s.routeId))]
-        .filter(Boolean)
-        .map((id) => {
-          const trip = schedules.find((s) => String(s.routeId?._id || s.routeId) === String(id))
-          const route = trip?.routeId
-          return {
-            _id: id,
-            routeName: route?.routeName || 'Route',
-            startPoint: route?.startPoint,
-            endPoint: route?.endPoint,
-            stops: route?.stops,
-            viaDescription: route?.viaDescription,
-          }
-        })
+  const routeRows = useMemo(() => {
+    const byId = new Map()
+    const addRoute = (route) => {
+      const id = route?._id || route
+      if (!id) return
+      const key = String(id)
+      if (byId.has(key)) return
+      byId.set(key, {
+        _id: key,
+        routeName: route?.routeName || 'Route',
+        startPoint: route?.startPoint,
+        endPoint: route?.endPoint,
+        stops: route?.stops,
+        viaDescription: route?.viaDescription,
+      })
+    }
+    schedules.forEach((trip) => addRoute(trip.routeId))
+    routes.forEach((route) => addRoute(route))
+    return [...byId.values()].sort((a, b) =>
+      formatRouteEndpointsLabel(a).localeCompare(formatRouteEndpointsLabel(b))
+    )
+  }, [routes, schedules])
 
   const tripsFor = (routeId, dayKey) =>
     schedules.filter(
