@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Icon from '../components/Icon'
 import api from '../services/api'
-import { useAutoRefresh } from '../hooks/useAutoRefresh'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import {
-  ModuleAlert,
   ModuleHeader,
   ModulePrimaryButton,
   ModuleStats,
@@ -285,56 +285,25 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
 function Users() {
   const { user } = useAuth()
   const isSuperadmin = user?.role === ROLES.SUPERADMINISTRATOR
-  const [accounts, setAccounts] = useState([])
-  const [depots, setDepots] = useState([])
-  const [loading, setLoading] = useState(true)
+  const stale = getStalePageData('/users')
+  const [accounts, setAccounts] = useState(() => stale?.accounts || [])
+  const [depots, setDepots] = useState(() => (isSuperadmin ? stale?.depots || [] : []))
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState(null)
   const [toast, setToast] = useState('')
 
-  const fetchAccounts = useCallback(async ({ keepContent = false } = {}) => {
-    if (!keepContent) setLoading(true)
-    try {
-      const { data } = await api.get('/users')
-      setAccounts(data)
-    } catch {
-      setAccounts([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const applyData = useCallback(
+    (payload) => {
+      setAccounts(payload?.accounts || [])
+      if (isSuperadmin) setDepots(payload?.depots || [])
+    },
+    [isSuperadmin]
+  )
 
-  const fetchDepots = useCallback(async () => {
-    if (!isSuperadmin) {
-      setDepots([])
-      return
-    }
-    try {
-      const { data } = await api.get('/depots')
-      setDepots(data)
-    } catch {
-      setDepots([])
-    }
-  }, [isSuperadmin])
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.resolve().then(async () => {
-      if (cancelled) return
-      await fetchAccounts()
-      if (!cancelled) await fetchDepots()
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [fetchAccounts, fetchDepots])
-
-  const refreshUsers = useCallback(async () => {
-    await fetchAccounts({ keepContent: true })
-    await fetchDepots()
-  }, [fetchAccounts, fetchDepots])
-
-  useAutoRefresh(refreshUsers, { enabled: !modal })
+  const { loading, reload } = useFastPageLoad('/users', {
+    applyData,
+    refreshEnabled: !modal,
+  })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -373,7 +342,8 @@ function Users() {
         await api.delete(`/users/${account._id}`)
       }
       setToast('Account removed')
-      fetchAccounts()
+      invalidatePageData('/users')
+      reload({ keepContent: true, force: true })
     } catch (err) {
       window.alert(err.response?.data?.message || 'Could not remove account')
     }
@@ -382,7 +352,8 @@ function Users() {
   const handleSaved = () => {
     setModal(null)
     setToast('Account saved')
-    fetchAccounts()
+    invalidatePageData('/users')
+    reload({ keepContent: true, force: true })
     setTimeout(() => setToast(''), 2500)
   }
 
@@ -399,16 +370,6 @@ function Users() {
           <ModulePrimaryButton icon="person_add" onClick={() => setModal('add')}>
             {isSuperadmin ? 'Add account' : 'Add staff user'}
           </ModulePrimaryButton>
-        }
-      />
-
-      <ModuleAlert
-        variant="warning"
-        title={isSuperadmin ? 'Administrator management' : 'Driver accounts are not managed here'}
-        body={
-          isSuperadmin
-            ? 'Use this workspace to assign administrators to depots and maintain account access. Driver sign-in remains under Fleet & Drivers.'
-            : 'Operational drivers and their login credentials are maintained under Fleet & Drivers.'
         }
       />
 
@@ -456,7 +417,7 @@ function Users() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && accounts.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading accounts...
@@ -498,17 +459,22 @@ function Users() {
                       <button
                         type="button"
                         onClick={() => setModal(account)}
-                        className="rounded-lg px-2 py-1 text-xs font-medium text-neutral-700 hover:bg-slate-100"
+                        className="rounded-lg p-1.5 text-on-surface-variant hover:bg-slate-100"
+                        title={account.accountType === 'admin' && !isSuperadmin ? 'View' : 'Edit'}
                       >
-                        {account.accountType === 'admin' && !isSuperadmin ? 'View' : 'Edit'}
+                        <Icon
+                          name={account.accountType === 'admin' && !isSuperadmin ? 'visibility' : 'edit'}
+                          size={16}
+                        />
                       </button>
                       {(account.accountType === 'user' || isSuperadmin) && (
                         <button
                           type="button"
                           onClick={() => handleDelete(account)}
-                          className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                          title="Remove"
                         >
-                          Remove
+                          <Icon name="delete" size={16} />
                         </button>
                       )}
                     </div>
