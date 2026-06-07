@@ -13,6 +13,7 @@ function RouteEditView({
   form,
   isEditing,
   routeCode,
+  initialRouteStatus = 'draft',
   stopInput,
   onStopInputChange,
   onFormChange,
@@ -31,6 +32,8 @@ function RouteEditView({
   onCancel,
   saving,
 }) {
+  const canUseDraft = !isEditing || initialRouteStatus === 'draft'
+
   return (
     <form onSubmit={onSave}>
       <div className="grid gap-5 lg:grid-cols-2">
@@ -52,54 +55,10 @@ function RouteEditView({
               <label className="block">
                 <span className={labelClass}>Route status</span>
                 <select name="status" value={form.status} onChange={onFormChange} className={inputClass}>
+                  {canUseDraft && <option value="draft">Draft</option>}
                   <option value="active">Active</option>
-                  <option value="draft">Draft</option>
                   <option value="inactive">Inactive</option>
                 </select>
-              </label>
-            </div>
-            <label className="block">
-              <span className={labelClass}>Route name</span>
-              <input
-                name="routeName"
-                value={form.routeName}
-                onChange={onFormChange}
-                required
-                className={inputClass}
-                placeholder="Colombo — Kandy"
-              />
-            </label>
-            <label className="block">
-              <span className={labelClass}>Via</span>
-              <input
-                name="viaDescription"
-                value={form.viaDescription}
-                onChange={onFormChange}
-                className={inputClass}
-                placeholder="via Warakamura"
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block">
-                <span className={labelClass}>Service type</span>
-                <select name="serviceType" value={form.serviceType} onChange={onFormChange} className={inputClass}>
-                  <option value="ordinary">Ordinary</option>
-                  <option value="express">Express</option>
-                  <option value="semi-luxury">Semi-luxury</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className={labelClass}>Distance (km)</span>
-                <input
-                  name="distance"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={form.distance}
-                  onChange={onFormChange}
-                  required
-                  className={`${inputClass} tabular-nums`}
-                />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -155,6 +114,40 @@ function RouteEditView({
                   </li>
                 ))}
               </ul>
+            </div>
+
+            <label className="block">
+              <span className={labelClass}>Route name</span>
+              <input
+                name="routeName"
+                value={form.routeName}
+                disabled
+                required
+                className={`${inputClass} cursor-not-allowed bg-surface-container-low text-on-surface-variant`}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className={labelClass}>Service type</span>
+                <select name="serviceType" value={form.serviceType} onChange={onFormChange} className={inputClass}>
+                  <option value="ordinary">Ordinary</option>
+                  <option value="express">Express</option>
+                  <option value="semi-luxury">Semi-luxury</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className={labelClass}>Distance (km)</span>
+                <input
+                  name="distance"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={form.distance}
+                  onChange={onFormChange}
+                  required
+                  className={`${inputClass} tabular-nums`}
+                />
+              </label>
             </div>
 
             {isEditing && (

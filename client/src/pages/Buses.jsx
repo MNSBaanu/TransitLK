@@ -8,7 +8,7 @@ import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
-import { depotLabel, depotIdValue } from '../utils/fleetHelpers'
+import { depotLabel, depotIdValue, formatServiceType } from '../utils/fleetHelpers'
 
 function busFormState(bus) {
   if (!bus) {
@@ -414,7 +414,7 @@ function DriverModal({ driver, onClose, onSave }) {
           </button>
         </div>
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit} className="space-y-3" autoComplete="off">
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Full Name</label>
             <input name="name" value={form.name} onChange={handle} required
@@ -442,12 +442,14 @@ function DriverModal({ driver, onClose, onSave }) {
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
               <input name="email" type="email" value={form.email} onChange={handle}
                 placeholder="driver@transitlk.com"
+                autoComplete="off"
                 className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Password</label>
               <input name="password" type="password" value={form.password} onChange={handle}
                 placeholder="Min. 6 characters"
+                autoComplete="new-password"
                 className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
             </div>
           </div>
@@ -473,13 +475,6 @@ function DriverModal({ driver, onClose, onSave }) {
   )
 }
 
-const DRIVER_STATUS_STYLES = {
-  available: 'bg-green-100 text-green-700',
-  'on trip':  'bg-blue-100 text-blue-700',
-  'off duty': 'bg-gray-100 text-gray-500',
-  expired:    'bg-red-100 text-red-700',
-}
-
 function getInitials(name = '') {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
 }
@@ -492,6 +487,16 @@ function getLicenseStatus(expiry) {
   if (diffDays < 0) return { label: 'Expired', style: 'bg-red-100 text-red-700' }
   if (diffDays <= 30) return { label: 'Expiring Soon', style: 'bg-orange-100 text-orange-700' }
   return { label: 'Valid', style: 'bg-green-100 text-green-700' }
+}
+
+const DRIVER_STATUS_STYLES = {
+  available: 'bg-green-100 text-green-700',
+  'on-leave': 'bg-amber-100 text-amber-800',
+  'off-duty': 'bg-neutral-200 text-neutral-700',
+}
+
+function driverStatusClass(status) {
+  return DRIVER_STATUS_STYLES[status] || 'bg-surface-container-low text-on-surface-variant'
 }
 
 function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
@@ -507,7 +512,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const filtered = drivers.filter((d) => {
     const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
       (d.licenseNo || '').toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter ? (d.workingHours || '').toLowerCase() === statusFilter : true
+    const matchStatus = statusFilter ? d.status === statusFilter : true
     const licStatus = getLicenseStatus(d.licenseExpiry)
     const matchLicense = licenseFilter
       ? (licenseFilter === 'valid' && licStatus?.label === 'Valid') ||
@@ -577,14 +582,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
           <option value="">All Statuses</option>
           <option value="available">Available</option>
-          <option value="on trip">On Trip</option>
-          <option value="off duty">Off Duty</option>
-        </select>
-        <select className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
-          <option>All License Types</option>
-          <option>Class A</option>
-          <option>Class B</option>
-          <option>Class C</option>
+          <option value="on-leave">On Leave</option>
+          <option value="off-duty">Off Duty</option>
         </select>
         <select value={licenseFilter} onChange={(e) => { setLicenseFilter(e.target.value); setPage(1) }}
           className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
@@ -593,7 +592,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           <option value="expiring">Expiring Soon</option>
           <option value="expired">Expired</option>
           <option value="none">No Expiry Set</option>
-        </select>        <span className="ml-auto text-sm text-on-surface-variant">
+        </select>
+        <span className="ml-auto text-sm text-on-surface-variant">
           Showing 1 to {Math.min(paginated.length, ITEMS_PER_PAGE)} of {filtered.length} drivers
         </span>
       </div>
@@ -605,6 +605,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
             <tr>
               <th className="px-4 py-3 text-left">Driver ID</th>
               <th className="px-4 py-3 text-left">Name</th>
+              <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">License No.</th>
               <th className="px-4 py-3 text-left">Expiry</th>
               <th className="px-4 py-3 text-left">Email</th>
@@ -615,9 +616,9 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && drivers.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
             ) : paginated.map((d) => (
               <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
@@ -628,6 +629,11 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                     </div>
                     <span className="font-semibold text-neutral-900">{d.name}</span>
                   </div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${driverStatusClass(d.status || 'available')}`}>
+                    {formatServiceType(d.status || 'available')}
+                  </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
                 <td className="px-4 py-3">

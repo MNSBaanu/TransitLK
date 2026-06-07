@@ -70,7 +70,6 @@ function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
         distance: route.distance,
         startPoint: route.startPoint,
         endPoint: route.endPoint,
-        viaDescription: route.viaDescription,
         stops: route.stops || [],
         serviceType: route.serviceType,
         status: route.status || 'active',
