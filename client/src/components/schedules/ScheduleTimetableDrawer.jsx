@@ -291,10 +291,11 @@ function ScheduleTimetableDrawer({
                 <div className="rounded-xl border border-emerald-300/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-lg">
                   <p className="flex items-center gap-2 font-semibold">
                     <Icon name="check_circle" size={18} />
-                    Ready to create
+                    Ready to send for approval
                   </p>
                   <p className="mt-2 leading-relaxed">
-                    All included routes have a bus and driver assigned with no overlaps detected.
+                    Trips will appear on the timetable as pending approval. Drivers are notified only
+                    after the depot manager approves.
                   </p>
                 </div>
               )}
@@ -372,7 +373,7 @@ function ScheduleTimetableDrawer({
                 }
                 className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving ? 'Creating...' : 'Create'}
+                {saving ? 'Sending...' : 'Send for approval'}
               </button>
             </div>
           </div>

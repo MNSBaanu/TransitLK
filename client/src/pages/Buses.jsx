@@ -352,7 +352,7 @@ function DriverModal({ driver, onClose, onSave }) {
           </button>
         </div>
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-        <form onSubmit={submit} className="space-y-3">
+        <form onSubmit={submit} className="space-y-3" autoComplete="off">
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Full Name</label>
             <input name="name" value={form.name} onChange={handle} required
@@ -380,12 +380,14 @@ function DriverModal({ driver, onClose, onSave }) {
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Email</label>
               <input name="email" type="email" value={form.email} onChange={handle}
                 placeholder="driver@transitlk.com"
+                autoComplete="off"
                 className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Login Password</label>
               <input name="password" type="password" value={form.password} onChange={handle}
                 placeholder="Min. 6 characters"
+                autoComplete="new-password"
                 className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
             </div>
           </div>
