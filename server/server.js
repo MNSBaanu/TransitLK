@@ -17,6 +17,7 @@ import reportRoutes from './routes/reportRoutes.js'
 import depotRoutes from './routes/depotRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import userRoutes from './routes/userRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
 
 dotenv.config()
 connectDB()
@@ -41,6 +42,7 @@ app.use('/api/reports', reportRoutes)
 app.use('/api/depots', depotRoutes)
 app.use('/api/admins', adminRoutes)
 app.use('/api/users', userRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {
