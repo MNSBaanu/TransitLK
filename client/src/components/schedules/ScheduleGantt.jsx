@@ -1,5 +1,11 @@
 import Icon from '../Icon'
-import { GANTT_HOURS, ganttPosition, formatRouteStopsLabel, scheduleCode } from '../../utils/scheduleHelpers'
+import {
+  GANTT_HOURS,
+  ganttPosition,
+  formatRouteEndpointsLabel,
+  formatScheduleStatusLabel,
+  scheduleCode,
+} from '../../utils/scheduleHelpers'
 
 function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
   const conflictIds = new Set()
@@ -57,7 +63,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                   </div>
                 </div>
               </div>
-              <div className="relative h-20 min-w-[900px] flex-1">
+              <div className="relative h-24 min-w-[900px] flex-1">
                 <div
                   className="pointer-events-none absolute inset-0 grid divide-x divide-outline-variant/20"
                   style={{ gridTemplateColumns: `repeat(${GANTT_HOURS.length}, 1fr)` }}
@@ -71,7 +77,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                   if (!pos) return null
                   const isConflict = conflictIds.has(trip._id)
                   const isSelected = selectedId === trip._id
-                  const stopsLabel = formatRouteStopsLabel(trip.routeId)
+                  const routeLabel = formatRouteEndpointsLabel(trip.routeId)
                   return (
                     <button
                       key={trip._id}
@@ -79,15 +85,16 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                       onClick={() => onSelectTrip(trip)}
                       title={
                         [
-                          trip.routeId?.routeName,
-                          stopsLabel ? `Stops: ${stopsLabel}` : '',
+                          routeLabel,
+                          formatScheduleStatusLabel(trip.status),
+                          scheduleCode(trip),
                           `${trip.departureTime} – ${trip.arrivalTime}`,
                         ]
                           .filter(Boolean)
                           .join(' · ')
                       }
                       style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
-                      className={`absolute top-2 bottom-2 z-10 rounded p-2 text-left text-white shadow-sm transition-all ${
+                      className={`absolute top-1.5 bottom-1.5 z-10 rounded p-2.5 text-left text-white shadow-sm transition-all ${
                         isConflict
                           ? 'border-2 border-dashed border-red-600 bg-depot-navy schedule-conflict-hatch'
                           : isSelected
@@ -96,16 +103,19 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-1">
-                        <span className="text-[10px] font-bold">{scheduleCode(trip)}</span>
-                        <span className="text-[8px] opacity-80">
+                        <span className="truncate text-xs font-bold">{routeLabel}</span>
+                        <span className="text-[10px] opacity-80">
                           {trip.driverId?.name?.split(' ')[0] || ''}
                         </span>
                       </div>
-                      <p className="mt-1 font-mono text-[8px] leading-none">
+                      <p className="mt-1 font-mono text-[11px] leading-tight">
                         {trip.departureTime} – {trip.arrivalTime}
                       </p>
+                      <span className="mt-0.5 inline-block rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold leading-tight">
+                        {formatScheduleStatusLabel(trip.status)}
+                      </span>
                       {isConflict && (
-                        <span className="mt-1 inline-block rounded bg-red-600 px-1 text-[8px] font-bold">
+                        <span className="mt-1 inline-block rounded bg-red-600 px-1.5 text-[10px] font-bold">
                           OVERLAP
                         </span>
                       )}

@@ -102,7 +102,15 @@ export function getTimetableDates(period, anchorDate) {
   return [toDateInputValue(new Date(anchorDate))]
 }
 
-import { isSchedulableRoute } from './routeHelpers'
+import { buildRouteName, isSchedulableRoute } from './routeHelpers'
+
+/** Start and end points for schedule/timetable route labels */
+export function formatRouteEndpointsLabel(route = {}) {
+  const start = String(route.startPoint || '').trim()
+  const end = String(route.endPoint || '').trim()
+  if (start && end) return `${start} → ${end}`
+  return buildRouteName(start, end) || route.routeName || 'Route'
+}
 
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
   const active = routes.filter(isSchedulableRoute)
@@ -147,10 +155,7 @@ export function groupTimetableConflictsByRoute(issues = [], rows = []) {
 }
 
 export function timetableRouteLabel(row) {
-  if (!row) return 'Route'
-  const base = row.routeName || 'Route'
-  const via = formatRouteStopsLabel(row)
-  return via ? `${base} (${via})` : base
+  return formatRouteEndpointsLabel(row)
 }
 
 export const TIMETABLE_CONFLICT_CAUSE_SHORT = {
@@ -239,8 +244,7 @@ export function buildTimetableFeedbackCards(rows = [], issues = []) {
     if (items.length) {
       validationCards.push({
         routeId: row.routeId,
-        routeName: row.routeName,
-        stopsLabel: formatRouteStopsLabel(row),
+        routeLabel: formatRouteEndpointsLabel(row),
         items,
       })
     }
@@ -602,13 +606,32 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
   return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
+export const SCHEDULE_STATUS_LABELS = {
+  draft: 'Draft',
+  pending: 'Pending approval',
+  approved: 'Approved',
+  scheduled: 'Scheduled',
+  'on-time': 'On time',
+  delayed: 'Delayed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+}
+
+export function formatScheduleStatusLabel(status) {
+  return SCHEDULE_STATUS_LABELS[status] || status || '—'
+}
+
 export const SCHEDULE_STATUS_STYLES = {
   draft: 'bg-slate-100 text-slate-600',
   pending: 'bg-amber-100 text-amber-800',
   approved: 'bg-indigo-100 text-indigo-800',
-  scheduled: 'bg-fleet-primary-light text-fleet-primary',
+  scheduled: 'bg-blue-100 text-blue-800',
   'on-time': 'bg-green-100 text-green-800',
   delayed: 'bg-amber-100 text-amber-800',
   completed: 'bg-slate-100 text-slate-600',
   cancelled: 'bg-red-100 text-red-700',
+}
+
+export function scheduleStatusClass(status) {
+  return SCHEDULE_STATUS_STYLES[status] || 'bg-slate-100 text-slate-600'
 }
