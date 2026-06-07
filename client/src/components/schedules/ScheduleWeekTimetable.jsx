@@ -1,7 +1,7 @@
 import {
+  formatRouteEndpointsLabel,
   formatTimeRange,
   formatTripDate,
-  formatRouteStopsLabel,
   getWeekDayDates,
   scheduleCode,
   tripDateKey,
@@ -69,17 +69,7 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
             routeRows.map((route) => (
               <tr key={route._id} className="hover:bg-surface-container/40">
                 <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-neutral-900">
-                  <p>{route.routeName}</p>
-                  {route.startPoint && route.endPoint ? (
-                    <p className="mt-0.5 text-xs font-normal text-on-surface-variant">
-                      {route.startPoint} → {route.endPoint}
-                    </p>
-                  ) : null}
-                  {formatRouteStopsLabel(route) ? (
-                    <p className="mt-0.5 text-xs font-normal text-on-surface-variant">
-                      Stops: {formatRouteStopsLabel(route)}
-                    </p>
-                  ) : null}
+                  <p>{formatRouteEndpointsLabel(route)}</p>
                 </td>
                 {weekDays.map((day) => {
                   const trips = tripsFor(route._id, day)

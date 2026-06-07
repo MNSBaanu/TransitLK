@@ -1,5 +1,10 @@
 import Icon from '../Icon'
-import { GANTT_HOURS, ganttPosition, formatRouteStopsLabel, scheduleCode } from '../../utils/scheduleHelpers'
+import {
+  GANTT_HOURS,
+  ganttPosition,
+  formatRouteEndpointsLabel,
+  scheduleCode,
+} from '../../utils/scheduleHelpers'
 
 function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
   const conflictIds = new Set()
@@ -71,7 +76,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                   if (!pos) return null
                   const isConflict = conflictIds.has(trip._id)
                   const isSelected = selectedId === trip._id
-                  const stopsLabel = formatRouteStopsLabel(trip.routeId)
+                  const routeLabel = formatRouteEndpointsLabel(trip.routeId)
                   return (
                     <button
                       key={trip._id}
@@ -79,8 +84,8 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                       onClick={() => onSelectTrip(trip)}
                       title={
                         [
-                          trip.routeId?.routeName,
-                          stopsLabel ? `Stops: ${stopsLabel}` : '',
+                          routeLabel,
+                          scheduleCode(trip),
                           `${trip.departureTime} – ${trip.arrivalTime}`,
                         ]
                           .filter(Boolean)
@@ -96,7 +101,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-1">
-                        <span className="text-[10px] font-bold">{scheduleCode(trip)}</span>
+                        <span className="truncate text-[10px] font-bold">{routeLabel}</span>
                         <span className="text-[8px] opacity-80">
                           {trip.driverId?.name?.split(' ')[0] || ''}
                         </span>

@@ -102,7 +102,15 @@ export function getTimetableDates(period, anchorDate) {
   return [toDateInputValue(new Date(anchorDate))]
 }
 
-import { isSchedulableRoute } from './routeHelpers'
+import { buildRouteName, isSchedulableRoute } from './routeHelpers'
+
+/** Start and end points for schedule/timetable route labels */
+export function formatRouteEndpointsLabel(route = {}) {
+  const start = String(route.startPoint || '').trim()
+  const end = String(route.endPoint || '').trim()
+  if (start && end) return `${start} → ${end}`
+  return buildRouteName(start, end) || route.routeName || 'Route'
+}
 
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
   const active = routes.filter(isSchedulableRoute)
@@ -147,10 +155,7 @@ export function groupTimetableConflictsByRoute(issues = [], rows = []) {
 }
 
 export function timetableRouteLabel(row) {
-  if (!row) return 'Route'
-  const base = row.routeName || 'Route'
-  const via = formatRouteStopsLabel(row)
-  return via ? `${base} (${via})` : base
+  return formatRouteEndpointsLabel(row)
 }
 
 export const TIMETABLE_CONFLICT_CAUSE_SHORT = {
@@ -239,8 +244,7 @@ export function buildTimetableFeedbackCards(rows = [], issues = []) {
     if (items.length) {
       validationCards.push({
         routeId: row.routeId,
-        routeName: row.routeName,
-        stopsLabel: formatRouteStopsLabel(row),
+        routeLabel: formatRouteEndpointsLabel(row),
         items,
       })
     }
