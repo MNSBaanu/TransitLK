@@ -15,6 +15,8 @@ import {
   validateTimetableRows,
   requiresAdjustmentNotes,
   reasonToStatus,
+  DRIVER_VISIBLE_STATUSES,
+  isDriverVisibleStatus,
 } from '../utils/scheduleHelpers.js'
 import { isWithinWorkingHoursAtTime } from '../utils/fleetHelpers.js'
 import {
@@ -65,6 +67,11 @@ async function assertScheduleAccess(user, schedule) {
   if (isDriver(user)) {
     if (String(schedule.driverId) !== String(user.driverId)) {
       const error = new Error('Not allowed to access this schedule')
+      error.statusCode = 403
+      throw error
+    }
+    if (!isDriverVisibleStatus(schedule.status)) {
+      const error = new Error('This trip is not yet approved for driver view')
       error.statusCode = 403
       throw error
     }
@@ -390,6 +397,7 @@ export const getSchedules = async (req, res) => {
 
     if (isDriver(req.user) && req.user?.driverId) {
       filter.driverId = req.user.driverId
+      filter.status = { $in: DRIVER_VISIBLE_STATUSES }
     } else {
       const scopedRouteIds = await getScopedRouteIds(req.user)
       if (scopedRouteIds) filter.routeId = { $in: scopedRouteIds }
@@ -489,6 +497,9 @@ export const createSchedule = async (req, res) => {
       return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
     }
 
+    const allowedCreateStatuses = ['draft', 'pending']
+    const nextStatus = allowedCreateStatuses.includes(status) ? status : 'draft'
+
     const schedule = await Schedule.create({
       routeId,
       busId,
@@ -496,7 +507,8 @@ export const createSchedule = async (req, res) => {
       departureTime,
       arrivalTime,
       tripDate: normalizedTripDate,
-      status: status || 'draft',
+      status: nextStatus,
+      submittedAt: nextStatus === 'pending' ? new Date() : undefined,
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
     })
@@ -673,7 +685,7 @@ export const approveSchedule = async (req, res) => {
       })
     }
 
-    schedule.status = 'approved'
+    schedule.status = 'scheduled'
     schedule.approvedBy = req.user?.id
     schedule.rejectionReason = undefined
     await schedule.save()

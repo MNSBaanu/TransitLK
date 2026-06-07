@@ -33,7 +33,7 @@ function RouteListTable({
         <ModuleSearchInput
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search route no, route, via, stops..."
+          placeholder="Search route no, name, stops..."
           className="min-w-[240px]"
         />
         <label className="ml-auto flex items-center gap-2 text-sm text-on-surface-variant">
@@ -54,7 +54,7 @@ function RouteListTable({
       <ModuleTable>
         <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           <tr>
-            {['Route No', 'Route', 'Via', 'Service', 'Distance', 'Bus', 'Driver', 'Status', ''].map((h) => (
+            {['Route No', 'Route', 'Stops', 'Service', 'Distance', 'Bus', 'Driver', 'Status', ''].map((h) => (
               <th key={h || 'actions'} className="px-4 py-3 text-left">
                 {h}
               </th>
@@ -95,7 +95,7 @@ function RouteListTable({
                   </button>
                 </td>
                 <td className="px-4 py-3 text-on-surface-variant">
-                  {route.viaDescription || route.stops?.join(', ') || '—'}
+                  {route.stops?.length ? route.stops.join(', ') : route.viaDescription || '—'}
                 </td>
                 <td className="px-4 py-3 capitalize text-on-surface-variant">
                   {formatServiceType(route.serviceType)}

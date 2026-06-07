@@ -1,9 +1,11 @@
 import {
+  formatRouteEndpointsLabel,
+  formatScheduleStatusLabel,
   formatTimeRange,
   formatTripDate,
-  formatRouteStopsLabel,
   getWeekDayDates,
   scheduleCode,
+  scheduleStatusClass,
   tripDateKey,
 } from '../../utils/scheduleHelpers'
 
@@ -69,17 +71,7 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
             routeRows.map((route) => (
               <tr key={route._id} className="hover:bg-surface-container/40">
                 <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-neutral-900">
-                  <p>{route.routeName}</p>
-                  {route.startPoint && route.endPoint ? (
-                    <p className="mt-0.5 text-xs font-normal text-on-surface-variant">
-                      {route.startPoint} → {route.endPoint}
-                    </p>
-                  ) : null}
-                  {formatRouteStopsLabel(route) ? (
-                    <p className="mt-0.5 text-xs font-normal text-on-surface-variant">
-                      Stops: {formatRouteStopsLabel(route)}
-                    </p>
-                  ) : null}
+                  <p>{formatRouteEndpointsLabel(route)}</p>
                 </td>
                 {weekDays.map((day) => {
                   const trips = tripsFor(route._id, day)
@@ -96,7 +88,7 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                                 <button
                                   type="button"
                                   onClick={() => onSelectTrip(trip)}
-                                  className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs transition-colors ${
+                                  className={`w-full rounded-lg border px-2.5 py-2 text-left text-sm transition-colors ${
                                     selected
                                       ? 'border-depot-blue-light bg-depot-blue-light text-white'
                                       : 'border-outline-variant bg-surface-container/50 hover:border-depot-navy'
@@ -107,6 +99,15 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                                   </span>
                                   <span className={`block truncate ${selected ? 'opacity-90' : 'text-on-surface-variant'}`}>
                                     {trip.busId?.regNumber} · {scheduleCode(trip)}
+                                  </span>
+                                  <span
+                                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                      selected
+                                        ? 'bg-white/20 text-white'
+                                        : scheduleStatusClass(trip.status)
+                                    }`}
+                                  >
+                                    {formatScheduleStatusLabel(trip.status)}
                                   </span>
                                 </button>
                               </li>
