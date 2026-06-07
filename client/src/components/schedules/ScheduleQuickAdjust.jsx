@@ -54,6 +54,9 @@ function ScheduleQuickAdjust({
   onCancelTrip,
   onSubmitDraft,
   canSubmitDraft,
+  canApproveSchedules = false,
+  onApprove,
+  onReject,
   adjustConflict,
   onPickMaintenanceBus,
   onMaintenanceOffline,
@@ -520,6 +523,26 @@ function ScheduleQuickAdjust({
         )}
 
         <div className="mt-6 space-y-2 pb-2">
+          {canApproveSchedules && selected?.status === 'pending' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onApprove?.(selected._id)}
+                disabled={saving}
+                className="rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Approve trip
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject?.(selected._id)}
+                disabled={saving}
+                className="rounded-lg border border-red-300 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reject trip
+              </button>
+            </div>
+          )}
           <button
             type="button"
             onClick={onApply}
