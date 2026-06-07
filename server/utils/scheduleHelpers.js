@@ -83,6 +83,20 @@ export function requiresAdjustmentNotes(reason) {
   return DISRUPTION_REASONS.includes(reason)
 }
 
+/** Trips visible to drivers only after depot manager approval */
+export const DRIVER_VISIBLE_STATUSES = [
+  'approved',
+  'scheduled',
+  'on-time',
+  'delayed',
+  'completed',
+  'cancelled',
+]
+
+export function isDriverVisibleStatus(status) {
+  return DRIVER_VISIBLE_STATUSES.includes(status)
+}
+
 export function reasonToStatus(reason, currentStatus = 'scheduled') {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'

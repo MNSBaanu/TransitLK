@@ -1,9 +1,11 @@
 import {
   formatRouteEndpointsLabel,
+  formatScheduleStatusLabel,
   formatTimeRange,
   formatTripDate,
   getWeekDayDates,
   scheduleCode,
+  scheduleStatusClass,
   tripDateKey,
 } from '../../utils/scheduleHelpers'
 
@@ -86,7 +88,7 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                                 <button
                                   type="button"
                                   onClick={() => onSelectTrip(trip)}
-                                  className={`w-full rounded-lg border px-2 py-1.5 text-left text-xs transition-colors ${
+                                  className={`w-full rounded-lg border px-2.5 py-2 text-left text-sm transition-colors ${
                                     selected
                                       ? 'border-depot-blue-light bg-depot-blue-light text-white'
                                       : 'border-outline-variant bg-surface-container/50 hover:border-depot-navy'
@@ -97,6 +99,15 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                                   </span>
                                   <span className={`block truncate ${selected ? 'opacity-90' : 'text-on-surface-variant'}`}>
                                     {trip.busId?.regNumber} · {scheduleCode(trip)}
+                                  </span>
+                                  <span
+                                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                      selected
+                                        ? 'bg-white/20 text-white'
+                                        : scheduleStatusClass(trip.status)
+                                    }`}
+                                  >
+                                    {formatScheduleStatusLabel(trip.status)}
                                   </span>
                                 </button>
                               </li>

@@ -606,13 +606,32 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
   return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
+export const SCHEDULE_STATUS_LABELS = {
+  draft: 'Draft',
+  pending: 'Pending approval',
+  approved: 'Approved',
+  scheduled: 'Scheduled',
+  'on-time': 'On time',
+  delayed: 'Delayed',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+}
+
+export function formatScheduleStatusLabel(status) {
+  return SCHEDULE_STATUS_LABELS[status] || status || '—'
+}
+
 export const SCHEDULE_STATUS_STYLES = {
   draft: 'bg-slate-100 text-slate-600',
   pending: 'bg-amber-100 text-amber-800',
   approved: 'bg-indigo-100 text-indigo-800',
-  scheduled: 'bg-fleet-primary-light text-fleet-primary',
+  scheduled: 'bg-blue-100 text-blue-800',
   'on-time': 'bg-green-100 text-green-800',
   delayed: 'bg-amber-100 text-amber-800',
   completed: 'bg-slate-100 text-slate-600',
   cancelled: 'bg-red-100 text-red-700',
+}
+
+export function scheduleStatusClass(status) {
+  return SCHEDULE_STATUS_STYLES[status] || 'bg-slate-100 text-slate-600'
 }

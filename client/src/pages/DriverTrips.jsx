@@ -3,16 +3,14 @@ import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData } from '../services/pagePrefetch'
-import { formatTripDate, formatTimeRange } from '../utils/scheduleHelpers'
+import {
+  formatRouteEndpointsLabel,
+  formatScheduleStatusLabel,
+  formatTripDate,
+  formatTimeRange,
+  scheduleStatusClass,
+} from '../utils/scheduleHelpers'
 import { ModuleHeader, ModuleCard } from '../components/layout/ModuleLayout'
-
-const STATUS_STYLES = {
-  scheduled: 'bg-blue-100 text-blue-800',
-  'on-time': 'bg-green-100 text-green-800',
-  delayed: 'bg-amber-100 text-amber-800',
-  completed: 'bg-slate-100 text-slate-600',
-  cancelled: 'bg-red-100 text-red-700',
-}
 
 function DriverTrips() {
   const { user } = useAuth()
@@ -32,7 +30,7 @@ function DriverTrips() {
     <div className="w-full">
       <ModuleHeader
         title="My assigned trips"
-        subtitle={`Welcome, ${user?.name || 'Driver'} — your duty roster from the depot schedule.`}
+        subtitle={`Welcome, ${user?.name || 'Driver'} — approved trips only appear here after the depot manager releases your schedule.`}
       />
 
       {error && (
@@ -62,7 +60,10 @@ function DriverTrips() {
         {loading && trips.length === 0 ? (
           <p className="p-8 text-center text-on-surface-variant">Loading trips...</p>
         ) : trips.length === 0 ? (
-          <p className="p-8 text-center text-on-surface-variant">No assigned trips in this period.</p>
+          <p className="p-8 text-center text-on-surface-variant">
+            No approved trips in this period. New duties appear here after the depot manager approves
+            your schedule.
+          </p>
         ) : (
           <ul className="divide-y divide-outline-variant">
             {trips.map((trip) => (
@@ -72,7 +73,7 @@ function DriverTrips() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-neutral-900">
-                    {trip.routeId?.routeName || 'Route'}
+                    {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
                   </p>
                   <p className="text-sm text-on-surface-variant">
                     {formatTripDate(trip.tripDate)} ·{' '}
@@ -84,11 +85,9 @@ function DriverTrips() {
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
-                    STATUS_STYLES[trip.status] || STATUS_STYLES.scheduled
-                  }`}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(trip.status)}`}
                 >
-                  {trip.status}
+                  {formatScheduleStatusLabel(trip.status)}
                 </span>
               </li>
             ))}
