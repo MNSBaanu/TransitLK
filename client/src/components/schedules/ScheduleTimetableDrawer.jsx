@@ -545,7 +545,7 @@ function ScheduleTimetableDrawer({
                             required={row.included}
                             data-field="departure"
                             {...(isPrimaryFocus && focusField === 'departure' ? { 'data-focus-priority': true } : {})}
-                            className={inputClass}
+                            className={`${inputClass} time-field`}
                           />
                         </td>
                         <td className="py-3 pr-2 align-top">
@@ -557,7 +557,7 @@ function ScheduleTimetableDrawer({
                             }
                             disabled={!row.included}
                             required={row.included}
-                            className={inputClass}
+                            className={`${inputClass} time-field`}
                           />
                         </td>
                         <td className="py-3 pr-2 align-top">

@@ -7,7 +7,14 @@ import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import FieldError from '../components/FieldError'
 import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
+import {
+  fieldBorderClass,
+  hasErrors,
+  validateFuelForm,
+  validateMaintenanceForm,
+} from '../utils/formValidation'
 
 const ITEMS_PER_PAGE = 8
 
@@ -33,6 +40,7 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   // Update form when preSelectedBusId changes
   useEffect(() => {
@@ -41,10 +49,18 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
     }
   }, [preSelectedBusId, record])
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handle = (e) => {
+    const { name, value } = e.target
+    setForm({ ...form, [name]: value })
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateMaintenanceForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
     try {
@@ -83,22 +99,28 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Bus ID (MongoDB _id)</label>
             <input name="bus_id" value={form.bus_id} onChange={handle} required placeholder="Enter bus _id"
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`} />
+            <FieldError message={fieldErrors.bus_id} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Service Date</label>
             <input name="service_date" type="date" value={form.service_date} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              max={new Date().toISOString().slice(0, 10)}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.service_date)}`} />
+            <FieldError message={fieldErrors.service_date} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Description / Service Type</label>
-            <input name="description" value={form.description} onChange={handle} required placeholder="e.g. Oil Change, Brake Check"
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <input name="description" value={form.description} onChange={handle} required minLength={3}
+              placeholder="e.g. Oil Change, Brake Check"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.description)}`} />
+            <FieldError message={fieldErrors.description} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Cost (LKR)</label>
-            <input name="cost" type="number" value={form.cost} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+            <input name="cost" type="number" min="0.01" step="0.01" value={form.cost} onChange={handle} required
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.cost)}`} />
+            <FieldError message={fieldErrors.cost} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
@@ -125,11 +147,20 @@ function FuelModal({ record, onClose, onSave }) {
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
-  const handle = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handle = (e) => {
+    const { name, value } = e.target
+    setForm({ ...form, [name]: value })
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
+  }
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateFuelForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
     try {
@@ -160,23 +191,28 @@ function FuelModal({ record, onClose, onSave }) {
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Bus ID (MongoDB _id)</label>
             <input name="bus_id" value={form.bus_id} onChange={handle} required placeholder="Enter bus _id"
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`} />
+            <FieldError message={fieldErrors.bus_id} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Fuel Date</label>
             <input name="fuel_date" type="date" value={form.fuel_date} onChange={handle} required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              max={new Date().toISOString().slice(0, 10)}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.fuel_date)}`} />
+            <FieldError message={fieldErrors.fuel_date} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Liters</label>
-              <input name="liters" type="number" step="0.1" value={form.liters} onChange={handle} required
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              <input name="liters" type="number" min="0.1" step="0.1" value={form.liters} onChange={handle} required
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.liters)}`} />
+              <FieldError message={fieldErrors.liters} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-neutral-600">Amount (LKR)</label>
-              <input name="amount" type="number" value={form.amount} onChange={handle} required
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900" />
+              <input name="amount" type="number" min="0.01" step="0.01" value={form.amount} onChange={handle} required
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.amount)}`} />
+              <FieldError message={fieldErrors.amount} />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">

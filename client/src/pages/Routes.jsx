@@ -23,6 +23,7 @@ import {
   isDriverAssignable,
 } from '../utils/fleetHelpers'
 import { buildRouteName } from '../utils/routeHelpers'
+import { hasErrors, validateRouteForm } from '../utils/formValidation'
 import {
   ModuleAlert,
   ModuleCard,
@@ -118,6 +119,7 @@ function RoutesPage() {
   const [toast, setToast] = useState('')
   const [selectedId, setSelectedId] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [stopInput, setStopInput] = useState('')
   const [initialRouteStatus, setInitialRouteStatus] = useState('draft')
 
@@ -326,6 +328,7 @@ function RoutesPage() {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
     setForm((prev) => {
       const next = { ...prev, [name]: value }
       if (name === 'startPoint' || name === 'endPoint') {
@@ -443,6 +446,9 @@ function RoutesPage() {
   const handleSave = async (e) => {
     e.preventDefault()
     setError('')
+    const errors = validateRouteForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
     if (isEditingExisting && !validateFleetAssignment()) return
     setSaving(true)
     try {
@@ -650,6 +656,7 @@ function RoutesPage() {
           {error && <ModuleAlert variant="error" title={error} />}
           <RouteEditView
             form={form}
+            fieldErrors={fieldErrors}
             isEditing={isEditingExisting}
             routeCode={displayRouteCode}
             initialRouteStatus={initialRouteStatus}

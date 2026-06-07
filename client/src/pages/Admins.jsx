@@ -12,6 +12,8 @@ import {
 } from '../components/layout/ModuleLayout'
 import { ROLE_LABELS, ROLES, accessModulesForRole } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
+import FieldError from '../components/FieldError'
+import { fieldBorderClass, hasErrors, validateAdminForm } from '../utils/formValidation'
 
 const ADMIN_ROLES = [ROLES.SUPERADMINISTRATOR, ROLES.ADMINISTRATOR]
 
@@ -51,9 +53,11 @@ function AdminModal({ admin, depots, onClose, onSave }) {
   }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const handleChange = (e) => {
     const { name, value } = e.target
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
     setForm((prev) => {
       const next = { ...prev, [name]: value }
       if (name === 'role' && value === ROLES.SUPERADMINISTRATOR) {
@@ -65,6 +69,10 @@ function AdminModal({ admin, depots, onClose, onSave }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const errors = validateAdminForm(form, { isEdit })
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
 
@@ -77,20 +85,9 @@ function AdminModal({ admin, depots, onClose, onSave }) {
       }
       if (form.password) payload.password = form.password
 
-      if (form.role === ROLES.ADMINISTRATOR && !payload.depotId) {
-        setError('Depot assignment is required for administrators')
-        setSaving(false)
-        return
-      }
-
       if (isEdit) {
         await api.put(`/admins/${admin._id}`, payload)
       } else {
-        if (!form.password) {
-          setError('Password is required for new administrators')
-          setSaving(false)
-          return
-        }
         await api.post('/admins', { ...payload, password: form.password })
       }
 
@@ -124,8 +121,10 @@ function AdminModal({ admin, depots, onClose, onSave }) {
               value={form.name}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              minLength={2}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.name)}`}
             />
+            <FieldError message={fieldErrors.name} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Email</span>
@@ -135,8 +134,9 @@ function AdminModal({ admin, depots, onClose, onSave }) {
               value={form.email}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.email)}`}
             />
+            <FieldError message={fieldErrors.email} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">
@@ -149,8 +149,9 @@ function AdminModal({ admin, depots, onClose, onSave }) {
               onChange={handleChange}
               required={!isEdit}
               minLength={6}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.password)}`}
             />
+            <FieldError message={fieldErrors.password} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Role</span>
@@ -176,7 +177,7 @@ function AdminModal({ admin, depots, onClose, onSave }) {
               value={form.depotId}
               onChange={handleChange}
               disabled={form.role === ROLES.SUPERADMINISTRATOR}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 disabled:bg-neutral-50"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:bg-neutral-50 ${fieldBorderClass(fieldErrors.depotId)}`}
             >
               <option value="">
                 {form.role === ROLES.SUPERADMINISTRATOR ? 'System-wide access' : 'Select depot'}
@@ -187,6 +188,7 @@ function AdminModal({ admin, depots, onClose, onSave }) {
                 </option>
               ))}
             </select>
+            <FieldError message={fieldErrors.depotId} />
           </label>
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
             Access: {accessModulesForRole(form.role).join(' · ')}
