@@ -930,7 +930,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                   })() : <span className="text-xs text-neutral-400">—</span>}
                 </td>
                 <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
+                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
+                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setViewDriver(d)}

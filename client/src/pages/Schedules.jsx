@@ -14,6 +14,7 @@ import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
+import { isSchedulableRoute } from '../utils/routeHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
 import {
@@ -143,6 +144,10 @@ function SchedulesPage() {
     setError('')
     try {
       const data = await loadPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate }, { force })
+      if (!data) {
+        setError('Failed to load schedules')
+        return
+      }
       setSchedules(data.schedules)
       setRoutes(data.routes)
       setBuses(data.buses)
@@ -153,6 +158,11 @@ function SchedulesPage() {
       setLoading(false)
     }
   }, [viewDate, viewMode])
+
+  const activeRoutes = useMemo(
+    () => routes.filter(isSchedulableRoute),
+    [routes]
+  )
 
   useEffect(() => {
     try {
@@ -1019,7 +1029,7 @@ function SchedulesPage() {
                   className={`${inputClass} w-full min-w-[9.5rem] py-2`}
                 >
                   <option value="">All routes</option>
-                  {routes.map((r) => (
+                  {activeRoutes.map((r) => (
                     <option key={r._id} value={r._id}>
                       {r.routeName}
                     </option>

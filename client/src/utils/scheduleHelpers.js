@@ -1,3 +1,5 @@
+import { buildRouteName, isSchedulableRoute } from './routeHelpers'
+
 const GANTT_START_MIN = 6 * 60
 const GANTT_END_MIN = 24 * 60
 const GANTT_SPAN = GANTT_END_MIN - GANTT_START_MIN
@@ -101,8 +103,6 @@ export function getTimetableDates(period, anchorDate) {
   if (period === 'monthly') return getMonthDayDates(anchorDate)
   return [toDateInputValue(new Date(anchorDate))]
 }
-
-import { buildRouteName, isSchedulableRoute } from './routeHelpers'
 
 /** Start and end points for schedule/timetable route labels */
 export function formatRouteEndpointsLabel(route = {}) {
@@ -314,6 +314,18 @@ export function getViewDateRange(viewMode, anchorDate) {
     return { from, to }
   }
   return { from: anchorDate, to: anchorDate }
+}
+
+/** Full calendar week/month boundaries for Reporting & Analytics */
+export function applyReportPeriodRange(period, anchorDate = toDateInputValue(new Date())) {
+  const anchor =
+    typeof anchorDate === 'string' ? anchorDate : toDateInputValue(anchorDate)
+  return getViewDateRange(period === 'weekly' ? 'weekly' : 'monthly', anchor)
+}
+
+export function formatReportRangeLabel(from, to) {
+  const opts = { day: 'numeric', month: 'short', year: 'numeric' }
+  return `${parseLocalDateInput(from).toLocaleDateString('en-GB', opts)} – ${parseLocalDateInput(to).toLocaleDateString('en-GB', opts)}`
 }
 
 export function formatPeriodLabel(viewMode, anchorDate) {
