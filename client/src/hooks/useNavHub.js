@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { detectPeriodConflicts, toDateInputValue } from '../utils/scheduleHelpers'
 
 const MESSAGES_KEY = 'transitlk_nav_messages'
-const READ_NOTIFS_KEY = 'transitlk_nav_read_notifications'
 
 const SEED_MESSAGES = [
   {
@@ -53,11 +51,25 @@ function formatRelativeTime(iso) {
   return `${days}d ago`
 }
 
+function mapPriorityToType(priority) {
+  switch (priority) {
+    case 'critical':
+      return 'error'
+    case 'high':
+      return 'warning'
+    case 'medium':
+      return 'info'
+    case 'low':
+      return 'info'
+    default:
+      return 'info'
+  }
+}
+
 export function useNavHub() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [messages, setMessages] = useState(() => loadJson(MESSAGES_KEY, SEED_MESSAGES))
-  const [readNotifIds, setReadNotifIds] = useState(() => loadJson(READ_NOTIFS_KEY, []))
   const [loadingAlerts, setLoadingAlerts] = useState(true)
   const [activeMessageId, setActiveMessageId] = useState(null)
 
@@ -66,17 +78,11 @@ export function useNavHub() {
   }, [messages])
 
   useEffect(() => {
-    localStorage.setItem(READ_NOTIFS_KEY, JSON.stringify(readNotifIds))
-  }, [readNotifIds])
-
-  useEffect(() => {
     let cancelled = false
 
     async function loadAlerts() {
       setLoadingAlerts(true)
-      const today = toDateInputValue(new Date())
-      const items = []
-
+      
       try {
         const [busesRes, maintRes, schedRes] = await Promise.all([
           api.get('/buses', { params: { light: 1 } }),
@@ -86,85 +92,38 @@ export function useNavHub() {
 
         if (cancelled) return
 
-        const buses = busesRes.data || []
-        const maintenance = Array.isArray(maintRes.data) ? maintRes.data : maintRes.data?.records || []
-        const schedules = schedRes.data || []
+        const backendNotifications = response.data || []
+        
+        // Map backend notifications to frontend format
+        const mappedNotifications = backendNotifications.map((n) => ({
+          id: n._id,
+          type: mapPriorityToType(n.priority),
+          title: n.title,
+          body: n.message,
+          link: n.link,
+          time: n.createdAt,
+          read: n.read,
+          data: n.data,
+        }))
 
-        buses
-          .filter((b) => b.status === 'maintenance')
-          .forEach((b) => {
-            items.push({
-              id: `bus-maint-${b._id}`,
-              type: 'error',
-              title: 'Vehicle offline',
-              body: `${b.regNumber} is in maintenance`,
-              link: '/buses',
-              time: new Date().toISOString(),
-            })
-          })
-
-        schedules
-          .filter((s) => s.status === 'delayed')
-          .forEach((s) => {
-            items.push({
-              id: `sched-delay-${s._id}`,
-              type: 'warning',
-              title: 'Trip delayed',
-              body: `${s.routeId?.routeName || 'Route'} · ${s.departureTime}–${s.arrivalTime}`,
-              link: '/schedules',
-              time: new Date().toISOString(),
-            })
-          })
-
-        const conflicts = detectPeriodConflicts(schedules)
-        conflicts.slice(0, 5).forEach((c, i) => {
-          items.push({
-            id: `conflict-${i}-${c.a._id}`,
-            type: 'error',
-            title: 'Schedule conflict',
-            body: c.message,
-            link: '/schedules',
-            time: new Date().toISOString(),
-          })
-        })
-
-        maintenance.slice(0, 4).forEach((m) => {
-          items.push({
-            id: `maint-${m._id}`,
-            type: 'info',
-            title: 'Maintenance logged',
-            body: m.description || 'Service record updated',
-            link: '/maintenance',
-            time: m.createdAt || m.service_date || new Date().toISOString(),
-          })
-        })
-
-        if (items.length === 0) {
-          items.push({
-            id: 'all-clear',
-            type: 'info',
-            title: 'All clear',
-            body: 'No urgent depot alerts for today.',
-            link: '/dashboard',
-            time: new Date().toISOString(),
-          })
-        }
-      } catch {
         if (!cancelled) {
-          items.push({
+          setNotifications(mappedNotifications)
+          setLoadingAlerts(false)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          // Fallback to error notification if backend fails
+          setNotifications([{
             id: 'alerts-offline',
             type: 'warning',
             title: 'Alerts unavailable',
             body: 'Could not load live alerts. Check server connection.',
             link: '/dashboard',
             time: new Date().toISOString(),
-          })
+            read: false,
+          }])
+          setLoadingAlerts(false)
         }
-      }
-
-      if (!cancelled) {
-        setNotifications(items)
-        setLoadingAlerts(false)
       }
     }
 
@@ -180,13 +139,12 @@ export function useNavHub() {
     () =>
       notifications.map((n) => ({
         ...n,
-        read: readNotifIds.includes(n.id),
         timeLabel: formatRelativeTime(n.time),
       })),
-    [notifications, readNotifIds]
+    [notifications]
   )
 
-  const unreadNotifCount = notificationsWithRead.filter((n) => !n.read && n.id !== 'all-clear').length
+  const unreadNotifCount = notificationsWithRead.filter((n) => !n.read && n.title !== 'All Clear').length
 
   const messagesWithMeta = useMemo(
     () =>
@@ -201,13 +159,25 @@ export function useNavHub() {
 
   const activeMessage = messagesWithMeta.find((m) => m.id === activeMessageId) || null
 
-  const markNotificationRead = useCallback((id) => {
-    setReadNotifIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+  const markNotificationRead = useCallback(async (id) => {
+    try {
+      await api.put(`/notifications/${id}/read`)
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      )
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error)
+    }
   }, [])
 
-  const markAllNotificationsRead = useCallback(() => {
-    setReadNotifIds(notifications.map((n) => n.id))
-  }, [notifications])
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      await api.put('/notifications/read-all')
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error)
+    }
+  }, [])
 
   const openNotification = useCallback(
     (item) => {
