@@ -47,8 +47,7 @@ export const getAllDrivers = async (req, res) => {
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
     const result = await attachFleetAssignmentContext(drivers, {
-      idField: 'driverId',
-      routeField: 'driverId',
+      resourceField: 'driverId',
     })
     res.json(result)
   } catch (error) {

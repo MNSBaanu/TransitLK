@@ -120,6 +120,7 @@ function SchedulesPage() {
   const invalidateRelatedPages = useCallback(() => {
     invalidatePageData('/schedules')
     invalidatePageData('/reports')
+    invalidatePageData('/buses')
   }, [])
 
   const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, viewDate: viewDateOverride } = {}) => {

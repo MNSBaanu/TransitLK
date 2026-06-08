@@ -7,24 +7,29 @@ import {
   timeToMinutes,
 } from './scheduleHelpers.js'
 
-const INACTIVE_SCHEDULE_STATUSES = new Set(['cancelled', 'draft'])
+const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
 
-function serializeAssignedRoute(route) {
+export function serializeRouteRef(route) {
   if (!route) return null
+  const id = route._id ?? route
+  if (!id) return null
   return {
-    _id: route._id,
-    routeNo: route.routeNo,
-    routeName: route.routeName,
-    serviceType: route.serviceType,
-    status: route.status,
+    _id: id,
+    routeNo: route.routeNo ?? null,
+    routeName: route.routeName ?? null,
+    serviceType: route.serviceType ?? null,
+    status: route.status ?? null,
   }
 }
 
 function serializeCurrentSchedule(schedule, phase) {
   if (!schedule) return null
+  const route = schedule.routeId
   return {
     _id: schedule._id,
-    routeName: schedule.routeId?.routeName || null,
+    routeId: route?._id ?? schedule.routeId ?? null,
+    routeName: route?.routeName ?? null,
+    routeNo: route?.routeNo ?? null,
     departureTime: schedule.departureTime,
     arrivalTime: schedule.arrivalTime,
     status: schedule.status,
@@ -35,7 +40,7 @@ function serializeCurrentSchedule(schedule, phase) {
 
 export function pickCurrentSchedule(schedules, now = new Date()) {
   const nowMinutes = now.getHours() * 60 + now.getMinutes()
-  const active = schedules.filter((s) => !INACTIVE_SCHEDULE_STATUSES.has(s.status))
+  const active = schedules.filter((s) => !INACTIVE_SCHEDULE_STATUSES.includes(s.status))
   if (!active.length) return null
 
   const sorted = [...active].sort(
@@ -78,46 +83,75 @@ function indexSchedulesByField(schedules, field) {
   return grouped
 }
 
-/** Attach assignedRoute + currentSchedule for fleet list endpoints */
-export async function attachFleetAssignmentContext(items, { idField, routeField }) {
-  if (!items.length) return items
+/** Load route + schedule assignments from MongoDB for fleet list rows */
+async function loadFleetContextFromDb(resourceIds, resourceField, today = new Date()) {
+  if (!resourceIds.length) {
+    return { routeByResourceId: new Map(), schedulesByResourceId: new Map() }
+  }
 
-  const ids = items.map((item) => item._id)
-  const today = new Date()
+  const dayStart = startOfDay(today)
+  const dayEnd = endOfDay(today)
 
   const [routes, schedules] = await Promise.all([
-    Route.find({ [routeField]: { $in: ids } })
-      .select('busId driverId routeNo routeName serviceType status updatedAt createdAt')
-      .sort({ updatedAt: -1, createdAt: -1 }),
+    Route.find({ [resourceField]: { $in: resourceIds } })
+      .select(`${resourceField} routeNo routeName serviceType status updatedAt createdAt`)
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean(),
     Schedule.find({
-      [idField]: { $in: ids },
-      tripDate: { $gte: startOfDay(today), $lte: endOfDay(today) },
+      [resourceField]: { $in: resourceIds },
+      tripDate: { $gte: dayStart, $lte: dayEnd },
+      status: { $nin: INACTIVE_SCHEDULE_STATUSES },
     })
-      .populate('routeId', 'routeName routeNo')
-      .select('routeId busId driverId departureTime arrivalTime status tripDate')
-      .sort({ departureTime: 1 }),
+      .populate('routeId', 'routeNo routeName serviceType status')
+      .select(`${resourceField} routeId departureTime arrivalTime status tripDate`)
+      .sort({ departureTime: 1 })
+      .lean(),
   ])
 
-  const routeByResourceId = indexRoutesByField(routes, routeField)
-  const schedulesByResourceId = indexSchedulesByField(schedules, idField)
+  return {
+    routeByResourceId: indexRoutesByField(routes, resourceField),
+    schedulesByResourceId: indexSchedulesByField(schedules, resourceField),
+  }
+}
+
+function resolveCurrentRoute(assignedRoute, currentSchedulePick) {
+  const scheduleRoute =
+    currentSchedulePick?.schedule?.routeId &&
+    typeof currentSchedulePick.schedule.routeId === 'object'
+      ? serializeRouteRef(currentSchedulePick.schedule.routeId)
+      : null
+  if (scheduleRoute?.routeName) return scheduleRoute
+  return serializeRouteRef(assignedRoute)
+}
+
+/** Attach currentRoute + currentSchedule from DB collections onto fleet rows */
+export async function attachFleetAssignmentContext(items, { resourceField }) {
+  if (!items.length) return []
+
+  const resourceIds = items.map((item) => item._id)
+  const today = new Date()
+  const { routeByResourceId, schedulesByResourceId } = await loadFleetContextFromDb(
+    resourceIds,
+    resourceField,
+    today
+  )
 
   return items.map((item) => {
     const doc = typeof item.toObject === 'function' ? item.toObject() : { ...item }
     const key = String(item._id)
 
     const assignedRoute = routeByResourceId.get(key)
-    if (assignedRoute) {
-      doc.assignedRoute = serializeAssignedRoute(assignedRoute)
-      if (routeField === 'busId' && assignedRoute.serviceType) {
-        doc.serviceType = assignedRoute.serviceType
-      }
-    }
-
     const todayTrips = schedulesByResourceId.get(key) || []
-    const current = pickCurrentSchedule(todayTrips, today)
-    doc.currentSchedule = current
-      ? serializeCurrentSchedule(current.schedule, current.phase)
+    const currentPick = pickCurrentSchedule(todayTrips, today)
+
+    doc.currentRoute = resolveCurrentRoute(assignedRoute, currentPick)
+    doc.currentSchedule = currentPick
+      ? serializeCurrentSchedule(currentPick.schedule, currentPick.phase)
       : null
+
+    if (resourceField === 'busId' && assignedRoute?.serviceType) {
+      doc.serviceType = assignedRoute.serviceType
+    }
 
     return doc
   })

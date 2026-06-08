@@ -142,6 +142,7 @@ function RoutesPage() {
     invalidatePageData('/routes')
     invalidatePageData('/schedules')
     invalidatePageData('/reports')
+    invalidatePageData('/buses')
   }, [])
 
   const loadRoutes = useCallback(
