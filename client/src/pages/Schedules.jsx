@@ -28,6 +28,8 @@ import {
   filterSchedulesInDateRange,
   getTimetableDateBounds,
   getTimetableDates,
+  normalizeTimetableAnchor,
+  newTimetableId,
   mergeSchedulesById,
   viewRangeCoversTimetable,
   groupTimetableConflictsByRoute,
@@ -504,8 +506,8 @@ function SchedulesPage() {
   }
 
   const openTimetableDrawer = () => {
-    const period = viewMode === 'monthly' ? 'daily' : viewMode
-    const anchor = viewDate
+    const period = viewMode
+    const anchor = normalizeTimetableAnchor(period, viewDate)
     const { from, to } = getTimetableDateBounds(period, anchor)
     const instant = mergeSchedulesById(
       timetableRangeSchedules,
@@ -544,10 +546,11 @@ function SchedulesPage() {
 
   const handleTimetablePeriodChange = (period) => {
     setTimetablePeriod(period)
+    setTimetableAnchor((prev) => normalizeTimetableAnchor(period, prev))
   }
 
   const handleTimetableAnchorChange = (date) => {
-    setTimetableAnchor(date)
+    setTimetableAnchor(normalizeTimetableAnchor(timetablePeriod, date))
   }
 
   const handleAdjustChange = (e) => {
@@ -664,8 +667,8 @@ function SchedulesPage() {
     }
   }
 
-  const createOneSchedule = async (tripDate, payload) => {
-    await api.post('/schedules', { ...payload, tripDate })
+  const createOneSchedule = async (tripDate, payload, timetableMeta) => {
+    await api.post('/schedules', { ...payload, tripDate, ...timetableMeta })
   }
 
   const handleCreateTimetable = async (e) => {
@@ -706,6 +709,12 @@ function SchedulesPage() {
     setError('')
     let created = 0
     const skipped = []
+    const savedViewDate = normalizeTimetableAnchor(timetablePeriod, timetableAnchor)
+    const timetableMeta = {
+      timetableId: newTimetableId(),
+      timetablePeriod,
+      timetableAnchor: savedViewDate,
+    }
 
     try {
       for (const row of included) {
@@ -720,7 +729,7 @@ function SchedulesPage() {
         }
         for (const day of dates) {
           try {
-            await createOneSchedule(day, payload)
+            await createOneSchedule(day, payload, timetableMeta)
             created += 1
           } catch (err) {
             const msg = err.response?.data?.message || 'Conflict'
@@ -731,9 +740,18 @@ function SchedulesPage() {
       }
 
       if (created > 0) {
+        const savedViewMode = timetablePeriod
         closeScheduleModals()
-        setViewMode(timetablePeriod)
-        setViewDate(timetableAnchor)
+        try {
+          sessionStorage.setItem(
+            SCHEDULES_VIEW_KEY,
+            JSON.stringify({ viewMode: savedViewMode, viewDate: savedViewDate })
+          )
+        } catch {
+          /* ignore */
+        }
+        setViewMode(savedViewMode)
+        setViewDate(savedViewDate)
         invalidateRelatedPages()
         showToast(
           `${created} trip(s) sent for depot manager approval${
@@ -742,9 +760,9 @@ function SchedulesPage() {
         )
         await loadData({
           force: true,
-          keepContent: true,
-          viewMode: timetablePeriod,
-          viewDate: timetableAnchor,
+          keepContent: false,
+          viewMode: savedViewMode,
+          viewDate: savedViewDate,
         })
       }
       if (skipped.length) {
@@ -1058,6 +1076,7 @@ function SchedulesPage() {
                   onClick={() => {
                     if (mode === viewMode) return
                     setViewMode(mode)
+                    setViewDate((prev) => normalizeTimetableAnchor(mode, prev))
                     setSelected(null)
                     closeScheduleModals()
                   }}

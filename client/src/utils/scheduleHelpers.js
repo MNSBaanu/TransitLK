@@ -186,6 +186,33 @@ export function getMonthDayDates(anchorDate) {
   return days
 }
 
+/** Canonical anchor for timetable create/view (week start or 1st of month). */
+export function normalizeTimetableAnchor(period, anchorDate) {
+  if (!anchorDate) return toDateInputValue(new Date())
+  if (period === 'weekly') return startOfWeekDate(anchorDate)
+  if (period === 'monthly') {
+    const d = parseLocalDateInput(anchorDate)
+    return toDateInputValue(new Date(d.getFullYear(), d.getMonth(), 1))
+  }
+  return toDateInputValue(anchorDate)
+}
+
+/** Day used as the route/time template when editing weekly or monthly timetables */
+export function getTimetableTemplateDate(period, anchorDate) {
+  return normalizeTimetableAnchor(period, anchorDate)
+}
+
+export function formatTimetableCoverageLabel(period, anchorDate) {
+  if (period === 'daily') return formatTripDate(anchorDate)
+  if (period === 'weekly') {
+    const from = startOfWeekDate(anchorDate)
+    const to = endOfWeekDate(anchorDate)
+    return `${formatTripDate(from)} – ${formatTripDate(to)}`
+  }
+  const d = parseLocalDateInput(normalizeTimetableAnchor('monthly', anchorDate))
+  return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
 /** Dates covered when building a daily, weekly, or monthly timetable */
 export function getTimetableDates(period, anchorDate) {
   if (period === 'weekly') return getWeekDayDates(anchorDate)
@@ -233,7 +260,8 @@ export function schedulesForTimetableRows(schedules, period, anchorDate) {
 
 export function buildTimetableRowsForPeriod(routes, schedules, period, anchorDate) {
   const source = schedulesForTimetableRows(schedules, period, anchorDate)
-  return buildTimetableRows(routes, source, anchorDate)
+  const templateDate = getTimetableTemplateDate(period, anchorDate)
+  return buildTimetableRows(routes, source, templateDate)
 }
 
 /** Start and end points for schedule/timetable route labels */
@@ -249,6 +277,14 @@ function newTripRowId() {
     return `new-${crypto.randomUUID()}`
   }
   return `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/** Shared id for all trips in one timetable save (Option A grouping). */
+export function newTimetableId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `tt-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 export function createTimetableRowFromRoute(route, existing = null) {
