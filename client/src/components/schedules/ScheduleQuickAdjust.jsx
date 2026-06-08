@@ -70,20 +70,21 @@ function ScheduleQuickAdjust({
   const derivedStatus = reasonToStatus(form.reason, form.status)
   const [activePicker, setActivePicker] = useState(null)
   const tripDepartureTime = form.departureTime || selected?.departureTime
+  const tripLicenseDate = selected ? tripDateKey(selected) : undefined
 
   const assignableDrivers = useMemo(
     () =>
       drivers.filter(
         (d) =>
-          isDriverAssignable(d, tripDepartureTime) ||
+          isDriverAssignable(d, tripDepartureTime, tripLicenseDate) ||
           String(d._id) === String(form.driverId || selected?.driverId?._id || selected?.driverId)
       ),
-    [drivers, form.driverId, selected, tripDepartureTime]
+    [drivers, form.driverId, selected, tripDepartureTime, tripLicenseDate]
   )
 
   const eligibleDrivers = useMemo(
-    () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime)),
-    [drivers, tripDepartureTime]
+    () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime, tripLicenseDate)),
+    [drivers, tripDepartureTime, tripLicenseDate]
   )
 
   const assignableBuses = useMemo(() => {
@@ -119,9 +120,10 @@ function ScheduleQuickAdjust({
     const currentDriverId = String(selected.driverId?._id || selected.driverId || '')
     return drivers.filter(
       (d) =>
-        String(d._id) !== currentDriverId && isDriverAssignable(d, tripDepartureTime)
+        String(d._id) !== currentDriverId &&
+          isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
     )
-  }, [selected, drivers, tripDepartureTime])
+  }, [selected, drivers, tripDepartureTime, tripLicenseDate])
 
   const togglePicker = (picker) => {
     setActivePicker((prev) => (prev === picker ? null : picker))

@@ -64,6 +64,39 @@ export function defaultMinCapacityForService(serviceType) {
   return SERVICE_MIN_CAPACITY[serviceType] ?? 30
 }
 
+function startOfCalendarDay(value) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+export function formatLicenseExpiryDate(licenseExpiry) {
+  if (!licenseExpiry) return '—'
+  return new Date(licenseExpiry).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/** License must be valid through the given calendar day (inclusive). */
+export function isDriverLicenseValid(licenseExpiry, onDate = new Date()) {
+  if (!licenseExpiry) return false
+  const exp = startOfCalendarDay(licenseExpiry)
+  const ref = startOfCalendarDay(onDate)
+  if (!exp || !ref) return false
+  return exp >= ref
+}
+
+export function getDriverLicenseInvalidReason(driver, onDate = new Date()) {
+  if (!driver) return 'Driver not found'
+  if (!driver.licenseExpiry) return 'Driver license expiry date is not set'
+  if (!isDriverLicenseValid(driver.licenseExpiry, onDate)) {
+    return `Driver license expired on ${formatLicenseExpiryDate(driver.licenseExpiry)}`
+  }
+  return null
+}
+
 export function isBusAssignableForRoute(bus, routeServiceType) {
   if (!bus || bus.status !== 'available') return false
   if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) return false

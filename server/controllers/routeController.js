@@ -11,6 +11,7 @@ import {
 } from '../utils/routeHelpers.js'
 import {
   defaultMinCapacityForService,
+  getDriverLicenseInvalidReason,
   isBusAssignableForRoute,
 } from '../utils/fleetHelpers.js'
 import {
@@ -23,7 +24,7 @@ import {
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType mileage' }
 const driverPopulate = {
   path: 'driverId',
-  select: 'name licenseNo contactNo workingHours status',
+  select: 'name licenseNo licenseExpiry contactNo workingHours status',
 }
 const depotPopulate = { path: 'depotId', select: 'depotCode depotName region location' }
 const PAGE_SIZE_OPTIONS = new Set([10, 15])
@@ -128,6 +129,12 @@ const validateDriverAssignment = async (driverId, routeDepotId) => {
     const error = new Error(
       `Driver is outside working hours (${driver.workingHours || 'not set'})`
     )
+    error.statusCode = 400
+    throw error
+  }
+  const licenseIssue = getDriverLicenseInvalidReason(driver)
+  if (licenseIssue) {
+    const error = new Error(licenseIssue)
     error.statusCode = 400
     throw error
   }

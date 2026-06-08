@@ -20,6 +20,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import {
   defaultMinCapacityForService,
   isBusAssignable,
+  driverUnassignableReason,
   isDriverAssignable,
 } from '../utils/fleetHelpers'
 import { buildRouteName, getRouteDeleteDisabledReason } from '../utils/routeHelpers'
@@ -391,7 +392,10 @@ function RoutesPage() {
       return false
     }
     if (!isDriverAssignable(selectedDriver)) {
-      setError('Selected driver is not available or is outside working hours.')
+      setError(
+        driverUnassignableReason(selectedDriver) ||
+          'Selected driver is not available or is outside working hours.'
+      )
       return false
     }
     return true

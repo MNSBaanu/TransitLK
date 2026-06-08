@@ -2,9 +2,11 @@ import {
   busUnassignableReason,
   defaultMinCapacityForService,
   driverAvailabilityLabel,
+  formatLicenseExpiryDate,
   formatServiceType,
   isBusAssignable,
   isDriverAssignable,
+  isDriverLicenseValid,
   isWithinWorkingHours,
 } from '../../utils/fleetHelpers'
 
@@ -69,15 +71,23 @@ function driverRequirementItems(driver) {
   if (!driver) {
     return [
       { label: 'Status: available', ok: null },
+      { label: 'License valid today', ok: null },
       { label: 'Within working hours (now)', ok: null },
     ]
   }
   const statusOk = !driver.status || driver.status === 'available'
+  const licenseOk = isDriverLicenseValid(driver)
   const hoursOk = isWithinWorkingHours(driver.workingHours)
   return [
     {
       label: `Status: available (current: ${formatServiceType(driver.status || 'available')})`,
       ok: statusOk,
+    },
+    {
+      label: driver.licenseExpiry
+        ? `License valid today (expires ${formatLicenseExpiryDate(driver.licenseExpiry)})`
+        : 'License expiry date on file',
+      ok: licenseOk,
     },
     {
       label: `Within working hours now (${driver.workingHours || 'not set'})`,
@@ -196,7 +206,9 @@ function RouteFleetAssignment({
             <p className="mt-1 text-xs text-amber-800">No driver is available right now.</p>
           )}
           {selectedDriver && !isDriverAssignable(selectedDriver) && (
-            <p className="mt-1 text-xs text-red-600">{driverAvailabilityLabel(selectedDriver)}</p>
+            <p className="mt-1 text-xs text-red-600">
+              {driverAvailabilityLabel(selectedDriver)}
+            </p>
           )}
         </label>
       </div>
