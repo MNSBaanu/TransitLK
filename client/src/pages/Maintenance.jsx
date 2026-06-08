@@ -678,7 +678,7 @@ function SummaryReportPanel({ formatCurrency }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Maintenance() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const preSelectedBusId = searchParams.get('busId')
   
   const stale = getStalePageData('/maintenance')
@@ -697,10 +697,9 @@ function Maintenance() {
   useEffect(() => {
     if (preSelectedBusId) {
       setMaintenanceModal('new')
-      // Clear the URL param after opening modal
-      window.history.replaceState({}, '', '/maintenance')
+      setSearchParams({}, { replace: true })
     }
-  }, [preSelectedBusId])
+  }, [preSelectedBusId, setSearchParams])
 
   const applyData = useCallback((payload) => {
     setMaintenance(payload?.maintenance || [])
