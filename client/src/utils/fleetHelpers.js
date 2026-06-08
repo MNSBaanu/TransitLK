@@ -167,7 +167,7 @@ export function defaultMinCapacityForService(serviceType) {
 }
 
 export function isBusAssignable(bus, routeServiceType, minCapacity = 0) {
-  if (!bus || bus.status !== 'available') return false
+  if (!bus || bus.status === 'maintenance' || bus.status !== 'available') return false
   if (routeServiceType && bus.serviceType && bus.serviceType !== routeServiceType) return false
   const required = Number(minCapacity) || defaultMinCapacityForService(routeServiceType)
   if (required > 0 && Number(bus.capacity) < required) return false
@@ -176,6 +176,7 @@ export function isBusAssignable(bus, routeServiceType, minCapacity = 0) {
 
 export function busUnassignableReason(bus, routeServiceType, minCapacity = 0) {
   if (!bus) return 'Not found'
+  if (bus.status === 'maintenance') return 'Vehicle is under maintenance'
   if (bus.status !== 'available') {
     return `Not available (${formatServiceType(bus.status)})`
   }

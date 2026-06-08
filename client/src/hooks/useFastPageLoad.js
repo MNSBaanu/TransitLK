@@ -7,7 +7,9 @@ export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled 
   const optionsRef = useRef(options)
   optionsRef.current = options
 
-  const [loading, setLoading] = useState(() => !getStalePageData(path, options))
+  const [loading, setLoading] = useState(
+    () => !getCachedPageData(path, options) && !getStalePageData(path, options)
+  )
   const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(
@@ -39,7 +41,13 @@ export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled 
 
   useEffect(() => {
     const loadOptions = optionsRef.current
+    const cached = getCachedPageData(path, loadOptions)
     const stale = getStalePageData(path, loadOptions)
+    if (cached) {
+      applyData(cached)
+      setLoading(false)
+      return
+    }
     if (stale) applyData(stale)
     load({ keepContent: Boolean(stale), force: forceRefresh })
   }, [path, load, applyData, forceRefresh])

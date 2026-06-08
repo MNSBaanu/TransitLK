@@ -1,9 +1,5 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { isPrefetchablePath, prefetchPageData } from '../services/pagePrefetch'
-
-function isModifiedEvent(event) {
-  return Boolean(event.metaKey || event.altKey || event.ctrlKey || event.shiftKey)
-}
 
 function PrefetchNavLink({
   to,
@@ -16,8 +12,6 @@ function PrefetchNavLink({
   onTouchStart,
   ...props
 }) {
-  const navigate = useNavigate()
-  const location = useLocation()
   const targetPath = typeof to === 'string' ? to : to?.pathname
   const canPrefetch = isPrefetchablePath(targetPath)
 
@@ -26,23 +20,11 @@ function PrefetchNavLink({
     prefetchPageData(targetPath)
   }
 
-  const handleClick = async (event) => {
+  const handleClick = (event) => {
     onClick?.(event)
-
-    if (
-      event.defaultPrevented ||
-      !canPrefetch ||
-      event.button !== 0 ||
-      isModifiedEvent(event) ||
-      target === '_blank' ||
-      targetPath === location.pathname
-    ) {
-      return
+    if (!event.defaultPrevented && canPrefetch) {
+      prefetchPageData(targetPath)
     }
-
-    event.preventDefault()
-    await prefetchPageData(targetPath)
-    navigate(to, { replace, state })
   }
 
   return (

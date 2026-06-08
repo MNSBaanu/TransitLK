@@ -98,6 +98,11 @@ const validateBusAssignment = async (busId, routeServiceType, routeDepotId) => {
     error.statusCode = 400
     throw error
   }
+  if (bus.status === 'maintenance') {
+    const error = new Error('Bus is under maintenance and cannot be scheduled')
+    error.statusCode = 400
+    throw error
+  }
   if (!isBusAssignableForRoute(bus, routeServiceType)) {
     const minCap = defaultMinCapacityForService(routeServiceType)
     const error = new Error(`Bus does not meet requirements: available status and capacity ≥ ${minCap}`)
@@ -197,6 +202,7 @@ export const getRoutes = async (req, res) => {
     const requestedPage = Number.parseInt(req.query.page, 10)
     const requestedLimit = Number.parseInt(req.query.limit, 10)
     const search = rawSearch.trim()
+    const summaryOnly = req.query.summary === '1' || req.query.summary === 'true'
     const wantsPagination =
       Number.isFinite(requestedPage) ||
       Number.isFinite(requestedLimit) ||
@@ -204,6 +210,15 @@ export const getRoutes = async (req, res) => {
       Boolean(status) ||
       Boolean(serviceType)
     const filter = buildRouteFilter(req, { search, status, serviceType })
+
+    if (summaryOnly) {
+      const routes = await sortRoutes(
+        Route.find(filter).select(
+          'routeNo routeName startPoint endPoint distance serviceType status stops viaDescription busId driverId depotId'
+        )
+      ).lean()
+      return res.json(routes)
+    }
 
     if (!wantsPagination) {
       const routes = await attachScheduleCounts(

@@ -32,6 +32,24 @@ export function getRouteDeleteDisabledReason(route) {
   return `Cannot delete — ${count} schedule${count !== 1 ? 's' : ''} linked to this route. Remove those trips first.`
 }
 
+export function getRouteStatusChangeBlockedReason(route, nextStatus) {
+  const current = route?.status || 'draft'
+  if (!nextStatus || nextStatus === current) return null
+
+  if (current === 'active' && nextStatus === 'draft') {
+    return 'An active route cannot be moved back to draft. Set it to inactive to pause operations.'
+  }
+
+  if (current === 'active' && nextStatus === 'inactive') {
+    const count = Number(route?.scheduleCount) || 0
+    if (count > 0) {
+      return `Cannot deactivate route while ${count} schedule${count !== 1 ? 's' : ''} are linked. Remove or reassign those schedules first.`
+    }
+  }
+
+  return null
+}
+
 export function routeStatusClass(status) {
   switch (status) {
     case 'active':

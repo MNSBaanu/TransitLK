@@ -82,7 +82,7 @@ function Dashboard() {
     setData(payload?.data || null)
   }, [])
 
-  const { loading, refreshing } = useFastPageLoad('/dashboard', { applyData, forceRefresh: true })
+  const { loading, refreshing } = useFastPageLoad('/dashboard', { applyData })
 
   if (!loading && !data) {
     return (

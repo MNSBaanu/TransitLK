@@ -1,3 +1,4 @@
+import Bus from '../models/Bus.js'
 import Schedule from '../models/Schedule.js'
 import {
   getResourceBusyEndMinutes,
@@ -7,6 +8,91 @@ import {
 } from './scheduleHelpers.js'
 
 const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
+const SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE = [
+  'draft',
+  'pending',
+  'approved',
+  'scheduled',
+  'on-time',
+  'delayed',
+]
+
+/** Cancel all non-completed schedules when a bus is placed in maintenance */
+export async function cancelActiveSchedulesForBus(
+  busId,
+  notes = 'Bus placed in maintenance — schedule cancelled'
+) {
+  if (!busId) return { cancelledCount: 0 }
+
+  const result = await Schedule.updateMany(
+    {
+      busId,
+      status: { $in: SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE },
+    },
+    {
+      $set: {
+        status: 'cancelled',
+        adjustmentReason: 'maintenance',
+        adjustmentNotes: notes,
+      },
+    }
+  )
+
+  return { cancelledCount: result.modifiedCount }
+}
+
+function hasActiveTripToday(trips) {
+  return trips.some((trip) => !INACTIVE_SCHEDULE_STATUSES.includes(trip.status))
+}
+
+function deriveBusStatusFromTrips(busStatus, todayTrips) {
+  if (busStatus === 'maintenance') return 'maintenance'
+  return hasActiveTripToday(todayTrips) ? 'in-service' : 'available'
+}
+
+/** Keep bus.status aligned with whether it has an active trip today */
+export async function syncBusStatusForBusId(busId, today = new Date()) {
+  if (!busId) return
+
+  const bus = await Bus.findById(busId).select('status')
+  if (!bus || bus.status === 'maintenance') return
+
+  const dayStart = startOfDay(today)
+  const dayEnd = endOfDay(today)
+  const activeTripCount = await Schedule.countDocuments({
+    busId,
+    tripDate: { $gte: dayStart, $lte: dayEnd },
+    status: { $nin: INACTIVE_SCHEDULE_STATUSES },
+  })
+
+  const nextStatus = activeTripCount > 0 ? 'in-service' : 'available'
+  if (bus.status !== nextStatus) {
+    await Bus.findByIdAndUpdate(busId, { status: nextStatus })
+  }
+}
+
+async function syncBusStatusesFromTodaySchedules(busIds, schedulesByBusId) {
+  if (!busIds.length) return
+
+  const buses = await Bus.find({ _id: { $in: busIds } }).select('_id status').lean()
+  const bulkOps = []
+
+  for (const bus of buses) {
+    if (bus.status === 'maintenance') continue
+    const todayTrips = schedulesByBusId.get(String(bus._id)) || []
+    const nextStatus = deriveBusStatusFromTrips(bus.status, todayTrips)
+    if (bus.status !== nextStatus) {
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: bus._id },
+          update: { $set: { status: nextStatus } },
+        },
+      })
+    }
+  }
+
+  if (bulkOps.length) await Bus.bulkWrite(bulkOps)
+}
 
 export function serializeRouteRef(route) {
   if (!route) return null
@@ -118,6 +204,10 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
     today
   )
 
+  if (resourceField === 'busId') {
+    await syncBusStatusesFromTodaySchedules(resourceIds, schedulesByResourceId)
+  }
+
   return items.map((item) => {
     const doc = typeof item.toObject === 'function' ? item.toObject() : { ...item }
     const key = String(item._id)
@@ -129,6 +219,10 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
     doc.currentSchedule = currentPick
       ? serializeCurrentSchedule(currentPick.schedule, currentPick.phase)
       : null
+
+    if (resourceField === 'busId') {
+      doc.status = deriveBusStatusFromTrips(doc.status, todayTrips)
+    }
 
     return doc
   })

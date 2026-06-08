@@ -182,13 +182,14 @@ function SchedulesPage() {
 
   useEffect(() => {
     let cancelled = false
+    const stale = getStalePageData('/schedules', { viewMode, viewDate })
     Promise.resolve().then(() => {
-      if (!cancelled) loadData({ force: true, keepContent: true })
+      if (!cancelled) loadData({ keepContent: Boolean(stale) })
     })
     return () => {
       cancelled = true
     }
-  }, [loadData])
+  }, [loadData, viewMode, viewDate])
 
   useAutoRefresh(
     () => loadData({ force: true, keepContent: true }),

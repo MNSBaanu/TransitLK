@@ -93,7 +93,10 @@ async function fetchRouteSupportData({ force = false } = {}) {
     return inflightRequests.get(ROUTE_SUPPORT_CACHE_KEY)
   }
 
-  const request = Promise.all([api.get('/buses'), api.get('/drivers')])
+  const request = Promise.all([
+    api.get('/buses', { params: { light: 1 } }),
+    api.get('/drivers', { params: { light: 1 } }),
+  ])
     .then(([busRes, driverRes]) => {
       const data = {
         buses: asArray(busRes.data),
@@ -161,9 +164,9 @@ async function fetchSchedulesPageData(options = {}) {
         view: viewMode,
       },
     }),
-    api.get('/routes'),
-    api.get('/buses'),
-    api.get('/drivers'),
+    api.get('/routes', { params: { summary: 1 } }),
+    api.get('/buses', { params: { light: 1 } }),
+    api.get('/drivers', { params: { light: 1 } }),
   ])
 
   return {
@@ -328,23 +331,34 @@ export async function prefetchPageData(path, options = {}) {
   }
 }
 
-export function invalidatePageData(path) {
+function clearPageCache(path) {
   for (const key of pageCache.keys()) {
     if (key === path || key.startsWith(`${path}?`)) {
       pageCache.delete(key)
     }
   }
+}
+
+export function invalidatePageData(path) {
+  clearPageCache(path)
   if (path === '/buses' || path === '/routes' || path === '/schedules') {
     pageCache.delete(ROUTE_SUPPORT_CACHE_KEY)
+  }
+  const relatedPaths = {
+    '/maintenance': ['/buses'],
+    '/buses': ['/maintenance'],
+  }
+  for (const relatedPath of relatedPaths[path] || []) {
+    clearPageCache(relatedPath)
   }
 }
 
 export function primeCriticalPageData() {
   return Promise.allSettled([
     prefetchPageData('/dashboard'),
-    prefetchPageData('/routes'),
-    prefetchPageData('/schedules'),
-    prefetchPageData('/reports'),
+    prefetchPageData('/routes', { page: 1, limit: 10, search: '', status: '', serviceType: '' }),
+    prefetchPageData('/schedules', getDefaultScheduleOptions()),
+    prefetchPageData('/reports', getDefaultReportOptions()),
     prefetchPageData('/buses'),
     prefetchPageData('/depots'),
     prefetchPageData('/maintenance'),
@@ -353,9 +367,37 @@ export function primeCriticalPageData() {
   ])
 }
 
+/** Default fetch options per path so login prefetch matches first page paint. */
+function prefetchJobsForRole(role) {
+  const paths = (ROLE_ALLOWED_PATHS[role] || []).filter(isPrefetchablePath)
+
+  return paths.map((path) => {
+    if (path === '/routes') {
+      return prefetchPageData('/routes', {
+        page: 1,
+        limit: 10,
+        search: '',
+        status: '',
+        serviceType: '',
+      })
+    }
+    if (path === '/schedules') {
+      return prefetchPageData('/schedules', getDefaultScheduleOptions())
+    }
+    if (path === '/reports') {
+      return prefetchPageData('/reports', getDefaultReportOptions())
+    }
+    return prefetchPageData(path)
+  })
+}
+
+/** Warm all role-accessible module data (runs during login / session restore). */
 export function primePagesForRole(role) {
-  const paths = ROLE_ALLOWED_PATHS[role] || []
-  return Promise.allSettled(
-    paths.filter(isPrefetchablePath).map((path) => prefetchPageData(path))
-  )
+  if (!role) return Promise.resolve([])
+  return Promise.allSettled(prefetchJobsForRole(role))
+}
+
+export function clearAllPageCache() {
+  pageCache.clear()
+  inflightRequests.clear()
 }

@@ -397,11 +397,9 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
     onRefresh({ keepContent: true, force: true })
   }
 
-  const activeBuses = buses.filter((b) => b.status === 'available' || b.status === 'in-service')
   const inServiceBuses = buses.filter((b) => b.status === 'in-service')
   const availableBuses = buses.filter((b) => b.status === 'available')
   const maintenanceBuses = buses.filter((b) => b.status === 'maintenance')
-  const healthPct = buses.length ? Math.round((activeBuses.length / buses.length) * 100) : 0
 
   const busesNeedingMaintenance = getBusesNeedingMaintenanceSoon(buses)
 
@@ -411,12 +409,6 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
       value: buses.length,
       hint: `${inServiceBuses.length} in service · ${availableBuses.length} available`,
       icon: 'directions_bus',
-    },
-    {
-      label: 'Fleet health',
-      value: `${healthPct}%`,
-      hint: healthPct >= 75 ? 'Operational readiness' : 'Review offline vehicles',
-      icon: 'check_circle',
     },
     {
       label: 'In maintenance',
@@ -437,16 +429,6 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   return (
     <>
       <ModuleStats items={fleetStatItems} />
-
-      <div className="mb-4 rounded-xl border border-outline-variant bg-white px-4 py-3 shadow-sm">
-        <div className="mb-1.5 flex items-center justify-between text-xs">
-          <span className="font-medium text-fleet-ink">Operational readiness</span>
-          <span className="font-semibold text-depot-navy">{healthPct}%</span>
-        </div>
-        <div className="h-2.5 w-full rounded-full bg-fleet-muted">
-          <div className="h-2.5 rounded-full bg-depot-navy transition-all" style={{ width: `${healthPct}%` }} />
-        </div>
-      </div>
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -1146,21 +1128,6 @@ function Buses() {
         subtitle="Manage your district vehicles and active driver roster."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowMaintenanceAlerts(true)}
-                className="btn-outlined flex items-center gap-2 border-red-400 text-red-600 hover:border-red-500 hover:text-red-700"
-              >
-                <Icon name="build" size={18} />
-                Maintenance
-              </button>
-              {maintenanceAlertCount > 0 && (
-                <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-red-600">
-                  {maintenanceAlertCount}
-                </span>
-              )}
-            </div>
             {tab === 'drivers' ? (
               <ModulePrimaryButton icon="person_add" onClick={() => setShowAddDriver(true)}>
                 Add New Driver
@@ -1169,6 +1136,23 @@ function Buses() {
               <ModulePrimaryButton icon="add" onClick={() => setShowAddBus(true)}>
                 Add New Vehicle
               </ModulePrimaryButton>
+            )}
+            {tab === 'fleet' && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowMaintenanceAlerts(true)}
+                  className="btn-outlined flex items-center gap-2 border-red-400 text-red-600 hover:border-red-500 hover:text-red-700"
+                >
+                  <Icon name="build" size={18} />
+                  Maintenance
+                </button>
+                {maintenanceAlertCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-red-600">
+                    {maintenanceAlertCount}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         }
