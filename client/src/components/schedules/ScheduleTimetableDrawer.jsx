@@ -472,6 +472,7 @@ function ScheduleTimetableDrawer({
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-outline-variant text-left">
+                    <th className={`${labelClass} w-12 pb-2 pr-2`}>#</th>
                     <th className="w-10 pb-2">
                       <input
                         type="checkbox"
@@ -567,6 +568,9 @@ function ScheduleTimetableDrawer({
                               : '')
                         }`}
                       >
+                        <td className="py-3 pr-2 align-top text-neutral-500 tabular-nums">
+                          {rowIndex + 1}
+                        </td>
                         <td className="py-3 pr-2 align-top">
                           <input
                             type="checkbox"

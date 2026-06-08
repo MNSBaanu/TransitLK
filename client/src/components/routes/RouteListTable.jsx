@@ -100,6 +100,7 @@ function RouteListTable({
       <ModuleTable>
         <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           <tr>
+            <th className="w-12 px-4 py-3 text-left">#</th>
             {['Route No', 'Route', 'Stops', 'Service', 'Distance', 'Bus', 'Driver', 'Status', ''].map((h) => (
               <th key={h || 'actions'} className="px-4 py-3 text-left">
                 {h}
@@ -110,21 +111,24 @@ function RouteListTable({
         <tbody className="divide-y divide-outline-variant bg-white">
           {loading ? (
             <tr>
-              <td colSpan={9} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={10} className="py-10 text-center text-on-surface-variant">
                 Loading routes...
               </td>
             </tr>
           ) : routes.length === 0 ? (
             <tr>
-              <td colSpan={9} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={10} className="py-10 text-center text-on-surface-variant">
                 No routes found. Add a route to get started.
               </td>
             </tr>
           ) : (
-            routes.map((route) => {
+            routes.map((route, index) => {
               const deleteDisabledReason = getRouteDeleteDisabledReason(route)
               return (
               <tr key={route._id} className="transition-colors hover:bg-surface-container-low">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">
+                  {(pagination.page - 1) * pagination.limit + index + 1}
+                </td>
                 <td className="px-4 py-3 font-mono text-xs font-semibold tabular-nums text-neutral-700">
                   {routeCode(route)}
                 </td>

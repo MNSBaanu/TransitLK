@@ -890,6 +890,7 @@ function Maintenance() {
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                   <tr>
+                    <th className="w-12 px-4 py-3 text-left">#</th>
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Service Type</th>
@@ -899,13 +900,16 @@ function Maintenance() {
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
                   {loading && maintenance.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
-                  ) : paginated.map((r) => {
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
+                  ) : paginated.map((r, index) => {
                     const style = serviceStyle(r.description)
                     return (
                       <tr key={r._id} className="hover:bg-surface-container-low transition-colors">
+                        <td className="px-4 py-3 text-neutral-500 tabular-nums">
+                          {(page - 1) * ITEMS_PER_PAGE + index + 1}
+                        </td>
                         <td className="px-4 py-3 text-neutral-600">{formatDate(r.service_date)}</td>
                         <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                         <td className="px-4 py-3">
@@ -949,6 +953,7 @@ function Maintenance() {
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                   <tr>
+                    <th className="w-12 px-4 py-3 text-left">#</th>
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Liters</th>
@@ -958,11 +963,14 @@ function Maintenance() {
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
                   {loading && fuelLogs.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">No fuel logs found</td></tr>
-                  ) : paginated.map((r) => (
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">No fuel logs found</td></tr>
+                  ) : paginated.map((r, index) => (
                     <tr key={r._id} className="hover:bg-surface-container-low transition-colors">
+                      <td className="px-4 py-3 text-neutral-500 tabular-nums">
+                        {(page - 1) * ITEMS_PER_PAGE + index + 1}
+                      </td>
                       <td className="px-4 py-3 text-neutral-600">{formatDate(r.fuel_date)}</td>
                       <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                       <td className="px-4 py-3">
