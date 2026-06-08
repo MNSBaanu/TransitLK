@@ -697,8 +697,6 @@ function RoutesPage() {
             routeCode={displayRouteCode}
             selectedBus={selectedBus}
             selectedDriver={selectedDriver}
-            buses={buses}
-            drivers={drivers}
             onEdit={() => openEditor(selectedRoute)}
             onBack={openList}
           />
