@@ -37,7 +37,33 @@ export function timesOverlap(depA, arrA, depB, arrB) {
   const startB = timeToMinutes(depB)
   const endB = timeToMinutes(arrB)
   if ([startA, endA, startB, endB].some((v) => v == null)) return false
+  if (endA <= startA || endB <= startB) return false
   return startA < endB && startB < endA
+}
+
+/** Normalize bus/driver/route ids from strings, ObjectIds, or populated docs */
+export function normalizeResourceId(value) {
+  if (value == null || value === '') return ''
+  if (typeof value === 'object' && value._id != null) return String(value._id)
+  return String(value)
+}
+
+export function sameAssignedResource(left, right) {
+  const a = normalizeResourceId(left)
+  const b = normalizeResourceId(right)
+  if (!a || !b) return false
+  return a === b
+}
+
+export function toConflictTrip(trip = {}) {
+  return {
+    routeId: normalizeResourceId(trip.routeId),
+    routeName: trip.routeName || trip.routeId?.routeName,
+    busId: normalizeResourceId(trip.busId),
+    driverId: normalizeResourceId(trip.driverId),
+    departureTime: trip.departureTime,
+    arrivalTime: trip.arrivalTime,
+  }
 }
 
 export function startOfDay(date) {

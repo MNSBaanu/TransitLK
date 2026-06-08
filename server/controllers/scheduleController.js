@@ -17,8 +17,10 @@ import {
   reasonToStatus,
   DRIVER_VISIBLE_STATUSES,
   isDriverVisibleStatus,
+  sameAssignedResource,
+  toConflictTrip,
 } from '../utils/scheduleHelpers.js'
-import { isWithinWorkingHoursAtTime } from '../utils/fleetHelpers.js'
+import { isTripWithinWorkingHours } from '../utils/fleetHelpers.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -149,32 +151,32 @@ async function findConflicts({
   const conflicts = []
 
   for (const existing of sameDay) {
-    const overlap = timesOverlap(
-      departureTime,
-      arrivalTime,
-      existing.departureTime,
-      existing.arrivalTime
-    )
-    if (!overlap) continue
+    if (
+      !timesOverlap(
+        departureTime,
+        arrivalTime,
+        existing.departureTime,
+        existing.arrivalTime
+      )
+    ) {
+      continue
+    }
 
-    if (String(existing.busId) === String(busId)) {
+    if (sameAssignedResource(busId, existing.busId)) {
       conflicts.push({
         type: 'bus',
         message: `Bus already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
         scheduleId: existing._id,
       })
     }
-    if (String(existing.driverId) === String(driverId)) {
+    if (sameAssignedResource(driverId, existing.driverId)) {
       conflicts.push({
         type: 'driver',
         message: `Driver already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
         scheduleId: existing._id,
       })
     }
-    if (
-      routeId &&
-      String(existing.routeId) === String(routeId)
-    ) {
+    if (routeId && sameAssignedResource(routeId, existing.routeId)) {
       conflicts.push({
         type: 'route',
         message: `Route already has a trip ${existing.departureTime}–${existing.arrivalTime} on this date`,
@@ -211,24 +213,19 @@ function pushStructuredOverlap(conflicts, type, proposed, other, { tripDate, oth
 }
 
 function compareTripOverlap(proposed, other, conflicts, { tripDate, otherLabel, otherRouteId } = {}) {
-  if (
-    !timesOverlap(
-      proposed.departureTime,
-      proposed.arrivalTime,
-      other.departureTime,
-      other.arrivalTime
-    )
-  ) {
+  const a = toConflictTrip(proposed)
+  const b = toConflictTrip(other)
+  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
     return
   }
-  if (String(proposed.busId) === String(other.busId)) {
-    pushStructuredOverlap(conflicts, 'bus', proposed, other, { tripDate, otherLabel, otherRouteId })
+  if (sameAssignedResource(a.busId, b.busId)) {
+    pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
   }
-  if (String(proposed.driverId) === String(other.driverId)) {
-    pushStructuredOverlap(conflicts, 'driver', proposed, other, { tripDate, otherLabel, otherRouteId })
+  if (sameAssignedResource(a.driverId, b.driverId)) {
+    pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
   }
-  if (proposed.routeId && String(proposed.routeId) === String(other.routeId)) {
-    pushStructuredOverlap(conflicts, 'route', proposed, other, { tripDate, otherLabel, otherRouteId })
+  if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
+    pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
   }
 }
 
@@ -298,14 +295,7 @@ async function analyzeTimetableConflicts({ dates, rows }) {
   const issues = []
 
   for (const dateStr of dates) {
-    const proposedForDay = included.map((r) => ({
-      routeId: String(r.routeId),
-      routeName: r.routeName || 'Route',
-      busId: String(r.busId),
-      driverId: String(r.driverId),
-      departureTime: r.departureTime,
-      arrivalTime: r.arrivalTime,
-    }))
+    const proposedForDay = included.map((r) => toConflictTrip(r))
 
     const existingForDay = existing.filter((e) => isSameCalendarDay(e.tripDate, dateStr))
 
@@ -340,7 +330,14 @@ async function analyzeTimetableConflicts({ dates, rows }) {
   return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
-async function validateAssignment({ busId, driverId, departureTime, routeId, routeDepotId }) {
+async function validateAssignment({
+  busId,
+  driverId,
+  departureTime,
+  arrivalTime,
+  routeId,
+  routeDepotId,
+}) {
   const bus = await Bus.findById(busId)
   if (!bus) {
     const error = new Error('Bus not found')
@@ -374,9 +371,9 @@ async function validateAssignment({ busId, driverId, departureTime, routeId, rou
     error.statusCode = 400
     throw error
   }
-  if (!isWithinWorkingHoursAtTime(driver.workingHours, departureTime)) {
+  if (!isTripWithinWorkingHours(driver.workingHours, departureTime, arrivalTime)) {
     const error = new Error(
-      `Driver is outside working hours for ${departureTime} (${driver.workingHours || 'not set'})`
+      `Driver is outside working hours for ${departureTime}–${arrivalTime} (${driver.workingHours || 'not set'})`
     )
     error.statusCode = 400
     throw error
@@ -479,6 +476,7 @@ export const createSchedule = async (req, res) => {
       busId,
       driverId,
       departureTime,
+      arrivalTime,
       routeId,
       routeDepotId: route.depotId,
     })
@@ -576,6 +574,7 @@ export const updateSchedule = async (req, res) => {
         busId,
         driverId,
         departureTime,
+        arrivalTime,
         routeId,
         routeDepotId: assignmentRoute?.depotId,
       })
@@ -665,6 +664,7 @@ export const approveSchedule = async (req, res) => {
       busId: schedule.busId,
       driverId: schedule.driverId,
       departureTime: schedule.departureTime,
+      arrivalTime: schedule.arrivalTime,
       routeId: schedule.routeId,
       routeDepotId: route?.depotId,
     })
@@ -729,13 +729,23 @@ export const checkScheduleConflicts = async (req, res) => {
       })
     }
     const route = routeId ? await getAccessibleRoute(req.user, routeId) : null
-    await validateAssignment({
-      busId,
-      driverId,
-      departureTime,
-      routeId,
-      routeDepotId: route?.depotId,
-    })
+    const availabilityIssues = []
+    try {
+      await validateAssignment({
+        busId,
+        driverId,
+        departureTime,
+        arrivalTime,
+        routeId,
+        routeDepotId: route?.depotId,
+      })
+    } catch (err) {
+      if (err.statusCode === 400) {
+        availabilityIssues.push({ type: 'availability', message: err.message })
+      } else {
+        throw err
+      }
+    }
     const conflicts = await findConflicts({
       tripDate,
       routeId,
@@ -745,7 +755,8 @@ export const checkScheduleConflicts = async (req, res) => {
       arrivalTime,
       excludeId,
     })
-    res.json({ hasConflict: conflicts.length > 0, conflicts })
+    const combined = [...availabilityIssues, ...conflicts]
+    res.json({ hasConflict: combined.length > 0, conflicts: combined })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

@@ -18,7 +18,32 @@ export function timesOverlap(depA, arrA, depB, arrB) {
   const c = timeToMinutes(depB)
   const d = timeToMinutes(arrB)
   if ([a, b, c, d].some((v) => v == null)) return false
+  if (b <= a || d <= c) return false
   return a < d && c < b
+}
+
+export function normalizeResourceId(value) {
+  if (value == null || value === '') return ''
+  if (typeof value === 'object' && value._id != null) return String(value._id)
+  return String(value)
+}
+
+export function sameAssignedResource(left, right) {
+  const a = normalizeResourceId(left)
+  const b = normalizeResourceId(right)
+  if (!a || !b) return false
+  return a === b
+}
+
+export function toConflictTrip(trip = {}) {
+  return {
+    routeId: normalizeResourceId(trip.routeId),
+    routeName: trip.routeName || trip.routeId?.routeName,
+    busId: normalizeResourceId(trip.busId),
+    driverId: normalizeResourceId(trip.driverId),
+    departureTime: trip.departureTime,
+    arrivalTime: trip.arrivalTime,
+  }
 }
 
 export function ganttPosition(departureTime, arrivalTime) {
@@ -455,38 +480,34 @@ export function detectDayConflicts(schedules) {
 }
 
 function appendOverlapConflicts(a, b, conflicts) {
-  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+  const left = toConflictTrip(a)
+  const right = toConflictTrip(b)
+  if (!timesOverlap(left.departureTime, left.arrivalTime, right.departureTime, right.arrivalTime)) {
     return
   }
-  const busA = String(a.busId?._id || a.busId)
-  const busB = String(b.busId?._id || b.busId)
-  const driverA = String(a.driverId?._id || a.driverId)
-  const driverB = String(b.driverId?._id || b.driverId)
-  const routeA = String(a.routeId?._id || a.routeId)
-  const routeB = String(b.routeId?._id || b.routeId)
 
-  if (busA === busB) {
+  if (sameAssignedResource(left.busId, right.busId)) {
     conflicts.push({
       type: 'bus',
       a,
       b,
-      message: `Bus overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+      message: `Bus overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
     })
   }
-  if (driverA === driverB) {
+  if (sameAssignedResource(left.driverId, right.driverId)) {
     conflicts.push({
       type: 'driver',
       a,
       b,
-      message: `Driver overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+      message: `Driver overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
     })
   }
-  if (routeA === routeB) {
+  if (left.routeId && sameAssignedResource(left.routeId, right.routeId)) {
     conflicts.push({
       type: 'route',
       a,
       b,
-      message: `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`,
+      message: `Route overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
     })
   }
 }
@@ -510,24 +531,19 @@ function pushStructuredOverlap(conflicts, type, proposed, other, { tripDate, oth
 }
 
 function compareTripOverlap(proposed, other, conflicts, { tripDate, otherLabel, otherRouteId } = {}) {
-  if (
-    !timesOverlap(
-      proposed.departureTime,
-      proposed.arrivalTime,
-      other.departureTime,
-      other.arrivalTime
-    )
-  ) {
+  const a = toConflictTrip(proposed)
+  const b = toConflictTrip(other)
+  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
     return
   }
-  if (String(proposed.busId) === String(other.busId)) {
-    pushStructuredOverlap(conflicts, 'bus', proposed, other, { tripDate, otherLabel, otherRouteId })
+  if (sameAssignedResource(a.busId, b.busId)) {
+    pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
   }
-  if (String(proposed.driverId) === String(other.driverId)) {
-    pushStructuredOverlap(conflicts, 'driver', proposed, other, { tripDate, otherLabel, otherRouteId })
+  if (sameAssignedResource(a.driverId, b.driverId)) {
+    pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
   }
-  if (proposed.routeId && String(proposed.routeId) === String(other.routeId)) {
-    pushStructuredOverlap(conflicts, 'route', proposed, other, { tripDate, otherLabel, otherRouteId })
+  if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
+    pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
   }
 }
 
@@ -571,14 +587,7 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
   const issues = []
 
   for (const dateStr of dates) {
-    const proposedForDay = included.map((r) => ({
-      routeId: String(r.routeId),
-      routeName: r.routeName || 'Route',
-      busId: String(r.busId),
-      driverId: String(r.driverId),
-      departureTime: r.departureTime,
-      arrivalTime: r.arrivalTime,
-    }))
+    const proposedForDay = included.map((r) => toConflictTrip(r))
 
     const existingForDay = activeExisting.filter((s) => tripDateKey(s) === dateStr)
 
@@ -599,23 +608,11 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
     for (const trip of proposedForDay) {
       const conflicts = []
       for (const ex of existingForDay) {
-        compareTripOverlap(
-          trip,
-          {
-            routeId: ex.routeId?._id || ex.routeId,
-            routeName: ex.routeId?.routeName || 'Route',
-            busId: ex.busId?._id || ex.busId,
-            driverId: ex.driverId?._id || ex.driverId,
-            departureTime: ex.departureTime,
-            arrivalTime: ex.arrivalTime,
-          },
-          conflicts,
-          {
-            tripDate: dateStr,
-            otherLabel: ex.routeId?.routeName || 'existing schedule',
-            otherRouteId: ex.routeId?._id || ex.routeId,
-          }
-        )
+        compareTripOverlap(trip, ex, conflicts, {
+          tripDate: dateStr,
+          otherLabel: ex.routeId?.routeName || 'existing schedule',
+          otherRouteId: ex.routeId?._id || ex.routeId,
+        })
       }
       mergeTimetableIssue(issues, trip, dateStr, conflicts)
     }
