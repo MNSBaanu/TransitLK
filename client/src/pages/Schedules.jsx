@@ -10,6 +10,7 @@ import {
   invalidatePageData,
   loadPageData,
   prefetchAdjacentScheduleViews,
+  prefetchScheduleApprovals,
 } from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
@@ -957,6 +958,12 @@ function SchedulesPage() {
   const canPlanSchedules = isScheduler || isAdministrator
   const canApproveSchedules = isDepotManager || isAdministrator
   const canAdjustSchedules = canPlanSchedules || isDepotManager
+
+  useEffect(() => {
+    if (canApproveSchedules) {
+      prefetchScheduleApprovals()
+    }
+  }, [canApproveSchedules])
 
   const scheduleHeaderTitle =
     canApproveSchedules && canPlanSchedules

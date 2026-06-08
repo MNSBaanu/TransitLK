@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { useAutoRefresh } from '../hooks/useAutoRefresh'
-import { invalidatePageData } from '../services/pagePrefetch'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
@@ -30,8 +30,9 @@ function canApproveSchedules(role) {
 function ScheduleApprovals() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [pending, setPending] = useState([])
-  const [loading, setLoading] = useState(true)
+  const canApprove = canApproveSchedules(user?.role)
+  const stale = getStalePageData('/schedules/approvals')
+  const [pending, setPending] = useState(() => stale?.pending || [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
@@ -43,28 +44,15 @@ function ScheduleApprovals() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  const loadPending = useCallback(async () => {
+  const applyData = useCallback((payload) => {
+    setPending(payload?.pending || [])
     setError('')
-    try {
-      const { data } = await api.get('/schedules', { params: { status: 'pending' } })
-      setPending(Array.isArray(data) ? data : [])
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load pending schedules')
-    } finally {
-      setLoading(false)
-    }
   }, [])
 
-  useEffect(() => {
-    if (canApproveSchedules(user?.role)) {
-      loadPending()
-    } else {
-      setLoading(false)
-    }
-  }, [user?.role, loadPending])
-
-  useAutoRefresh(() => loadPending(), {
-    enabled: canApproveSchedules(user?.role) && !saving && !rejectTargetId,
+  const { loading, reload } = useFastPageLoad('/schedules/approvals', {
+    applyData,
+    enabled: canApprove,
+    refreshEnabled: canApprove && !saving && !rejectTargetId,
   })
 
   const handleApprove = async (id) => {
@@ -73,10 +61,11 @@ function ScheduleApprovals() {
     try {
       await api.post(`/schedules/${id}/approve`)
       invalidatePageData('/schedules')
+      invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
       showToast('Schedule approved — driver can view the trip in My trips')
-      await loadPending()
+      await reload({ keepContent: true, force: true })
     } catch (err) {
       const msg = err.response?.data?.message || 'Approve failed'
       const conflictsData = err.response?.data?.conflicts
@@ -98,10 +87,11 @@ function ScheduleApprovals() {
       await api.post(`/schedules/${rejectTargetId}/reject`, { reason: rejectReason.trim() })
       setRejectTargetId(null)
       invalidatePageData('/schedules')
+      invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
       showToast('Returned to scheduler')
-      await loadPending()
+      await reload({ keepContent: true, force: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Reject failed')
     } finally {
