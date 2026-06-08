@@ -1137,21 +1137,23 @@ function Buses() {
                 Add New Vehicle
               </ModulePrimaryButton>
             )}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowMaintenanceAlerts(true)}
-                className="btn-outlined flex items-center gap-2 border-red-400 text-red-600 hover:border-red-500 hover:text-red-700"
-              >
-                <Icon name="build" size={18} />
-                Maintenance
-              </button>
-              {maintenanceAlertCount > 0 && (
-                <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-red-600">
-                  {maintenanceAlertCount}
-                </span>
-              )}
-            </div>
+            {tab === 'fleet' && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowMaintenanceAlerts(true)}
+                  className="btn-outlined flex items-center gap-2 border-red-400 text-red-600 hover:border-red-500 hover:text-red-700"
+                >
+                  <Icon name="build" size={18} />
+                  Maintenance
+                </button>
+                {maintenanceAlertCount > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-red-600">
+                    {maintenanceAlertCount}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         }
       />
