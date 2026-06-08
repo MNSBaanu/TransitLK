@@ -1,5 +1,5 @@
 import api from './api'
-import { ROLE_ALLOWED_PATHS } from '../config/roles'
+import { ROLE_ALLOWED_PATHS, ROLES } from '../config/roles'
 import {
   applyReportPeriodRange,
   getViewDateRange,
@@ -12,6 +12,8 @@ const pageCache = new Map()
 const inflightRequests = new Map()
 const ROUTE_SUPPORT_CACHE_KEY = '__routes_support__'
 const SCHEDULE_SUPPORT_CACHE_KEY = '__schedules_support__'
+const SCHEDULE_APPROVALS_PATH = '/schedules/approvals'
+const SCHEDULE_APPROVER_ROLES = new Set([ROLES.DEPOT_MANAGER, ROLES.ADMINISTRATOR])
 
 function asArray(value) {
   if (Array.isArray(value)) return value
@@ -351,6 +353,19 @@ async function fetchDriverTripsPageData() {
   return { trips: asArray(data), fromDate, toDate }
 }
 
+async function fetchScheduleApprovalsPageData() {
+  const { data } = await api.get('/schedules', { params: { status: 'pending' } })
+  return { pending: asArray(data) }
+}
+
+export function isScheduleApproverRole(role) {
+  return SCHEDULE_APPROVER_ROLES.has(role)
+}
+
+export function prefetchScheduleApprovals() {
+  return prefetchPageData(SCHEDULE_APPROVALS_PATH)
+}
+
 const pageLoaders = {
   '/dashboard': fetchDashboardPageData,
   '/routes': fetchRoutesPageData,
@@ -362,6 +377,7 @@ const pageLoaders = {
   '/buses': fetchBusesPageData,
   '/maintenance': fetchMaintenancePageData,
   '/my-trips': fetchDriverTripsPageData,
+  [SCHEDULE_APPROVALS_PATH]: fetchScheduleApprovalsPageData,
 }
 
 export function isPrefetchablePath(path) {
@@ -438,6 +454,15 @@ export function invalidatePageData(path) {
     pageCache.delete(SCHEDULE_SUPPORT_CACHE_KEY)
   }
   if (path === '/schedules') {
+    clearPageCache(SCHEDULE_APPROVALS_PATH)
+    for (const key of pageCache.keys()) {
+      if (key.startsWith('schedules:trips:')) {
+        pageCache.delete(key)
+      }
+    }
+  }
+  if (path === SCHEDULE_APPROVALS_PATH) {
+    clearPageCache('/schedules')
     for (const key of pageCache.keys()) {
       if (key.startsWith('schedules:trips:')) {
         pageCache.delete(key)
@@ -471,7 +496,7 @@ export function primeCriticalPageData() {
 function prefetchJobsForRole(role) {
   const paths = (ROLE_ALLOWED_PATHS[role] || []).filter(isPrefetchablePath)
 
-  return paths.map((path) => {
+  const jobs = paths.map((path) => {
     if (path === '/routes') {
       return prefetchPageData('/routes', {
         page: 1,
@@ -489,6 +514,12 @@ function prefetchJobsForRole(role) {
     }
     return prefetchPageData(path)
   })
+
+  if (isScheduleApproverRole(role)) {
+    jobs.push(prefetchPageData(SCHEDULE_APPROVALS_PATH))
+  }
+
+  return jobs
 }
 
 /** Warm all role-accessible module data (runs during login / session restore). */
