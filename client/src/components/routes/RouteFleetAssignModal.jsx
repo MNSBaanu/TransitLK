@@ -5,6 +5,7 @@ import RouteFleetAssignment from './RouteFleetAssignment'
 import {
   defaultMinCapacityForService,
   isBusAssignable,
+  driverUnassignableReason,
   isDriverAssignable,
 } from '../../utils/fleetHelpers'
 
@@ -58,7 +59,10 @@ function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
       return
     }
     if (hasDriver && !isDriverAssignable(selectedDriver)) {
-      setError('Selected driver is not available or is outside working hours.')
+      setError(
+        driverUnassignableReason(selectedDriver) ||
+          'Selected driver is not available or is outside working hours.'
+      )
       return
     }
 

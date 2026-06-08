@@ -22,7 +22,10 @@ import {
   sameAssignedResource,
   toConflictTrip,
 } from '../utils/scheduleHelpers.js'
-import { isTripWithinWorkingHours } from '../utils/fleetHelpers.js'
+import {
+  getDriverLicenseInvalidReason,
+  isTripWithinWorkingHours,
+} from '../utils/fleetHelpers.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -35,7 +38,10 @@ const routePopulate = {
   select: 'routeName startPoint endPoint distance serviceType stops viaDescription',
 }
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
-const driverPopulate = { path: 'driverId', select: 'name licenseNo contactNo workingHours status' }
+const driverPopulate = {
+  path: 'driverId',
+  select: 'name licenseNo licenseExpiry contactNo workingHours status',
+}
 
 const historyPopulate = {
   path: 'adjustmentHistory.by',
@@ -350,6 +356,7 @@ async function validateAssignment({
   arrivalTime,
   routeId,
   routeDepotId,
+  tripDate,
 }) {
   const bus = await Bus.findById(busId)
   if (!bus) {
@@ -388,6 +395,12 @@ async function validateAssignment({
     const error = new Error(
       `Driver is outside working hours for ${departureTime}–${arrivalTime} (${driver.workingHours || 'not set'})`
     )
+    error.statusCode = 400
+    throw error
+  }
+  const licenseIssue = getDriverLicenseInvalidReason(driver, tripDate || new Date())
+  if (licenseIssue) {
+    const error = new Error(licenseIssue)
     error.statusCode = 400
     throw error
   }
@@ -485,6 +498,8 @@ export const createSchedule = async (req, res) => {
       })
     }
 
+    const normalizedTripDate = normalizeTripDate(tripDate)
+
     await validateAssignment({
       busId,
       driverId,
@@ -492,9 +507,8 @@ export const createSchedule = async (req, res) => {
       arrivalTime,
       routeId,
       routeDepotId: route.depotId,
+      tripDate: normalizedTripDate,
     })
-
-    const normalizedTripDate = normalizeTripDate(tripDate)
 
     const conflicts = await findConflicts({
       tripDate: normalizedTripDate,
@@ -590,6 +604,7 @@ export const updateSchedule = async (req, res) => {
         arrivalTime,
         routeId,
         routeDepotId: assignmentRoute?.depotId,
+        tripDate: normalizedTripDate,
       })
 
       const conflicts = await findConflicts({
@@ -680,6 +695,7 @@ export const approveSchedule = async (req, res) => {
       arrivalTime: schedule.arrivalTime,
       routeId: schedule.routeId,
       routeDepotId: route?.depotId,
+      tripDate: schedule.tripDate,
     })
 
     const conflicts = await findConflicts({
@@ -751,6 +767,7 @@ export const checkScheduleConflicts = async (req, res) => {
         arrivalTime,
         routeId,
         routeDepotId: route?.depotId,
+        tripDate: normalizeTripDate(tripDate),
       })
     } catch (err) {
       if (err.statusCode === 400) {

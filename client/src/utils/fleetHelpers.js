@@ -76,8 +76,43 @@ export function isWithinWorkingHoursAtTime(workingHours, departureTime) {
   return minutes >= start && minutes < end
 }
 
-export function driverAvailabilityLabel(driver, atTime) {
+function startOfCalendarDay(value) {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+export function formatLicenseExpiryDate(licenseExpiry) {
+  if (!licenseExpiry) return '—'
+  return new Date(licenseExpiry).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/** License must be valid through the given calendar day (inclusive). */
+export function isDriverLicenseValid(driver, onDate = new Date()) {
+  if (!driver?.licenseExpiry) return false
+  const exp = startOfCalendarDay(driver.licenseExpiry)
+  const ref = startOfCalendarDay(onDate)
+  if (!exp || !ref) return false
+  return exp >= ref
+}
+
+export function getDriverLicenseInvalidReason(driver, onDate = new Date()) {
+  if (!driver) return 'Driver not found'
+  if (!driver.licenseExpiry) return 'Driver license expiry date is not set'
+  if (!isDriverLicenseValid(driver, onDate)) {
+    return `Driver license expired on ${formatLicenseExpiryDate(driver.licenseExpiry)}`
+  }
+  return null
+}
+
+export function driverAvailabilityLabel(driver, atTime, onDate) {
   if (!driver) return 'Unknown'
+  const licenseIssue = getDriverLicenseInvalidReason(driver, onDate)
+  if (licenseIssue) return licenseIssue
   if (driver.status && driver.status !== 'available') {
     return formatServiceType(driver.status)
   }
@@ -96,10 +131,28 @@ export function isDriverStatusAvailable(driver) {
 }
 
 /** @param {string} [atTime] HH:mm — trip departure; omit to use current time (route assignment) */
-export function isDriverAssignable(driver, atTime) {
+/** @param {string|Date} [onDate] calendar day for license validity; defaults to today */
+export function isDriverAssignable(driver, atTime, onDate = new Date()) {
   if (!isDriverStatusAvailable(driver)) return false
+  if (!isDriverLicenseValid(driver, onDate)) return false
   if (atTime) return isWithinWorkingHoursAtTime(driver.workingHours, atTime)
   return isWithinWorkingHours(driver.workingHours)
+}
+
+export function driverUnassignableReason(driver, atTime, onDate = new Date()) {
+  if (!driver) return 'Not found'
+  if (!isDriverStatusAvailable(driver)) {
+    return `Not available (${formatServiceType(driver.status || 'unavailable')})`
+  }
+  const licenseIssue = getDriverLicenseInvalidReason(driver, onDate)
+  if (licenseIssue) return licenseIssue
+  const withinHours = atTime
+    ? isWithinWorkingHoursAtTime(driver.workingHours, atTime)
+    : isWithinWorkingHours(driver.workingHours)
+  if (!withinHours) {
+    return atTime ? 'Outside working hours for trip time' : 'Outside working hours'
+  }
+  return null
 }
 
 /** Default minimum seat requirement by route service type */

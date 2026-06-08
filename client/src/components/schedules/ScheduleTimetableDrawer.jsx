@@ -509,7 +509,7 @@ function ScheduleTimetableDrawer({
                     )
                     const availableDrivers = drivers.filter(
                       (d) =>
-                        isDriverAssignable(d, row.departureTime) &&
+                        isDriverAssignable(d, row.departureTime, anchorDate) &&
                         (!row.included ||
                           isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
                             excludeTripRowId: row.tripRowId,
@@ -526,7 +526,7 @@ function ScheduleTimetableDrawer({
                     )
                     const rowDrivers = drivers.filter(
                       (d) =>
-                        (isDriverAssignable(d, row.departureTime) &&
+                        (isDriverAssignable(d, row.departureTime, anchorDate) &&
                           (!row.included ||
                             isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
                               excludeTripRowId: row.tripRowId,
