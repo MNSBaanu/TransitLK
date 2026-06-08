@@ -11,6 +11,7 @@ import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
+import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
@@ -85,6 +86,7 @@ function SchedulesPage() {
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
+  const [showTripDetailsDrawer, setShowTripDetailsDrawer] = useState(false)
   const [adjustAwaitingTrip, setAdjustAwaitingTrip] = useState(false)
   const [viewMode, setViewMode] = useState(initialViewMode)
   const [selected, setSelected] = useState(null)
@@ -184,7 +186,7 @@ function SchedulesPage() {
 
   useAutoRefresh(
     () => loadData({ force: true, keepContent: true }),
-    { enabled: !showTimetable && !showAdjustDrawer && !saving && !maintenanceConfirm }
+    { enabled: !showTimetable && !showAdjustDrawer && !showTripDetailsDrawer && !saving && !maintenanceConfirm }
   )
 
   const handleTimetableRefresh = useCallback(async () => {
@@ -409,6 +411,7 @@ function SchedulesPage() {
 
   const closeScheduleModals = ({ clearSelection = false } = {}) => {
     setShowAdjustDrawer(false)
+    setShowTripDetailsDrawer(false)
     setAdjustAwaitingTrip(false)
     setShowConflictPanel(false)
     setShowTimetable(false)
@@ -417,14 +420,33 @@ function SchedulesPage() {
     if (clearSelection) setSelected(null)
   }
 
-  const selectTrip = (trip, { openDrawer } = {}) => {
+  const openAdjustDrawer = () => {
+    if (!selected) {
+      setAdjustAwaitingTrip(true)
+      setShowTripDetailsDrawer(false)
+      setShowAdjustDrawer(true)
+      setShowConflictPanel(false)
+      return
+    }
+    setAdjustForm(syncTripForm(selected))
+    setShowTripDetailsDrawer(false)
+    setShowAdjustDrawer(true)
+    setAdjustAwaitingTrip(false)
+    setShowConflictPanel(false)
+  }
+
+  const selectTrip = (trip, { openDetails = true, openAdjust = false } = {}) => {
     setSelected(trip)
     setShowConflictPanel(false)
     if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
     setAdjustForm(syncTripForm(trip))
-    if (openDrawer !== false) {
+    if (openAdjust || adjustAwaitingTrip) {
+      setShowTripDetailsDrawer(false)
       setShowAdjustDrawer(true)
       setAdjustAwaitingTrip(false)
+    } else if (openDetails) {
+      setShowAdjustDrawer(false)
+      setShowTripDetailsDrawer(true)
     }
   }
 
@@ -776,8 +798,9 @@ function SchedulesPage() {
           data.status === 'completed' ? 'Trip marked completed' : 'Schedule updated'
         )
       } else {
-        selectTrip(data, { openDrawer: false })
-        closeScheduleModals()
+        selectTrip(data, { openDetails: true })
+        setShowAdjustDrawer(false)
+        setShowConflictPanel(false)
         showToast('Schedule updated')
       }
       invalidateRelatedPages()
@@ -873,18 +896,7 @@ function SchedulesPage() {
                 </ModulePrimaryButton>
               )}
               {canAdjustSchedules && (
-                <ModuleSecondaryButton
-                  icon="tune"
-                  onClick={() => {
-                    if (selected) {
-                      setAdjustAwaitingTrip(false)
-                      setShowAdjustDrawer(true)
-                    } else {
-                      setAdjustAwaitingTrip(true)
-                      setShowAdjustDrawer(false)
-                    }
-                  }}
-                >
+                <ModuleSecondaryButton icon="tune" onClick={openAdjustDrawer}>
                   {isDepotManager ? 'Adjust trip' : 'Adjust'}
                 </ModuleSecondaryButton>
               )}
@@ -1108,6 +1120,16 @@ function SchedulesPage() {
         </div>
       </div>
 
+      <ScheduleTripDetailsDrawer
+        open={showTripDetailsDrawer}
+        onClose={() => {
+          setShowTripDetailsDrawer(false)
+        }}
+        selected={selected}
+        canAdjustSchedules={canAdjustSchedules}
+        onAdjust={openAdjustDrawer}
+      />
+
       <ScheduleAdjustDrawer
         open={showAdjustDrawer}
         onClose={() => {
@@ -1140,7 +1162,6 @@ function SchedulesPage() {
           setMaintenanceConfirm(true)
         }}
         onPickCoverDriver={handlePickCoverDriver}
-        canAdjustSchedules={canAdjustSchedules}
       />
 
       <ConfirmDialog
