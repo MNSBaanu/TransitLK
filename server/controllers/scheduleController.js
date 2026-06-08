@@ -26,6 +26,7 @@ import {
   getDriverLicenseInvalidReason,
   isTripWithinWorkingHours,
 } from '../utils/fleetHelpers.js'
+import { syncBusStatusForBusId } from '../utils/fleetAssignmentHelpers.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -539,6 +540,7 @@ export const createSchedule = async (req, res) => {
     })
 
     await syncBusServiceType(busId, route.serviceType)
+    await syncBusStatusForBusId(busId)
 
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.status(201).json(populated)
@@ -621,10 +623,16 @@ export const updateSchedule = async (req, res) => {
       }
     }
 
+    const previousBusId = existing.busId
+
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
     await existing.save()
     await syncBusServiceType(busId, assignmentRoute?.serviceType)
+    await syncBusStatusForBusId(busId)
+    if (previousBusId && String(previousBusId) !== String(busId)) {
+      await syncBusStatusForBusId(previousBusId)
+    }
     const populated = await populateSchedule(Schedule.findById(req.params.id))
     res.json(populated)
   } catch (error) {
@@ -638,7 +646,9 @@ export const deleteSchedule = async (req, res) => {
     const schedule = await Schedule.findById(req.params.id)
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
     await assertScheduleAccess(req.user, schedule)
+    const busId = schedule.busId
     await schedule.deleteOne()
+    await syncBusStatusForBusId(busId)
     res.json({ message: 'Schedule removed', id: schedule._id })
   } catch (error) {
     const status = error.statusCode || 500
@@ -719,6 +729,7 @@ export const approveSchedule = async (req, res) => {
     schedule.rejectionReason = undefined
     await schedule.save()
     await syncBusServiceType(schedule.busId, route?.serviceType)
+    await syncBusStatusForBusId(schedule.busId)
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
