@@ -7,7 +7,6 @@ import {
 import {
   computeNextMaintenanceDate,
   ensureMaintenanceRecordForBus,
-  reconcileFleetMaintenanceData,
   syncBusMaintenanceFields,
 } from '../utils/busMaintenanceSync.js'
 
@@ -40,16 +39,19 @@ export const createBus = async (req, res) => {
 // @route   GET /api/buses
 export const getAllBuses = async (req, res) => {
   try {
-    const { status, depotId } = req.query
+    const { status, depotId, light } = req.query
+    const isLight = light === '1' || light === 'true'
     const filter = {}
     if (status) filter.status = status
     if (depotId) filter.depotId = depotId
 
-    await reconcileFleetMaintenanceData()
-
     const buses = await Bus.find(filter)
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
+
+    if (isLight) {
+      return res.json(buses.map((bus) => (bus.toObject ? bus.toObject() : bus)))
+    }
 
     const busIds = buses.map((b) => b._id)
     const latestMaintenanceRows = busIds.length
@@ -81,17 +83,6 @@ export const getAllBuses = async (req, res) => {
         const nextDate = computeNextMaintenanceDate(resolvedLastMaintenance)
         doc.lastMaintenanceDate = resolvedLastMaintenance
         doc.nextMaintenanceDate = nextDate
-        const storedLast = bus.lastMaintenanceDate?.getTime?.() ?? null
-        const storedNext = bus.nextMaintenanceDate?.getTime?.() ?? null
-        if (
-          storedLast !== new Date(resolvedLastMaintenance).getTime() ||
-          storedNext !== nextDate?.getTime?.()
-        ) {
-          Bus.findByIdAndUpdate(bus._id, {
-            lastMaintenanceDate: resolvedLastMaintenance,
-            nextMaintenanceDate: nextDate,
-          }).catch(() => {})
-        }
       } else {
         doc.lastMaintenanceDate = bus.lastMaintenanceDate
         doc.nextMaintenanceDate = bus.nextMaintenanceDate
