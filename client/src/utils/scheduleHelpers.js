@@ -3,6 +3,7 @@ import { buildRouteName, isSchedulableRoute } from './routeHelpers'
 const GANTT_START_MIN = 6 * 60
 const GANTT_END_MIN = 24 * 60
 const GANTT_SPAN = GANTT_END_MIN - GANTT_START_MIN
+export const GANTT_CARD_START_INSET_PX = 6
 
 export function timeToMinutes(time) {
   if (!time?.trim()) return null
@@ -27,9 +28,15 @@ export function ganttPosition(departureTime, arrivalTime) {
   const left = ((start - GANTT_START_MIN) / GANTT_SPAN) * 100
   const width = ((end - start) / GANTT_SPAN) * 100
   if (left + width <= 0 || left >= 100) return null
+  const clampedLeft = Math.max(0, left)
+  const clampedWidth = Math.min(100 - clampedLeft, width)
   return {
-    left: Math.max(0, left),
-    width: Math.min(100 - Math.max(0, left), width),
+    left: clampedLeft,
+    width: clampedWidth,
+    style: {
+      left: `calc(${clampedLeft}% + ${GANTT_CARD_START_INSET_PX}px)`,
+      width: `max(2.5rem, calc(${clampedWidth}% - ${GANTT_CARD_START_INSET_PX}px))`,
+    },
   }
 }
 
