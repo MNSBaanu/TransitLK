@@ -40,7 +40,17 @@ function defaultTabForRole(role) {
   return 'pending'
 }
 
-function TripListRow({ trip, index, saving, onView, onApprove, onReject, showRejectionReason = false }) {
+function TripListRow({
+  trip,
+  index,
+  saving,
+  onView,
+  onApprove,
+  onReject,
+  onEdit,
+  onResubmit,
+  showRejectionReason = false,
+}) {
   const route = trip.routeId || {}
   const routeTitle = route.routeName?.trim() || formatRouteEndpointsLabel(route)
   const stopsLabel = formatRouteStopsLabel(route)
@@ -80,6 +90,26 @@ function TripListRow({ trip, index, saving, onView, onApprove, onReject, showRej
             className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
           >
             Approve
+          </button>
+        )}
+        {onEdit && (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onEdit(trip)}
+            className="rounded-lg border border-outline-variant px-4 py-2 text-xs font-bold text-neutral-900 hover:bg-surface-container disabled:opacity-50"
+          >
+            Edit trip
+          </button>
+        )}
+        {onResubmit && (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => onResubmit(trip._id)}
+            className="rounded-lg bg-depot-blue-light px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Resubmit
           </button>
         )}
         {onReject && (
@@ -151,8 +181,11 @@ function ScheduleApprovals() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [rejectTargetId, setRejectTargetId] = useState(null)
+  const [rejectTargetTrip, setRejectTargetTrip] = useState(null)
   const [rejectReason, setRejectReason] = useState('Incomplete allocation')
   const [viewTrip, setViewTrip] = useState(null)
+  const canFixRejected =
+    role === ROLES.TRANSPORT_SCHEDULER || role === ROLES.ADMINISTRATOR
 
   const activeTab = useMemo(() => {
     const requested = searchParams.get('tab')
@@ -218,6 +251,7 @@ function ScheduleApprovals() {
     try {
       await api.post(`/schedules/${rejectTargetId}/reject`, { reason: rejectReason.trim() })
       setRejectTargetId(null)
+      setRejectTargetTrip(null)
       invalidatePageData('/schedules')
       invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
@@ -229,6 +263,40 @@ function ScheduleApprovals() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleEditTrip = (trip) => {
+    navigate('/schedules', {
+      state: {
+        focusScheduleId: trip._id,
+        viewDate: tripDateKey(trip),
+        openAdjust: true,
+      },
+    })
+  }
+
+  const handleResubmit = async (id) => {
+    setSaving(true)
+    setError('')
+    try {
+      await api.post(`/schedules/${id}/submit`)
+      invalidatePageData('/schedules')
+      invalidatePageData('/schedules/approvals')
+      invalidatePageData('/reports')
+      invalidatePageData('/buses')
+      showToast('Trip resubmitted for approval')
+      await reload({ keepContent: true, force: true })
+    } catch (err) {
+      setError(err.response?.data?.message || 'Resubmit failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const closeRejectModal = () => {
+    if (saving) return
+    setRejectTargetId(null)
+    setRejectTargetTrip(null)
   }
 
   const pageTitle = isAdministrator
@@ -332,6 +400,7 @@ function ScheduleApprovals() {
                   onReject={(item) => {
                     setRejectReason('Incomplete allocation')
                     setRejectTargetId(item._id)
+                    setRejectTargetTrip(item)
                   }}
                 />
               ))}
@@ -353,6 +422,8 @@ function ScheduleApprovals() {
                   index={index}
                   saving={saving}
                   onView={setViewTrip}
+                  onEdit={canFixRejected ? handleEditTrip : undefined}
+                  onResubmit={canFixRejected ? handleResubmit : undefined}
                   showRejectionReason
                 />
               ))}
@@ -392,23 +463,33 @@ function ScheduleApprovals() {
                 placeholder="e.g. Incomplete bus or driver allocation"
               />
             </label>
-            <div className="mt-5 flex flex-wrap justify-end gap-3">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
-                disabled={saving}
-                onClick={() => !saving && setRejectTargetId(null)}
-                className="min-w-[7rem] rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold hover:bg-surface-container disabled:opacity-60"
+                disabled={saving || !rejectTargetTrip}
+                onClick={() => rejectTargetTrip && setViewTrip(rejectTargetTrip)}
+                className="rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-depot-blue-light hover:bg-surface-container disabled:opacity-60"
               >
-                Cancel
+                View
               </button>
-              <button
-                type="button"
-                disabled={saving || !rejectReason.trim()}
-                onClick={handleRejectConfirm}
-                className="min-w-[7rem] rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-              >
-                {saving ? 'Please wait…' : 'Reject trip'}
-              </button>
+              <div className="flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={closeRejectModal}
+                  className="min-w-[7rem] rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold hover:bg-surface-container disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={saving || !rejectReason.trim()}
+                  onClick={handleRejectConfirm}
+                  className="min-w-[7rem] rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {saving ? 'Please wait…' : 'Reject trip'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
