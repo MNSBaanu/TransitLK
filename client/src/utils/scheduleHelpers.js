@@ -332,7 +332,7 @@ export function createTimetableRowFromRoute(route, existing = null) {
         route.driverId ||
         ''
     ),
-    remarks: existing?.adjustmentNotes || '',
+    remarks: '',
   }
 }
 
