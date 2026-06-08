@@ -4,7 +4,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { getCachedPageData, getStalePageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
+import {
+  getCachedPageData,
+  getStalePageData,
+  invalidatePageData,
+  loadPageData,
+  prefetchAdjacentScheduleViews,
+} from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import ScheduleGantt from '../components/schedules/ScheduleGantt'
@@ -89,6 +95,7 @@ function SchedulesPage() {
   const [buses, setBuses] = useState(() => initialData?.buses || [])
   const [drivers, setDrivers] = useState(() => initialData?.drivers || [])
   const [loading, setLoading] = useState(!initialData)
+  const [refreshing, setRefreshing] = useState(false)
   const { scheduleSearch } = useLayout()
   const [viewDate, setViewDate] = useState(initialViewDate)
   const [routeFilter, setRouteFilter] = useState('')
@@ -120,6 +127,7 @@ function SchedulesPage() {
   const [toast, setToast] = useState('')
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
+  const viewDatePickerRef = useRef(null)
   const navigate = useNavigate()
 
   const showToast = (msg) => {
@@ -150,10 +158,15 @@ function SchedulesPage() {
       }
     }
 
-    if (!keepContent) setLoading(true)
+    if (keepContent) setRefreshing(true)
+    else setLoading(true)
     setError('')
     try {
-      const data = await loadPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate }, { force })
+      const data = await loadPageData(
+        '/schedules',
+        { viewMode: activeViewMode, viewDate: activeViewDate },
+        { force }
+      )
       if (!data) {
         setError('Failed to load schedules')
         return
@@ -162,10 +175,12 @@ function SchedulesPage() {
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
+      prefetchAdjacentScheduleViews(activeViewMode, activeViewDate)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load schedules')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [viewDate, viewMode])
 
@@ -184,9 +199,29 @@ function SchedulesPage() {
 
   useEffect(() => {
     let cancelled = false
-    const stale = getStalePageData('/schedules', { viewMode, viewDate })
+    const options = { viewMode, viewDate }
+    const cached = getCachedPageData('/schedules', options)
+    if (cached) {
+      setSchedules(cached.schedules)
+      setRoutes(cached.routes)
+      setBuses(cached.buses)
+      setDrivers(cached.drivers)
+      setLoading(false)
+      prefetchAdjacentScheduleViews(viewMode, viewDate)
+      return undefined
+    }
+
+    const stale = getStalePageData('/schedules', options)
+    if (stale) {
+      setSchedules(stale.schedules)
+      setRoutes(stale.routes)
+      setBuses(stale.buses)
+      setDrivers(stale.drivers)
+      setLoading(false)
+    }
+
     Promise.resolve().then(() => {
-      if (!cancelled) loadData({ keepContent: Boolean(stale) })
+      if (!cancelled) loadData({ keepContent: true })
     })
     return () => {
       cancelled = true
@@ -318,18 +353,23 @@ function SchedulesPage() {
     if (!from || !to) return undefined
 
     let cancelled = false
+    const localRange = filterSchedulesInDateRange(schedules, from, to)
+    const instant = mergeSchedulesById(timetableRangeSchedules, localRange)
     const covered = viewRangeCoversTimetable(viewMode, viewDate, period, anchor)
-    const instant = mergeSchedulesById(
-      timetableRangeSchedules,
-      filterSchedulesInDateRange(schedules, from, to)
-    )
 
     setTimetableRangeSchedules(instant)
     applyTimetableSource(period, anchor, instant)
-    setLoadingTimetableRange(!covered && instant.length === 0 && routes.length === 0)
 
-    ;(async () => {
-      const syncRange = async () => {
+    if (covered || localRange.length > 0) {
+      setLoadingTimetableRange(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setLoadingTimetableRange(true)
+    const timer = window.setTimeout(async () => {
+      try {
         const { data } = await api.get('/schedules', {
           params: { fromDate: from, toDate: to },
         })
@@ -337,22 +377,6 @@ function SchedulesPage() {
         const merged = mergeSchedulesById(instant, Array.isArray(data) ? data : [])
         setTimetableRangeSchedules(merged)
         applyTimetableSource(period, anchor, merged)
-      }
-
-      if (covered) {
-        try {
-          await syncRange()
-        } catch {
-          /* keep instant rows */
-        } finally {
-          if (!cancelled) setLoadingTimetableRange(false)
-        }
-        return
-      }
-
-      setLoadingTimetableRange(true)
-      try {
-        await syncRange()
       } catch {
         if (!cancelled && !instant.length) {
           setTimetableRangeSchedules([])
@@ -361,10 +385,11 @@ function SchedulesPage() {
       } finally {
         if (!cancelled) setLoadingTimetableRange(false)
       }
-    })()
+    }, 200)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [
     showTimetable,
@@ -373,7 +398,6 @@ function SchedulesPage() {
     viewMode,
     viewDate,
     schedules,
-    routes,
     applyTimetableSource,
   ])
 
@@ -451,6 +475,27 @@ function SchedulesPage() {
     else if (viewMode === 'monthly') d.setMonth(d.getMonth() + delta)
     else d.setDate(d.getDate() + delta)
     setViewDate(toDateInputValue(d))
+    setSelected(null)
+  }
+
+  const openViewDatePicker = () => {
+    const input = viewDatePickerRef.current
+    if (!input) return
+    if (typeof input.showPicker === 'function') {
+      input.showPicker()
+    } else {
+      input.click()
+    }
+  }
+
+  const handleViewDatePick = (e) => {
+    const value = e.target.value
+    if (!value) return
+    const next =
+      viewMode === 'monthly'
+        ? normalizeTimetableAnchor('monthly', `${value}-01`)
+        : normalizeTimetableAnchor(viewMode, value)
+    setViewDate(next)
     setSelected(null)
   }
 
@@ -1123,7 +1168,7 @@ function SchedulesPage() {
                 </select>
               </div>
               <div
-                className="flex items-center rounded-lg border border-outline-variant bg-white"
+                className="relative flex items-center rounded-lg border border-outline-variant bg-white"
                 role="group"
                 aria-label="Date navigation"
               >
@@ -1135,9 +1180,27 @@ function SchedulesPage() {
                 >
                   <Icon name="chevron_left" size={18} />
                 </button>
-                <span className="min-w-[11.5rem] border-x border-outline-variant px-3 py-2 text-center text-sm font-semibold text-fleet-ink sm:min-w-[13rem]">
-                  {dateLabel}
-                </span>
+                <button
+                  type="button"
+                  onClick={openViewDatePicker}
+                  className="flex min-w-[11.5rem] items-center justify-center gap-1.5 border-x border-outline-variant px-3 py-2 text-sm font-semibold text-fleet-ink transition-colors hover:bg-surface-container sm:min-w-[13rem]"
+                  aria-label={
+                    viewMode === 'monthly' ? 'Pick month' : 'Pick date'
+                  }
+                  title={viewMode === 'monthly' ? 'Pick month' : 'Pick date'}
+                >
+                  <Icon name="calendar_month" size={16} className="shrink-0 text-depot-blue-light" />
+                  <span className="truncate">{dateLabel}</span>
+                </button>
+                <input
+                  ref={viewDatePickerRef}
+                  type={viewMode === 'monthly' ? 'month' : 'date'}
+                  value={viewMode === 'monthly' ? viewDate.slice(0, 7) : viewDate}
+                  onChange={handleViewDatePick}
+                  className="pointer-events-none absolute h-0 w-0 opacity-0"
+                  tabIndex={-1}
+                  aria-hidden
+                />
                 <button
                   type="button"
                   onClick={() => shiftDate(1)}
@@ -1151,7 +1214,7 @@ function SchedulesPage() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
-            {loading ? (
+            {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
               </div>

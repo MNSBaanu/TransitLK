@@ -1,11 +1,17 @@
 import api from './api'
 import { ROLE_ALLOWED_PATHS } from '../config/roles'
-import { applyReportPeriodRange, getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
+import {
+  applyReportPeriodRange,
+  getViewDateRange,
+  parseLocalDateInput,
+  toDateInputValue,
+} from '../utils/scheduleHelpers'
 
 const CACHE_TTL_MS = 60 * 1000
 const pageCache = new Map()
 const inflightRequests = new Map()
 const ROUTE_SUPPORT_CACHE_KEY = '__routes_support__'
+const SCHEDULE_SUPPORT_CACHE_KEY = '__schedules_support__'
 
 function asArray(value) {
   if (Array.isArray(value)) return value
@@ -152,30 +158,116 @@ async function fetchRoutesPageData(options = {}) {
   }
 }
 
-async function fetchSchedulesPageData(options = {}) {
+async function fetchScheduleSupportData({ force = false } = {}) {
+  if (!force) {
+    const cached = pageCache.get(SCHEDULE_SUPPORT_CACHE_KEY)
+    if (isFresh(cached)) return cached.data
+  }
+
+  if (inflightRequests.has(SCHEDULE_SUPPORT_CACHE_KEY)) {
+    return inflightRequests.get(SCHEDULE_SUPPORT_CACHE_KEY)
+  }
+
+  const request = Promise.all([
+    api.get('/routes', { params: { summary: 1 } }),
+    api.get('/buses', { params: { light: 1 } }),
+    api.get('/drivers', { params: { light: 1 } }),
+  ])
+    .then(([routeRes, busRes, driverRes]) => {
+      const data = {
+        routes: asArray(routeRes.data),
+        buses: asArray(busRes.data),
+        drivers: asArray(driverRes.data),
+      }
+      pageCache.set(SCHEDULE_SUPPORT_CACHE_KEY, {
+        data,
+        timestamp: Date.now(),
+      })
+      return data
+    })
+    .finally(() => {
+      inflightRequests.delete(SCHEDULE_SUPPORT_CACHE_KEY)
+    })
+
+  inflightRequests.set(SCHEDULE_SUPPORT_CACHE_KEY, request)
+  return request
+}
+
+async function fetchSchedulesTrips(options = {}) {
   const { viewMode, viewDate } = normalizeOptions('/schedules', options)
   const { from, to } = getViewDateRange(viewMode, viewDate)
+  const tripsKey = `schedules:trips:${viewMode}:${viewDate}`
 
-  const [schedRes, routeRes, busRes, driverRes] = await Promise.all([
-    api.get('/schedules', {
+  if (inflightRequests.has(tripsKey)) {
+    return inflightRequests.get(tripsKey)
+  }
+
+  const request = api
+    .get('/schedules', {
       params: {
         fromDate: from,
         toDate: to,
         view: viewMode,
       },
-    }),
-    api.get('/routes', { params: { summary: 1 } }),
-    api.get('/buses', { params: { light: 1 } }),
-    api.get('/drivers', { params: { light: 1 } }),
+    })
+    .then((res) => asArray(res.data))
+    .finally(() => {
+      inflightRequests.delete(tripsKey)
+    })
+
+  inflightRequests.set(tripsKey, request)
+  return request
+}
+
+async function fetchSchedulesPageData(options = {}) {
+  const { viewMode, viewDate } = normalizeOptions('/schedules', options)
+  const [schedules, support] = await Promise.all([
+    fetchSchedulesTrips(options),
+    fetchScheduleSupportData(),
   ])
 
   return {
-    schedules: asArray(schedRes.data),
-    routes: asArray(routeRes.data),
-    buses: asArray(busRes.data),
-    drivers: asArray(driverRes.data),
+    schedules,
+    routes: support.routes,
+    buses: support.buses,
+    drivers: support.drivers,
     viewMode,
     viewDate,
+  }
+}
+
+/** Warm previous/next period in the background for faster date navigation. */
+export function prefetchAdjacentScheduleViews(viewMode, viewDate) {
+  const d = parseLocalDateInput(viewDate)
+  if (Number.isNaN(d.getTime())) return
+
+  if (viewMode === 'daily') {
+    const prev = new Date(d)
+    prev.setDate(prev.getDate() - 1)
+    const next = new Date(d)
+    next.setDate(next.getDate() + 1)
+    prefetchPageData('/schedules', { viewMode: 'daily', viewDate: toDateInputValue(prev) })
+    prefetchPageData('/schedules', { viewMode: 'daily', viewDate: toDateInputValue(next) })
+    return
+  }
+
+  if (viewMode === 'weekly') {
+    const prev = new Date(d)
+    prev.setDate(prev.getDate() - 7)
+    const next = new Date(d)
+    next.setDate(next.getDate() + 7)
+    prefetchPageData('/schedules', { viewMode: 'weekly', viewDate: toDateInputValue(prev) })
+    prefetchPageData('/schedules', { viewMode: 'weekly', viewDate: toDateInputValue(next) })
+    return
+  }
+
+  if (viewMode === 'monthly') {
+    const prev = new Date(d)
+    prev.setMonth(prev.getMonth() - 1)
+    const next = new Date(d)
+    next.setMonth(next.getMonth() + 1)
+    prefetchPageData('/schedules', { viewMode: 'monthly', viewDate: toDateInputValue(prev) })
+    prefetchPageData('/schedules', { viewMode: 'monthly', viewDate: toDateInputValue(next) })
   }
 }
 
@@ -343,6 +435,14 @@ export function invalidatePageData(path) {
   clearPageCache(path)
   if (path === '/buses' || path === '/routes' || path === '/schedules') {
     pageCache.delete(ROUTE_SUPPORT_CACHE_KEY)
+    pageCache.delete(SCHEDULE_SUPPORT_CACHE_KEY)
+  }
+  if (path === '/schedules') {
+    for (const key of pageCache.keys()) {
+      if (key.startsWith('schedules:trips:')) {
+        pageCache.delete(key)
+      }
+    }
   }
   const relatedPaths = {
     '/maintenance': ['/buses'],
