@@ -93,7 +93,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                           .filter(Boolean)
                           .join(' · ')
                       }
-                      style={{ left: `${pos.left}%`, width: `${pos.width}%` }}
+                      style={pos.style}
                       className={`absolute top-1.5 bottom-1.5 z-10 rounded p-2.5 text-left text-white shadow-sm transition-all ${
                         isConflict
                           ? 'border-2 border-dashed border-red-600 bg-depot-navy schedule-conflict-hatch'

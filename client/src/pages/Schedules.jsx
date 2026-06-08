@@ -21,8 +21,6 @@ import {
   detectPeriodConflicts,
   detectTimetableConflicts,
   formatPeriodLabel,
-  formatRouteEndpointsLabel,
-  formatScheduleStatusLabel,
   formatTripDate,
   buildTimetableRows,
   getTimetableDates,
@@ -86,6 +84,7 @@ function SchedulesPage() {
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
+  const [adjustAwaitingTrip, setAdjustAwaitingTrip] = useState(false)
   const [viewMode, setViewMode] = useState(initialViewMode)
   const [selected, setSelected] = useState(null)
   const [showTimetable, setShowTimetable] = useState(false)
@@ -409,6 +408,7 @@ function SchedulesPage() {
 
   const closeScheduleModals = ({ clearSelection = false } = {}) => {
     setShowAdjustDrawer(false)
+    setAdjustAwaitingTrip(false)
     setShowConflictPanel(false)
     setShowTimetable(false)
     setMaintenanceConfirm(false)
@@ -416,12 +416,16 @@ function SchedulesPage() {
     if (clearSelection) setSelected(null)
   }
 
-  const selectTrip = (trip, { openDrawer = true } = {}) => {
+  const selectTrip = (trip, { openDrawer } = {}) => {
     setSelected(trip)
     setShowConflictPanel(false)
     if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
     setAdjustForm(syncTripForm(trip))
-    if (openDrawer) setShowAdjustDrawer(true)
+    const shouldOpen = openDrawer === true || (openDrawer !== false && adjustAwaitingTrip)
+    if (shouldOpen) {
+      setShowAdjustDrawer(true)
+      setAdjustAwaitingTrip(false)
+    }
   }
 
   const openTimetableDrawer = () => {
@@ -860,9 +864,11 @@ function SchedulesPage() {
                   icon="tune"
                   onClick={() => {
                     if (selected) {
+                      setAdjustAwaitingTrip(false)
                       setShowAdjustDrawer(true)
                     } else {
-                      showToast('Select a trip on the timetable to adjust it')
+                      setAdjustAwaitingTrip(true)
+                      setShowAdjustDrawer(false)
                     }
                   }}
                 >
@@ -938,57 +944,33 @@ function SchedulesPage() {
         </div>
       </div>
 
-      {selected && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-outline-variant bg-white px-4 py-3 shadow-sm">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-neutral-900">
-              {scheduleCode(selected)} · {formatRouteEndpointsLabel(selected.routeId)}
-            </p>
-            <p className="text-xs text-on-surface-variant">
-              {formatTripDate(tripDateKey(selected))} · {selected.departureTime}–{selected.arrivalTime}
-              {' · '}
-              <span className="font-medium">{formatScheduleStatusLabel(selected.status)}</span>
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {canPlanSchedules && selected.status === 'draft' && (
-              <button
-                type="button"
-                disabled={saving}
-                onClick={handleSubmitDraft}
-                className="btn-outlined flex items-center gap-1.5 px-3 py-1.5 text-xs"
-              >
-                <Icon name="send" size={16} />
-                Submit for approval
-              </button>
-            )}
-            {canAdjustSchedules && (
-              <button
-                type="button"
-                onClick={() => setShowAdjustDrawer(true)}
-                className="btn-outlined flex items-center gap-1.5 px-3 py-1.5 text-xs"
-              >
-                <Icon name="tune" size={16} />
-                Adjust trip
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setSelected(null)
-                setShowAdjustDrawer(false)
-              }}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
-
       {error && !showTimetable && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {adjustAwaitingTrip && !selected && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-depot-blue-light/30 bg-depot-navy/5 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-depot-blue-light/15 text-depot-navy">
+              <Icon name="touch_app" size={22} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-fleet-ink">Select a trip to adjust</p>
+              <p className="mt-0.5 text-sm text-fleet-ink-muted">
+                Click any trip in the daily, weekly, or monthly timetable. You can then change times,
+                reassign the bus or driver, and save.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdjustAwaitingTrip(false)}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-fleet-ink-muted hover:bg-white/60 hover:text-fleet-ink"
+          >
+            Cancel
+          </button>
         </div>
       )}
 
@@ -1103,14 +1085,14 @@ function SchedulesPage() {
                 routes={routes}
                 anchorDate={viewDate}
                 selectedId={selected?._id}
-                onSelectTrip={(trip) => selectTrip(trip, { openDrawer: false })}
+                onSelectTrip={selectTrip}
               />
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
                 schedules={displaySchedules}
                 anchorDate={viewDate}
                 selectedId={selected?._id}
-                onSelectTrip={(trip) => selectTrip(trip, { openDrawer: false })}
+                onSelectTrip={selectTrip}
                 onPickDay={handlePickDay}
               />
             ) : (
@@ -1118,7 +1100,7 @@ function SchedulesPage() {
                 rows={ganttRows}
                 selectedId={selected?._id}
                 conflictPairs={conflicts}
-                onSelectTrip={(trip) => selectTrip(trip, { openDrawer: false })}
+                onSelectTrip={selectTrip}
               />
             )}
           </div>
@@ -1129,6 +1111,7 @@ function SchedulesPage() {
         open={showAdjustDrawer}
         onClose={() => {
           setShowAdjustDrawer(false)
+          setAdjustAwaitingTrip(false)
           setShowConflictPanel(false)
           maintenanceOfflineTripRef.current = null
           setMaintenanceConfirm(false)
