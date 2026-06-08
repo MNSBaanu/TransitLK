@@ -40,7 +40,6 @@ const defaultAdjust = {
 
 function ScheduleQuickAdjust({
   selected,
-  emergencyMode,
   onEmergencyToggle,
   adjustForm,
   onAdjustChange,
@@ -213,24 +212,6 @@ function ScheduleQuickAdjust({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-5 py-4">
-        {canAdjustSchedules && (
-          <div className={`mb-4 flex items-center justify-between ${sectionClass} px-3 py-2.5`}>
-            <div className="flex items-center gap-2">
-              <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
-              <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
-            </div>
-            <label className="relative inline-flex cursor-pointer items-center">
-              <input
-                type="checkbox"
-                checked={emergencyMode}
-                onChange={(e) => onEmergencyToggle(e.target.checked)}
-                className="peer sr-only"
-              />
-              <span className="h-6 w-11 rounded-full bg-[#d1d5db] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:bg-depot-blue-light peer-checked:after:translate-x-full" />
-            </label>
-          </div>
-        )}
-
         {!selected ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex flex-1 flex-col items-center justify-center px-4 py-12 text-center">
@@ -350,6 +331,27 @@ function ScheduleQuickAdjust({
               </div>
             )}
           </div>
+
+          {canAdjustSchedules && (
+            <div className={`mb-4 flex items-center justify-between ${sectionClass} px-3 py-2.5`}>
+              <div className="flex items-center gap-2">
+                <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
+                <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
+                <span className="text-[10px] font-normal normal-case text-on-surface-variant">
+                  (this trip only)
+                </span>
+              </div>
+              <label className="relative inline-flex cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  checked={form.reason === 'emergency'}
+                  onChange={(e) => onEmergencyToggle(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <span className="h-6 w-11 rounded-full bg-[#d1d5db] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:bg-depot-blue-light peer-checked:after:translate-x-full" />
+              </label>
+            </div>
+          )}
 
         {error && (
           <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
