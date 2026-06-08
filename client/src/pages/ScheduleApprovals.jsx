@@ -12,6 +12,10 @@ import {
   formatRouteStopsLabel,
   formatTimeRange,
   formatTripDate,
+  formatApprovalReceived,
+  formatApprovalResponded,
+  formatApprovalSent,
+  sortApprovalTripsByRecent,
   tripDateKey,
 } from '../utils/scheduleHelpers'
 import {
@@ -22,6 +26,8 @@ import {
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
+const labelClass = 'text-[10px] font-bold uppercase tracking-wide text-on-surface-variant'
+const cellClass = 'px-3 py-3 align-top text-sm'
 
 function canManagePendingApprovals(role) {
   return role === ROLES.DEPOT_MANAGER || role === ROLES.ADMINISTRATOR
@@ -40,10 +46,11 @@ function defaultTabForRole(role) {
   return 'pending'
 }
 
-function TripListRow({
+function TripTableRow({
   trip,
   index,
   saving,
+  variant,
   onView,
   onApprove,
   onReject,
@@ -54,76 +61,125 @@ function TripListRow({
   const route = trip.routeId || {}
   const routeTitle = route.routeName?.trim() || formatRouteEndpointsLabel(route)
   const stopsLabel = formatRouteStopsLabel(route)
-  const timeAndStops = [formatTimeRange(trip.departureTime, trip.arrivalTime), stopsLabel]
-    .filter(Boolean)
-    .join(' · ')
 
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3">
-      <span className="w-8 shrink-0 text-sm font-medium tabular-nums text-neutral-400">{index + 1}</span>
-      <div className="min-w-0 flex-1">
+    <tr className="bg-white">
+      <td className={`${cellClass} w-10 tabular-nums text-neutral-400`}>{index + 1}</td>
+      <td className={cellClass}>
         <p className="font-semibold text-neutral-900">{routeTitle}</p>
-        <p className="text-sm text-on-surface-variant">{timeAndStops}</p>
-        <p className="text-xs text-on-surface-variant">
-          {formatTripDate(tripDateKey(trip))}
-          {trip.busId?.regNumber ? ` · ${trip.busId.regNumber}` : ''}
-          {trip.driverId?.name ? ` · ${trip.driverId.name}` : ''}
-        </p>
-        {showRejectionReason && trip.rejectionReason ? (
-          <p className="mt-1 text-xs font-medium text-red-700">Reason: {trip.rejectionReason}</p>
+        <p className="text-xs text-on-surface-variant">{formatTripDate(tripDateKey(trip))}</p>
+      </td>
+      <td className={cellClass}>
+        <p className="text-neutral-900">{formatTimeRange(trip.departureTime, trip.arrivalTime)}</p>
+        {stopsLabel ? (
+          <p className="mt-0.5 text-xs text-on-surface-variant">{stopsLabel}</p>
         ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => onView(trip)}
-          className="rounded-lg border border-outline-variant px-4 py-2 text-xs font-bold text-depot-blue-light hover:bg-surface-container disabled:opacity-50"
-        >
-          View
-        </button>
-        {onApprove && (
+      </td>
+      <td className={cellClass}>
+        <p className="text-neutral-900">{trip.busId?.regNumber || '—'}</p>
+        <p className="text-xs text-on-surface-variant">{trip.driverId?.name || '—'}</p>
+      </td>
+      {variant === 'pending' ? (
+        <td className={`${cellClass} whitespace-nowrap text-xs text-neutral-800`}>
+          {formatApprovalReceived(trip)}
+        </td>
+      ) : (
+        <>
+          <td className={`${cellClass} whitespace-nowrap text-xs text-neutral-800`}>
+            {formatApprovalSent(trip)}
+          </td>
+          <td className={`${cellClass} whitespace-nowrap text-xs text-neutral-800`}>
+            {formatApprovalResponded(trip)}
+          </td>
+        </>
+      )}
+      {showRejectionReason ? (
+        <td className={cellClass}>
+          {trip.rejectionReason ? (
+            <p className="text-xs font-medium text-red-700">{trip.rejectionReason}</p>
+          ) : (
+            <span className="text-xs text-on-surface-variant">—</span>
+          )}
+        </td>
+      ) : null}
+      <td className={cellClass}>
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={saving}
-            onClick={() => onApprove(trip._id)}
-            className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
+            onClick={() => onView(trip)}
+            className="rounded-lg border border-outline-variant px-3 py-1.5 text-xs font-bold text-depot-blue-light hover:bg-surface-container disabled:opacity-50"
           >
-            Approve
+            View
           </button>
+          {onApprove && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onApprove(trip._id)}
+              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              Approve
+            </button>
+          )}
+          {onEdit && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onEdit(trip)}
+              className="rounded-lg border border-outline-variant px-3 py-1.5 text-xs font-bold text-neutral-900 hover:bg-surface-container disabled:opacity-50"
+            >
+              Edit trip
+            </button>
+          )}
+          {onResubmit && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onResubmit(trip._id)}
+              className="rounded-lg bg-depot-blue-light px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              Resubmit
+            </button>
+          )}
+          {onReject && (
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onReject(trip)}
+              className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              Reject
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function ApprovalTableHeader({ variant, showRejectionReason = false }) {
+  return (
+    <thead>
+      <tr className="border-b border-outline-variant text-left">
+        <th className={`${labelClass} ${cellClass} w-10`}>#</th>
+        <th className={`${labelClass} ${cellClass}`}>Route</th>
+        <th className={`${labelClass} ${cellClass}`}>Trip</th>
+        <th className={`${labelClass} ${cellClass}`}>Bus / Driver</th>
+        {variant === 'pending' ? (
+          <th className={`${labelClass} ${cellClass}`}>Received</th>
+        ) : (
+          <>
+            <th className={`${labelClass} ${cellClass}`}>Sent</th>
+            <th className={`${labelClass} ${cellClass}`}>Responded</th>
+          </>
         )}
-        {onEdit && (
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onEdit(trip)}
-            className="rounded-lg border border-outline-variant px-4 py-2 text-xs font-bold text-neutral-900 hover:bg-surface-container disabled:opacity-50"
-          >
-            Edit trip
-          </button>
-        )}
-        {onResubmit && (
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onResubmit(trip._id)}
-            className="rounded-lg bg-depot-blue-light px-4 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
-          >
-            Resubmit
-          </button>
-        )}
-        {onReject && (
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => onReject(trip)}
-            className="rounded-lg border border-red-300 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
-          >
-            Reject
-          </button>
-        )}
-      </div>
-    </li>
+        {showRejectionReason ? (
+          <th className={`${labelClass} ${cellClass}`}>Rejection reason</th>
+        ) : null}
+        <th className={`${labelClass} ${cellClass}`}>Actions</th>
+      </tr>
+    </thead>
   )
 }
 
@@ -154,12 +210,14 @@ function ApprovalListPanel({ variant, count, label, emptyTitle, emptyBody, child
   }
 
   return (
-    <div className={`rounded-xl border ${styles.shell}`}>
+    <div className={`overflow-x-auto rounded-xl border ${styles.shell}`}>
       <p className={`flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold ${styles.header}`}>
         <Icon name={styles.icon} size={20} />
         {count} {label}
       </p>
-      <ul className={`divide-y ${styles.divider}`}>{children}</ul>
+      <table className="w-full min-w-[820px]">
+        {children}
+      </table>
     </div>
   )
 }
@@ -209,10 +267,19 @@ function ScheduleApprovals() {
   }
 
   const applyData = useCallback((payload) => {
-    setPending(payload?.pending || [])
-    setRejected(payload?.rejected || [])
+    setPending(sortApprovalTripsByRecent(payload?.pending, 'pending'))
+    setRejected(sortApprovalTripsByRecent(payload?.rejected, 'rejected'))
     setError('')
   }, [])
+
+  const sortedPending = useMemo(
+    () => sortApprovalTripsByRecent(pending, 'pending'),
+    [pending]
+  )
+  const sortedRejected = useMemo(
+    () => sortApprovalTripsByRecent(rejected, 'rejected'),
+    [rejected]
+  )
 
   const { loading, reload } = useFastPageLoad('/schedules/approvals', {
     applyData,
@@ -345,8 +412,8 @@ function ScheduleApprovals() {
       {isAdministrator && (
         <div className="mb-5 flex gap-1 border-b border-outline-variant">
           {[
-            { key: 'pending', label: 'Pending approvals', count: pending.length },
-            { key: 'rejected', label: 'Rejected approvals', count: rejected.length },
+            { key: 'pending', label: 'Pending approvals', count: sortedPending.length },
+            { key: 'rejected', label: 'Rejected approvals', count: sortedRejected.length },
           ].map(({ key, label, count }) => (
             <button
               key={key}
@@ -384,16 +451,19 @@ function ScheduleApprovals() {
           {showPendingSection && (
             <ApprovalListPanel
               variant="pending"
-              count={pending.length}
-              label={`schedule${pending.length === 1 ? '' : 's'} awaiting approval`}
+              count={sortedPending.length}
+              label={`schedule${sortedPending.length === 1 ? '' : 's'} awaiting approval`}
               emptyTitle="No schedules awaiting approval"
               emptyBody="When schedulers submit trips, they will appear here for review."
             >
-              {pending.map((trip, index) => (
-                <TripListRow
+              <ApprovalTableHeader variant="pending" />
+              <tbody className="divide-y divide-outline-variant">
+              {sortedPending.map((trip, index) => (
+                <TripTableRow
                   key={trip._id}
                   trip={trip}
                   index={index}
+                  variant="pending"
                   saving={saving}
                   onView={setViewTrip}
                   onApprove={handleApprove}
@@ -404,22 +474,26 @@ function ScheduleApprovals() {
                   }}
                 />
               ))}
+              </tbody>
             </ApprovalListPanel>
           )}
 
           {showRejectedSection && (
             <ApprovalListPanel
               variant="rejected"
-              count={rejected.length}
-              label={`schedule${rejected.length === 1 ? '' : 's'} rejected`}
+              count={sortedRejected.length}
+              label={`schedule${sortedRejected.length === 1 ? '' : 's'} rejected`}
               emptyTitle="No rejected schedules"
               emptyBody="Rejected trips will appear here with the depot manager's reason."
             >
-              {rejected.map((trip, index) => (
-                <TripListRow
+              <ApprovalTableHeader variant="rejected" showRejectionReason />
+              <tbody className="divide-y divide-outline-variant">
+              {sortedRejected.map((trip, index) => (
+                <TripTableRow
                   key={trip._id}
                   trip={trip}
                   index={index}
+                  variant="rejected"
                   saving={saving}
                   onView={setViewTrip}
                   onEdit={canFixRejected ? handleEditTrip : undefined}
@@ -427,6 +501,7 @@ function ScheduleApprovals() {
                   showRejectionReason
                 />
               ))}
+              </tbody>
             </ApprovalListPanel>
           )}
         </>
