@@ -40,8 +40,7 @@ export const getAllBuses = async (req, res) => {
       .sort({ createdAt: -1 })
 
     const withAssignments = await attachFleetAssignmentContext(buses, {
-      idField: 'busId',
-      routeField: 'busId',
+      resourceField: 'busId',
     })
 
     const result = withAssignments.map((doc, index) => {

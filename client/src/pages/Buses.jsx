@@ -57,7 +57,7 @@ const SCHEDULE_PHASE_STYLES = {
   completed: 'bg-neutral-100 text-neutral-600',
 }
 
-function formatAssignedRouteCell(route) {
+function formatCurrentRouteCell(route) {
   if (!route?.routeName) {
     return <span className="text-xs text-neutral-400">—</span>
   }
@@ -502,7 +502,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                     {bus.status}
                   </span>
                 </td>
-                <td className="px-4 py-3">{formatAssignedRouteCell(bus.assignedRoute)}</td>
+                <td className="px-4 py-3">{formatCurrentRouteCell(bus.currentRoute)}</td>
                 <td className="px-4 py-3">{formatCurrentScheduleCell(bus.currentSchedule)}</td>
                 <td className="px-4 py-3 text-neutral-600">
                   {bus.lastMaintenanceDate
@@ -975,7 +975,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                     )
                   })() : <span className="text-xs text-neutral-400">—</span>}
                 </td>
-                <td className="px-4 py-3">{formatAssignedRouteCell(d.assignedRoute)}</td>
+                <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute)}</td>
                 <td className="px-4 py-3">{formatCurrentScheduleCell(d.currentSchedule)}</td>
                 <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>

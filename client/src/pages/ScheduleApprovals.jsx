@@ -63,6 +63,7 @@ function ScheduleApprovals() {
       await api.post(`/schedules/${id}/approve`)
       invalidatePageData('/schedules')
       invalidatePageData('/reports')
+      invalidatePageData('/buses')
       showToast('Schedule approved — driver can view the trip in My trips')
       await loadPending()
     } catch (err) {
@@ -87,6 +88,7 @@ function ScheduleApprovals() {
       setRejectTargetId(null)
       invalidatePageData('/schedules')
       invalidatePageData('/reports')
+      invalidatePageData('/buses')
       showToast('Returned to scheduler')
       await loadPending()
     } catch (err) {
