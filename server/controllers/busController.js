@@ -1,4 +1,5 @@
 import Bus from '../models/Bus.js'
+import Maintenance from '../models/Maintenance.js'
 import { attachFleetAssignmentContext } from '../utils/fleetAssignmentHelpers.js'
 
 // @desc    Create a new bus
@@ -39,17 +40,43 @@ export const getAllBuses = async (req, res) => {
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
 
+    const busIds = buses.map((b) => b._id)
+    const latestMaintenanceRows = busIds.length
+      ? await Maintenance.aggregate([
+          { $match: { bus_id: { $in: busIds } } },
+          { $sort: { service_date: -1 } },
+          {
+            $group: {
+              _id: '$bus_id',
+              lastMaintenanceDate: { $first: '$service_date' },
+            },
+          },
+        ])
+      : []
+    const maintenanceByBusId = new Map(
+      latestMaintenanceRows.map((row) => [String(row._id), row.lastMaintenanceDate])
+    )
+
     const withAssignments = await attachFleetAssignmentContext(buses, {
       resourceField: 'busId',
     })
 
     const result = withAssignments.map((doc, index) => {
       const bus = buses[index]
-      if (bus.lastMaintenanceDate && !bus.nextMaintenanceDate) {
-        const nextDate = new Date(bus.lastMaintenanceDate)
+      const busKey = String(bus._id)
+      const resolvedLastMaintenance =
+        bus.lastMaintenanceDate || maintenanceByBusId.get(busKey) || null
+      if (resolvedLastMaintenance) {
+        doc.lastMaintenanceDate = resolvedLastMaintenance
+      }
+      if (resolvedLastMaintenance && !bus.nextMaintenanceDate) {
+        const nextDate = new Date(resolvedLastMaintenance)
         nextDate.setDate(nextDate.getDate() + 28)
         doc.nextMaintenanceDate = nextDate
-        Bus.findByIdAndUpdate(bus._id, { nextMaintenanceDate: nextDate }).catch(() => {})
+        Bus.findByIdAndUpdate(bus._id, {
+          lastMaintenanceDate: resolvedLastMaintenance,
+          nextMaintenanceDate: nextDate,
+        }).catch(() => {})
       } else {
         doc.nextMaintenanceDate = bus.nextMaintenanceDate
       }

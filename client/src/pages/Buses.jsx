@@ -54,7 +54,16 @@ const STATUS_STYLES = {
 const SCHEDULE_PHASE_STYLES = {
   'in-progress': 'bg-blue-100 text-blue-700',
   upcoming: 'bg-amber-100 text-amber-800',
+  next: 'bg-violet-100 text-violet-800',
   completed: 'bg-neutral-100 text-neutral-600',
+}
+
+function formatTripDateShort(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  })
 }
 
 function formatCurrentRouteCell(route) {
@@ -80,7 +89,9 @@ function formatCurrentScheduleCell(schedule) {
       ? 'In progress'
       : schedule.phase === 'upcoming'
         ? 'Next today'
-        : 'Completed today'
+        : schedule.phase === 'next'
+          ? `Next · ${formatTripDateShort(schedule.tripDate)}`
+          : 'Completed today'
   return (
     <div>
       <p className="font-medium text-neutral-800">
@@ -1111,6 +1122,13 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 function Buses() {
   const navigate = useNavigate()
   const stale = getStalePageData('/buses')
+  const staleLacksFleetContext =
+    (stale?.buses || []).some(
+      (bus) => !Object.prototype.hasOwnProperty.call(bus, 'currentRoute')
+    ) ||
+    (stale?.drivers || []).some(
+      (driver) => !Object.prototype.hasOwnProperty.call(driver, 'currentRoute')
+    )
   const [buses, setBuses] = useState(() => stale?.buses || [])
   const [drivers, setDrivers] = useState(() => stale?.drivers || [])
   const [tab, setTab] = useState('fleet')
@@ -1126,7 +1144,10 @@ function Buses() {
     setDrivers(payload?.drivers || [])
   }, [])
 
-  const { loading, reload } = useFastPageLoad('/buses', { applyData })
+  const { loading, reload } = useFastPageLoad('/buses', {
+    applyData,
+    forceRefresh: staleLacksFleetContext,
+  })
 
   return (
     <div className="w-full">
