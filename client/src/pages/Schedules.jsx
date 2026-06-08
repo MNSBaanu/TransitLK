@@ -2,7 +2,7 @@
 // Module: Schedule Management
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import {
   getCachedPageData,
@@ -91,6 +91,8 @@ function SchedulesPage() {
       viewDate: initialViewDate,
     })
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [schedules, setSchedules] = useState(() => initialData?.schedules || [])
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
   const [buses, setBuses] = useState(() => initialData?.buses || [])
@@ -129,7 +131,6 @@ function SchedulesPage() {
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
   const viewDatePickerRef = useRef(null)
-  const navigate = useNavigate()
 
   const showToast = (msg) => {
     setToast(msg)
@@ -550,6 +551,25 @@ function SchedulesPage() {
       setShowTripDetailsDrawer(true)
     }
   }
+
+  useEffect(() => {
+    const focusId = location.state?.focusScheduleId
+    const focusDate = location.state?.viewDate
+    const openAdjust = Boolean(location.state?.openAdjust)
+    if (!focusId) return undefined
+
+    if (focusDate) {
+      setViewMode('daily')
+      setViewDate(focusDate)
+    }
+
+    const trip = schedules.find((item) => item._id === focusId)
+    if (!trip) return undefined
+
+    selectTrip(trip, { openDetails: !openAdjust, openAdjust })
+    navigate(location.pathname, { replace: true, state: {} })
+    return undefined
+  }, [location.pathname, location.state, navigate, schedules])
 
   const openTimetableDrawer = () => {
     const period = viewMode

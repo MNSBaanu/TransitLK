@@ -4,7 +4,7 @@ function ScheduleTripDetailsDrawer({ open, onClose, ...detailsProps }) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end bg-black/40">
+    <div className="fixed inset-0 z-[10003] flex justify-end bg-black/40">
       <button
         type="button"
         className="absolute inset-0"
