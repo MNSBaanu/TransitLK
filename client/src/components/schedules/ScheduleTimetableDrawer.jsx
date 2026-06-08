@@ -5,7 +5,6 @@ import {
   formatRouteEndpointsLabel,
   formatTripDate,
   isTripOnDate,
-  getResourceNextAvailableTime,
   formatTimetableCoverageLabel,
   getTimetableDates,
   getTimetableRowStatus,
@@ -15,9 +14,8 @@ import {
 import {
   isDriverAssignable,
   isBusAssignable,
+  isDriverStatusAvailable,
   defaultMinCapacityForService,
-  busUnassignableReason,
-  driverUnassignableReason,
 } from '../../utils/fleetHelpers'
 
 const inputClass =
@@ -497,8 +495,8 @@ function ScheduleTimetableDrawer({
                     <th className={`${labelClass} pb-2 pr-2`}>Arrival</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Bus</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Driver</th>
-                    <th className={`${labelClass} pb-2 pr-2`}>Remarks</th>
-                    <th className={`${labelClass} pb-2`}>Status</th>
+                    <th className={`${labelClass} pb-2 pr-2`}>Status</th>
+                    <th className={`${labelClass} pb-2`}>Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
@@ -508,8 +506,6 @@ function ScheduleTimetableDrawer({
                       : null
                     const rowHints = rowConflictHints?.get?.(String(row.tripRowId)) || []
                     const rowStatus = getTimetableRowStatus(row, { overlapHints: rowHints })
-                    const missingBus = row.included && !row.busId
-                    const missingDriver = row.included && !row.driverId
                     const rowMinCap = defaultMinCapacityForService(row.serviceType)
                     const availabilityTrips = [
                       ...rows.filter(
@@ -519,24 +515,34 @@ function ScheduleTimetableDrawer({
                         (s) => !row.scheduleId || String(s._id) !== String(row.scheduleId)
                       ),
                     ]
-                    const availableBuses = buses.filter(
+                    const rowBuses = buses.filter(
                       (b) =>
+                        b.status === 'available' &&
                         isBusAssignable(b, row.serviceType, rowMinCap) &&
                         (!row.included ||
                           isResourceFreeForTrip(b._id, 'busId', row, availabilityTrips, {
                             excludeTripRowId: row.tripRowId,
                           }))
                     )
-                    const availableDrivers = drivers.filter(
+                    const rowDrivers = drivers.filter(
                       (d) =>
+                        isDriverStatusAvailable(d) &&
                         isDriverAssignable(d, row.departureTime, anchorDate) &&
                         (!row.included ||
                           isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
                             excludeTripRowId: row.tripRowId,
                           }))
                     )
-                    const rowBuses = buses
-                    const rowDrivers = drivers
+                    const busSelectValue = rowBuses.some((b) => String(b._id) === String(row.busId))
+                      ? row.busId
+                      : ''
+                    const driverSelectValue = rowDrivers.some(
+                      (d) => String(d._id) === String(row.driverId)
+                    )
+                      ? row.driverId
+                      : ''
+                    const missingBus = row.included && !busSelectValue
+                    const missingDriver = row.included && !driverSelectValue
                     const isFocused = focusedRowIndices.includes(rowIndex)
                     const isPrimaryFocus = String(row.tripRowId) === primaryFocusTripRowId
                     const focusHighlight = isFocused
@@ -613,7 +619,7 @@ function ScheduleTimetableDrawer({
                         </td>
                         <td className="py-3 pr-2 align-top">
                           <select
-                            value={row.busId}
+                            value={busSelectValue}
                             onChange={(e) =>
                               onRowChange(row.tripRowId, 'busId', e.target.value)
                             }
@@ -624,43 +630,21 @@ function ScheduleTimetableDrawer({
                             className={`${inputClass}${missingBus ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select bus</option>
-                            {rowBuses.map((b) => {
-                              const isSelected = row.busId && String(b._id) === String(row.busId)
-                              const busAssignable = isBusAssignable(b, row.serviceType, rowMinCap)
-                              const busFree =
-                                !row.included ||
-                                isResourceFreeForTrip(b._id, 'busId', row, availabilityTrips, {
-                                  excludeTripRowId: row.tripRowId,
-                                })
-                              const selectable = isSelected || (busAssignable && busFree)
-                              let hint = ''
-                              if (!busAssignable) {
-                                hint = busUnassignableReason(b, row.serviceType, rowMinCap) || ''
-                              } else if (!busFree) {
-                                const nextAvail = getResourceNextAvailableTime(
-                                  b._id,
-                                  'busId',
-                                  availabilityTrips
-                                )
-                                hint = nextAvail ? `Busy · from ${nextAvail}` : 'Busy on another trip'
-                              }
-                              return (
-                                <option key={b._id} value={b._id} disabled={!selectable}>
-                                  {b.regNumber}
-                                  {hint ? ` · ${hint}` : ''}
-                                </option>
-                              )
-                            })}
-                            {row.included && availableBuses.length === 0 && !row.busId && (
+                            {rowBuses.map((b) => (
+                              <option key={b._id} value={b._id}>
+                                {b.regNumber}
+                              </option>
+                            ))}
+                            {row.included && rowBuses.length === 0 && (
                               <option disabled value="__no_bus__">
                                 No bus is available
                               </option>
                             )}
                           </select>
                         </td>
-                        <td className="py-3 align-top">
+                        <td className="py-3 pr-2 align-top">
                           <select
-                            value={row.driverId}
+                            value={driverSelectValue}
                             onChange={(e) =>
                               onRowChange(row.tripRowId, 'driverId', e.target.value)
                             }
@@ -671,56 +655,17 @@ function ScheduleTimetableDrawer({
                             className={`${inputClass}${missingDriver ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select driver</option>
-                            {rowDrivers.map((d) => {
-                              const isSelected = row.driverId && String(d._id) === String(row.driverId)
-                              const driverAssignable = isDriverAssignable(
-                                d,
-                                row.departureTime,
-                                anchorDate
-                              )
-                              const driverFree =
-                                !row.included ||
-                                isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
-                                  excludeTripRowId: row.tripRowId,
-                                })
-                              const selectable = isSelected || (driverAssignable && driverFree)
-                              let hint = ''
-                              if (!driverAssignable) {
-                                hint =
-                                  driverUnassignableReason(d, row.departureTime, anchorDate) || ''
-                              } else if (!driverFree) {
-                                const nextAvail = getResourceNextAvailableTime(
-                                  d._id,
-                                  'driverId',
-                                  availabilityTrips
-                                )
-                                hint = nextAvail ? `Busy · from ${nextAvail}` : 'Busy on another trip'
-                              }
-                              return (
-                                <option key={d._id} value={d._id} disabled={!selectable}>
-                                  {d.name}
-                                  {hint ? ` · ${hint}` : ''}
-                                </option>
-                              )
-                            })}
-                            {row.included && availableDrivers.length === 0 && !row.driverId && (
+                            {rowDrivers.map((d) => (
+                              <option key={d._id} value={d._id}>
+                                {d.name}
+                              </option>
+                            ))}
+                            {row.included && rowDrivers.length === 0 && (
                               <option disabled value="__no_driver__">
                                 No driver is available
                               </option>
                             )}
                           </select>
-                        </td>
-                        <td className="py-3 pr-2 align-top">
-                          <input
-                            type="text"
-                            value={row.remarks || ''}
-                            onChange={(e) =>
-                              onRowChange(row.tripRowId, 'remarks', e.target.value)
-                            }
-                            disabled={!row.included}
-                            placeholder="Optional notes"
-                            className={inputClass}
-                          />
                         </td>
                         <td className="py-3 align-top">
                           {rowStatus === 'conflict' ? (
@@ -741,6 +686,18 @@ function ScheduleTimetableDrawer({
                           ) : (
                             <span className="text-xs text-on-surface-variant">Excluded</span>
                           )}
+                        </td>
+                        <td className="py-3 align-top">
+                          <input
+                            type="text"
+                            value={row.remarks || ''}
+                            onChange={(e) =>
+                              onRowChange(row.tripRowId, 'remarks', e.target.value)
+                            }
+                            disabled={!row.included}
+                            placeholder=""
+                            className={inputClass}
+                          />
                         </td>
                       </tr>
                     )
