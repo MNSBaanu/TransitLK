@@ -2,6 +2,8 @@ import Icon from '../Icon'
 import {
   GANTT_HOURS,
   ganttPosition,
+  ganttReturnLegPosition,
+  getResourceBusyEndTime,
   formatRouteEndpointsLabel,
   formatScheduleStatusLabel,
   scheduleCode,
@@ -74,34 +76,45 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                 </div>
                 {row.trips.map((trip) => {
                   const pos = ganttPosition(trip.departureTime, trip.arrivalTime)
+                  const returnPos = ganttReturnLegPosition(trip.departureTime, trip.arrivalTime)
                   if (!pos) return null
                   const isConflict = conflictIds.has(trip._id)
                   const isSelected = selectedId === trip._id
                   const routeLabel = formatRouteEndpointsLabel(trip.routeId)
+                  const busyEnd = getResourceBusyEndTime(trip.departureTime, trip.arrivalTime)
                   return (
-                    <button
-                      key={trip._id}
-                      type="button"
-                      onClick={() => onSelectTrip(trip)}
-                      title={
-                        [
-                          routeLabel,
-                          formatScheduleStatusLabel(trip.status),
-                          scheduleCode(trip),
-                          `${trip.departureTime} – ${trip.arrivalTime}`,
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')
-                      }
-                      style={pos.style}
-                      className={`absolute top-1.5 bottom-1.5 z-10 rounded p-2.5 text-left text-white shadow-sm transition-all ${
-                        isConflict
-                          ? 'border-2 border-dashed border-red-600 bg-depot-navy schedule-conflict-hatch'
-                          : isSelected
-                            ? 'bg-depot-blue-light ring-2 ring-depot-navy ring-offset-1'
-                            : 'bg-depot-navy hover:bg-depot-navy/85'
-                      }`}
-                    >
+                    <div key={trip._id} className="contents">
+                      {returnPos ? (
+                        <div
+                          style={returnPos.style}
+                          title={`Return to depot until ${busyEnd}`}
+                          className="pointer-events-none absolute top-1.5 bottom-1.5 z-[5] rounded border border-dashed border-depot-navy/30 bg-depot-navy/15"
+                          aria-hidden
+                        />
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => onSelectTrip(trip)}
+                        title={
+                          [
+                            routeLabel,
+                            formatScheduleStatusLabel(trip.status),
+                            scheduleCode(trip),
+                            `${trip.departureTime} – ${trip.arrivalTime}`,
+                            busyEnd ? `Busy until ${busyEnd} (return)` : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        }
+                        style={pos.style}
+                        className={`absolute top-1.5 bottom-1.5 z-10 rounded p-2.5 text-left text-white shadow-sm transition-all ${
+                          isConflict
+                            ? 'border-2 border-dashed border-red-600 bg-depot-navy schedule-conflict-hatch'
+                            : isSelected
+                              ? 'bg-depot-blue-light ring-2 ring-depot-navy ring-offset-1'
+                              : 'bg-depot-navy hover:bg-depot-navy/85'
+                        }`}
+                      >
                       <div className="flex items-start justify-between gap-1">
                         <span className="truncate text-xs font-bold">{routeLabel}</span>
                         <span className="text-[10px] opacity-80">
@@ -119,7 +132,8 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                           OVERLAP
                         </span>
                       )}
-                    </button>
+                      </button>
+                    </div>
                   )
                 })}
               </div>

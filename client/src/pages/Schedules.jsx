@@ -23,6 +23,7 @@ import {
   formatPeriodLabel,
   formatTripDate,
   buildTimetableRows,
+  duplicateTimetableRow,
   getTimetableDates,
   groupTimetableConflictsByRoute,
   reasonToStatus,
@@ -436,10 +437,23 @@ function SchedulesPage() {
     setShowTimetable(true)
   }
 
-  const handleTimetableRowChange = (routeId, field, value) => {
+  const handleTimetableRowChange = (tripRowId, field, value) => {
     setTimetableRows((rows) =>
-      rows.map((r) => (String(r.routeId) === String(routeId) ? { ...r, [field]: value } : r))
+      rows.map((r) => (String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: value } : r))
     )
+  }
+
+  const handleAddTimetableTrip = (routeId) => {
+    const route = routes.find((r) => String(r._id) === String(routeId))
+    if (!route) return
+    setTimetableRows((rows) => {
+      const newRow = duplicateTimetableRow(route, rows)
+      const lastIndex = rows.findLastIndex((r) => String(r.routeId) === String(routeId))
+      if (lastIndex < 0) return [...rows, newRow]
+      const next = [...rows]
+      next.splice(lastIndex + 1, 0, newRow)
+      return next
+    })
   }
 
   const handleTimetableToggleAll = (checked) => {
@@ -1168,7 +1182,9 @@ function SchedulesPage() {
         onAnchorDateChange={handleTimetableAnchorChange}
         rows={timetableRows}
         onRowChange={handleTimetableRowChange}
+        onAddTrip={handleAddTimetableTrip}
         onToggleAll={handleTimetableToggleAll}
+        existingSchedules={timetableRangeSchedules}
         buses={buses}
         drivers={drivers}
         saving={saving}

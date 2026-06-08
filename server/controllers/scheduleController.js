@@ -4,6 +4,8 @@ import Bus from '../models/Bus.js'
 import Driver from '../models/Driver.js'
 import {
   timesOverlap,
+  resourceWindowsOverlap,
+  getResourceBusyEndTime,
   startOfDay,
   endOfDay,
   startOfWeek,
@@ -151,32 +153,40 @@ async function findConflicts({
   const conflicts = []
 
   for (const existing of sameDay) {
-    if (
-      !timesOverlap(
-        departureTime,
-        arrivalTime,
-        existing.departureTime,
-        existing.arrivalTime
-      )
-    ) {
-      continue
-    }
+    const busOverlap = resourceWindowsOverlap(
+      departureTime,
+      arrivalTime,
+      existing.departureTime,
+      existing.arrivalTime
+    )
+    const routeOverlap = timesOverlap(
+      departureTime,
+      arrivalTime,
+      existing.departureTime,
+      existing.arrivalTime
+    )
 
-    if (sameAssignedResource(busId, existing.busId)) {
+    if (busOverlap && sameAssignedResource(busId, existing.busId)) {
+      const busyEnd = getResourceBusyEndTime(existing.departureTime, existing.arrivalTime)
       conflicts.push({
         type: 'bus',
-        message: `Bus already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
+        message: busyEnd
+          ? `Bus busy until ${busyEnd} after ${existing.departureTime}–${existing.arrivalTime} trip on this date`
+          : `Bus already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
         scheduleId: existing._id,
       })
     }
-    if (sameAssignedResource(driverId, existing.driverId)) {
+    if (busOverlap && sameAssignedResource(driverId, existing.driverId)) {
+      const busyEnd = getResourceBusyEndTime(existing.departureTime, existing.arrivalTime)
       conflicts.push({
         type: 'driver',
-        message: `Driver already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
+        message: busyEnd
+          ? `Driver busy until ${busyEnd} after ${existing.departureTime}–${existing.arrivalTime} trip on this date`
+          : `Driver already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
         scheduleId: existing._id,
       })
     }
-    if (routeId && sameAssignedResource(routeId, existing.routeId)) {
+    if (routeOverlap && routeId && sameAssignedResource(routeId, existing.routeId)) {
       conflicts.push({
         type: 'route',
         message: `Route already has a trip ${existing.departureTime}–${existing.arrivalTime} on this date`,
@@ -215,17 +225,20 @@ function pushStructuredOverlap(conflicts, type, proposed, other, { tripDate, oth
 function compareTripOverlap(proposed, other, conflicts, { tripDate, otherLabel, otherRouteId } = {}) {
   const a = toConflictTrip(proposed)
   const b = toConflictTrip(other)
-  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
-    return
+
+  if (resourceWindowsOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    if (sameAssignedResource(a.busId, b.busId)) {
+      pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
+    }
+    if (sameAssignedResource(a.driverId, b.driverId)) {
+      pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
+    }
   }
-  if (sameAssignedResource(a.busId, b.busId)) {
-    pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
-  }
-  if (sameAssignedResource(a.driverId, b.driverId)) {
-    pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
-  }
-  if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
-    pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
+
+  if (timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
+      pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
+    }
   }
 }
 

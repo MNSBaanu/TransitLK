@@ -41,6 +41,38 @@ export function timesOverlap(depA, arrA, depB, arrB) {
   return startA < endB && startB < endA
 }
 
+export function minutesToTime(minutes) {
+  if (minutes == null || minutes < 0) return null
+  const capped = Math.min(minutes, 24 * 60 - 1)
+  const h = Math.floor(capped / 60)
+  const min = capped % 60
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+/** Mirror-outbound turnaround: busy until arrival + (arrival - departure) */
+export function getResourceBusyEndMinutes(departureTime, arrivalTime) {
+  const dep = timeToMinutes(departureTime)
+  const arr = timeToMinutes(arrivalTime)
+  if (dep == null || arr == null || arr <= dep) return null
+  return arr + (arr - dep)
+}
+
+export function getResourceBusyEndTime(departureTime, arrivalTime) {
+  const end = getResourceBusyEndMinutes(departureTime, arrivalTime)
+  return end == null ? null : minutesToTime(end)
+}
+
+/** Bus/driver busy windows including mirrored return journey */
+export function resourceWindowsOverlap(depA, arrA, depB, arrB) {
+  const startA = timeToMinutes(depA)
+  const busyEndA = getResourceBusyEndMinutes(depA, arrA)
+  const startB = timeToMinutes(depB)
+  const busyEndB = getResourceBusyEndMinutes(depB, arrB)
+  if ([startA, busyEndA, startB, busyEndB].some((v) => v == null)) return false
+  if (busyEndA <= startA || busyEndB <= startB) return false
+  return startA < busyEndB && startB < busyEndA
+}
+
 /** Normalize bus/driver/route ids from strings, ObjectIds, or populated docs */
 export function normalizeResourceId(value) {
   if (value == null || value === '') return ''
@@ -57,6 +89,7 @@ export function sameAssignedResource(left, right) {
 
 export function toConflictTrip(trip = {}) {
   return {
+    tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
     routeId: normalizeResourceId(trip.routeId),
     routeName: trip.routeName || trip.routeId?.routeName,
     busId: normalizeResourceId(trip.busId),
