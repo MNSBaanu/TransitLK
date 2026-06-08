@@ -406,6 +406,7 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="scheduled">Scheduled</option>
+                <option value="on-duty">On duty</option>
                 <option value="on-time">On time</option>
                 <option value="delayed">Delayed</option>
                 <option value="completed">Completed</option>

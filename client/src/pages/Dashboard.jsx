@@ -15,7 +15,7 @@ const EMPTY_DASHBOARD = {
     byServiceType: { express: 0, ordinary: 0, semiLuxury: 0 },
     byServiceTypeTotal: { express: 0, ordinary: 0, semiLuxury: 0 },
   },
-  drivers: { total: 0, available: 0, onLeave: 0, offDuty: 0 },
+  drivers: { total: 0, available: 0, onDuty: 0, onLeave: 0, offDuty: 0 },
   maintenance: { totalCost: 0, alerts: [], urgentCount: 0 },
   recentSchedules: [],
   totalRoutes: 0,
@@ -24,6 +24,7 @@ const EMPTY_DASHBOARD = {
 }
 
 const STATUS_STYLES = {
+  'on-duty':   'bg-indigo-100 text-indigo-700',
   'on-time':   'bg-green-100 text-green-700',
   scheduled:   'bg-blue-100 text-blue-700',
   delayed:     'bg-yellow-100 text-yellow-700',

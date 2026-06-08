@@ -52,6 +52,7 @@ const scheduleSchema = new mongoose.Schema(
         'pending',
         'approved',
         'scheduled',
+        'on-duty',
         'on-time',
         'delayed',
         'completed',

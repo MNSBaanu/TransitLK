@@ -207,6 +207,7 @@ export function requiresAdjustmentNotes(reason) {
 export const DRIVER_VISIBLE_STATUSES = [
   'approved',
   'scheduled',
+  'on-duty',
   'on-time',
   'delayed',
   'completed',

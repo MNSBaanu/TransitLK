@@ -89,7 +89,7 @@ function buildMaintenanceAlerts(allBuses, maintenanceRecords, schedules) {
     const bus = busById.get(busId)
     if (
       bus?.status === 'maintenance' &&
-      ['scheduled', 'on-time'].includes(schedule.status)
+      ['scheduled', 'on-duty', 'on-time'].includes(schedule.status)
     ) {
       alerts.push({
         _id: `conflict-${schedule._id}`,
@@ -115,7 +115,7 @@ function buildMaintenanceAlerts(allBuses, maintenanceRecords, schedules) {
 // @access  Protected
 export const getDashboardSummary = async (req, res) => {
   try {
-    const operationalStatuses = ['scheduled', 'on-time', 'delayed', 'completed', 'cancelled']
+    const operationalStatuses = ['scheduled', 'on-duty', 'on-time', 'delayed', 'completed', 'cancelled']
 
     const monthStart = startOfMonth(new Date())
     const monthEnd = endOfMonth(new Date())
@@ -136,7 +136,7 @@ export const getDashboardSummary = async (req, res) => {
       Route.countDocuments({ status: 'active' }),
       Schedule.countDocuments({ status: { $in: operationalStatuses } }),
       Schedule.countDocuments({ status: 'completed' }),
-      Schedule.find({ status: { $in: ['scheduled', 'on-time', 'delayed', 'completed'] } })
+      Schedule.find({ status: { $in: ['scheduled', 'on-duty', 'on-time', 'delayed', 'completed'] } })
         .populate('routeId', 'routeName startPoint endPoint')
         .populate('busId', 'regNumber status')
         .populate('driverId', 'name')
@@ -171,6 +171,7 @@ export const getDashboardSummary = async (req, res) => {
     const drivers = {
       total: allDrivers.length,
       available: allDrivers.filter((d) => d.status === 'available').length,
+      onDuty: allDrivers.filter((d) => d.status === 'on-duty').length,
       onLeave: allDrivers.filter((d) => d.status === 'on-leave').length,
       offDuty: allDrivers.filter((d) => d.status === 'off-duty').length,
     }
