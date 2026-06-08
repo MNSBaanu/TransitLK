@@ -98,6 +98,11 @@ const validateBusAssignment = async (busId, routeServiceType, routeDepotId) => {
     error.statusCode = 400
     throw error
   }
+  if (bus.status === 'maintenance') {
+    const error = new Error('Bus is under maintenance and cannot be scheduled')
+    error.statusCode = 400
+    throw error
+  }
   if (!isBusAssignableForRoute(bus, routeServiceType)) {
     const minCap = defaultMinCapacityForService(routeServiceType)
     const error = new Error(`Bus does not meet requirements: available status and capacity ≥ ${minCap}`)

@@ -312,6 +312,10 @@ async function analyzeTimetableConflicts({ dates, rows }) {
     status: { $ne: 'cancelled' },
   })
 
+  const busIds = [...new Set(included.map((r) => String(r.busId)))]
+  const buses = await Bus.find({ _id: { $in: busIds } }).select('status regNumber').lean()
+  const busById = new Map(buses.map((b) => [String(b._id), b]))
+
   const issues = []
 
   for (const dateStr of dates) {
@@ -334,6 +338,18 @@ async function analyzeTimetableConflicts({ dates, rows }) {
     }
 
     for (const trip of proposedForDay) {
+      const bus = busById.get(String(trip.busId))
+      if (bus?.status === 'maintenance') {
+        mergeTimetableIssue(issues, trip, dateStr, [
+          {
+            type: 'availability',
+            message: `Bus ${bus.regNumber} is under maintenance`,
+            _dedupeKey: `maintenance-${trip.busId}-${dateStr}`,
+          },
+        ])
+        continue
+      }
+
       const conflicts = []
       for (const ex of existingForDay) {
         compareTripOverlap(trip, ex, conflicts, {
