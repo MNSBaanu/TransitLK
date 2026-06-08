@@ -700,7 +700,6 @@ function Maintenance() {
   const [logModal, setLogModal] = useState(false)
   const [maintenanceModal, setMaintenanceModal] = useState(null)
   const [fuelModal, setFuelModal] = useState(null)
-  const [menuOpen, setMenuOpen] = useState(null)
 
   // Auto-open maintenance modal if busId is in URL
   useEffect(() => {
@@ -920,23 +919,23 @@ function Maintenance() {
                         </td>
                         <td className="px-4 py-3 text-neutral-700">{formatCurrency(r.cost)}</td>
                         <td className="px-4 py-3">
-                          <div className="relative">
-                            <button onClick={() => setMenuOpen(menuOpen === r._id ? null : r._id)}
-                              className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container">
-                              <Icon name="more_vert" size={16} />
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setMaintenanceModal(r)}
+                              className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container"
+                              title="Edit"
+                            >
+                              <Icon name="edit" size={16} />
                             </button>
-                            {menuOpen === r._id && (
-                              <div className="absolute right-0 z-10 mt-1 w-36 rounded-xl border border-outline-variant bg-white shadow-lg">
-                                <button onClick={() => { setMaintenanceModal(r); setMenuOpen(null) }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-surface-container">
-                                  <Icon name="edit" size={14} /> Edit
-                                </button>
-                                <button onClick={() => { handleDeleteMaintenance(r._id); setMenuOpen(null) }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
-                                  <Icon name="delete" size={14} /> Delete
-                                </button>
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMaintenance(r._id)}
+                              className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Icon name="delete" size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -981,23 +980,23 @@ function Maintenance() {
                       </td>
                       <td className="px-4 py-3 text-neutral-700">{formatCurrency(r.amount)}</td>
                       <td className="px-4 py-3">
-                        <div className="relative">
-                          <button onClick={() => setMenuOpen(menuOpen === r._id ? null : r._id)}
-                            className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container">
-                            <Icon name="more_vert" size={16} />
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setFuelModal(r)}
+                            className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container"
+                            title="Edit"
+                          >
+                            <Icon name="edit" size={16} />
                           </button>
-                          {menuOpen === r._id && (
-                            <div className="absolute right-0 z-10 mt-1 w-36 rounded-xl border border-outline-variant bg-white shadow-lg">
-                              <button onClick={() => { setFuelModal(r); setMenuOpen(null) }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-surface-container">
-                                <Icon name="edit" size={14} /> Edit
-                              </button>
-                              <button onClick={() => { handleDeleteFuel(r._id); setMenuOpen(null) }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
-                                <Icon name="delete" size={14} /> Delete
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFuel(r._id)}
+                            className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                            title="Delete"
+                          >
+                            <Icon name="delete" size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>
