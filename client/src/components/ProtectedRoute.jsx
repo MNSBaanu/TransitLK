@@ -10,7 +10,7 @@ export function RequireAuth() {
   if (!loading && !isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
-  if (loading && !isAuthenticated) return null
+  if (loading) return null
   return <Outlet />
 }
 

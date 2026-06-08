@@ -356,9 +356,9 @@ export function invalidatePageData(path) {
 export function primeCriticalPageData() {
   return Promise.allSettled([
     prefetchPageData('/dashboard'),
-    prefetchPageData('/routes'),
-    prefetchPageData('/schedules'),
-    prefetchPageData('/reports'),
+    prefetchPageData('/routes', { page: 1, limit: 10, search: '', status: '', serviceType: '' }),
+    prefetchPageData('/schedules', getDefaultScheduleOptions()),
+    prefetchPageData('/reports', getDefaultReportOptions()),
     prefetchPageData('/buses'),
     prefetchPageData('/depots'),
     prefetchPageData('/maintenance'),
@@ -367,9 +367,37 @@ export function primeCriticalPageData() {
   ])
 }
 
+/** Default fetch options per path so login prefetch matches first page paint. */
+function prefetchJobsForRole(role) {
+  const paths = (ROLE_ALLOWED_PATHS[role] || []).filter(isPrefetchablePath)
+
+  return paths.map((path) => {
+    if (path === '/routes') {
+      return prefetchPageData('/routes', {
+        page: 1,
+        limit: 10,
+        search: '',
+        status: '',
+        serviceType: '',
+      })
+    }
+    if (path === '/schedules') {
+      return prefetchPageData('/schedules', getDefaultScheduleOptions())
+    }
+    if (path === '/reports') {
+      return prefetchPageData('/reports', getDefaultReportOptions())
+    }
+    return prefetchPageData(path)
+  })
+}
+
+/** Warm all role-accessible module data (runs during login / session restore). */
 export function primePagesForRole(role) {
-  const paths = ROLE_ALLOWED_PATHS[role] || []
-  return Promise.allSettled(
-    paths.filter(isPrefetchablePath).map((path) => prefetchPageData(path))
-  )
+  if (!role) return Promise.resolve([])
+  return Promise.allSettled(prefetchJobsForRole(role))
+}
+
+export function clearAllPageCache() {
+  pageCache.clear()
+  inflightRequests.clear()
 }
