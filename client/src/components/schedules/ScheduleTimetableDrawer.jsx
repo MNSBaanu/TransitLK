@@ -157,10 +157,10 @@ function ScheduleTimetableDrawer({
 
   const feedbackPanel = (
       <aside
-        className="flex h-[42vh] min-h-0 w-full flex-1 flex-col border-r border-outline-variant bg-surface-container/40 shadow-2xl lg:h-full lg:min-w-0"
+        className="flex h-[42vh] min-h-0 w-full shrink-0 flex-col border-t border-outline-variant bg-white shadow-2xl lg:h-full lg:w-[min(24rem,32vw)] lg:border-l lg:border-t-0"
         aria-label="Timetable status and errors"
       >
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant bg-white px-4 py-3 sm:px-5">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-outline-variant px-5 py-4">
           <p className="text-sm font-semibold text-neutral-900">Timetable feedback</p>
           <div className="flex items-center gap-2">
             <button
@@ -183,7 +183,7 @@ function ScheduleTimetableDrawer({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {!hasStatusPanel ? (
             <div className="rounded-xl border border-outline-variant bg-white px-4 py-6 text-sm text-on-surface-variant">
               <p className="font-semibold text-neutral-900">No issues yet</p>
@@ -204,7 +204,7 @@ function ScheduleTimetableDrawer({
               )}
 
               {checkingConflicts && (
-                <div className="rounded-xl border border-white/25 bg-white/95 px-4 py-3 text-sm text-neutral-800 shadow-lg">
+                <div className="rounded-xl border border-outline-variant bg-surface-container/40 px-4 py-3 text-sm text-neutral-800">
                   <p className="flex items-center gap-2 font-medium">
                     <Icon name="schedule" size={18} className="animate-pulse text-depot-blue-light" />
                     Checking bus, driver, and route overlaps...
@@ -308,14 +308,12 @@ function ScheduleTimetableDrawer({
   return (
     <div
       className={`fixed inset-0 z-[100] flex bg-black/30 ${
-        feedbackOpen ? 'flex-col-reverse lg:flex-row' : 'justify-end'
+        feedbackOpen ? 'flex-col-reverse lg:flex-row' : 'flex-col'
       }`}
     >
-      {feedbackOpen && feedbackPanel}
-
       <div
-        className={`flex min-h-0 shrink-0 flex-col bg-white shadow-2xl lg:max-w-5xl ${
-          feedbackOpen ? 'h-[58vh] w-full lg:h-full' : 'h-full w-full lg:w-auto'
+        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-white shadow-2xl ${
+          feedbackOpen ? 'h-[58vh] w-full lg:h-full' : 'h-full w-full'
         }`}
       >
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -648,6 +646,8 @@ function ScheduleTimetableDrawer({
           </div>
         </form>
       </div>
+
+      {feedbackOpen && feedbackPanel}
     </div>
   )
 }
