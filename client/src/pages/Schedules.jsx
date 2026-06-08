@@ -11,6 +11,7 @@ import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
+import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
@@ -22,9 +23,13 @@ import {
   detectTimetableConflicts,
   formatPeriodLabel,
   formatTripDate,
-  buildTimetableRows,
+  buildTimetableRowsForPeriod,
   duplicateTimetableRow,
+  filterSchedulesInDateRange,
+  getTimetableDateBounds,
   getTimetableDates,
+  mergeSchedulesById,
+  viewRangeCoversTimetable,
   groupTimetableConflictsByRoute,
   reasonToStatus,
   requiresAdjustmentNotes,
@@ -32,6 +37,8 @@ import {
   isTimetableReady,
   scheduleCode,
   toDateInputValue,
+  isTripInViewRange,
+  isTripOnDate,
   tripDateKey,
   validateTimeRange,
 } from '../utils/scheduleHelpers'
@@ -85,6 +92,7 @@ function SchedulesPage() {
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
+  const [showTripDetailsDrawer, setShowTripDetailsDrawer] = useState(false)
   const [adjustAwaitingTrip, setAdjustAwaitingTrip] = useState(false)
   const [viewMode, setViewMode] = useState(initialViewMode)
   const [selected, setSelected] = useState(null)
@@ -120,6 +128,7 @@ function SchedulesPage() {
   const invalidateRelatedPages = useCallback(() => {
     invalidatePageData('/schedules')
     invalidatePageData('/reports')
+    invalidatePageData('/buses')
   }, [])
 
   const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, viewDate: viewDateOverride } = {}) => {
@@ -183,7 +192,14 @@ function SchedulesPage() {
 
   useAutoRefresh(
     () => loadData({ force: true, keepContent: true }),
-    { enabled: !showTimetable && !showAdjustDrawer && !saving && !maintenanceConfirm }
+    { enabled: !showTimetable && !showAdjustDrawer && !showTripDetailsDrawer && !saving && !maintenanceConfirm }
+  )
+
+  const applyTimetableSource = useCallback(
+    (period, anchor, sourceSchedules) => {
+      setTimetableRows(buildTimetableRowsForPeriod(routes, sourceSchedules, period, anchor))
+    },
+    [routes]
   )
 
   const handleTimetableRefresh = useCallback(async () => {
@@ -195,26 +211,29 @@ function SchedulesPage() {
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
-      setTimetableRows(buildTimetableRows(data.routes, data.schedules, timetableAnchor))
-
-      const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-      if (dates.length) {
+      const { from, to } = getTimetableDateBounds(timetablePeriod, timetableAnchor)
+      if (from && to) {
         const { data: rangeSchedules } = await api.get('/schedules', {
-          params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
+          params: { fromDate: from, toDate: to },
         })
-        setTimetableRangeSchedules(Array.isArray(rangeSchedules) ? rangeSchedules : [])
+        const merged = mergeSchedulesById(
+          filterSchedulesInDateRange(data.schedules, from, to),
+          Array.isArray(rangeSchedules) ? rangeSchedules : []
+        )
+        setTimetableRangeSchedules(merged)
+        applyTimetableSource(timetablePeriod, timetableAnchor, merged)
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to refresh timetable data')
     } finally {
       setTimetableRefreshing(false)
     }
-  }, [timetableAnchor, timetablePeriod, viewDate, viewMode])
+  }, [timetableAnchor, timetablePeriod, viewDate, viewMode, applyTimetableSource])
 
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
     return schedules.filter((s) => {
-      if (viewMode === 'daily' && tripDateKey(s) !== viewDate) return false
+      if (!isTripInViewRange(s, viewMode, viewDate)) return false
       if (routeFilter && String(s.routeId?._id || s.routeId) !== routeFilter) return false
       if (driverFilter && String(s.driverId?._id || s.driverId) !== driverFilter) return false
       if (!q) return true
@@ -263,7 +282,7 @@ function SchedulesPage() {
   }, [buses, selected, adjustForm.busId])
 
   const ganttRows = useMemo(() => {
-    const dayTrips = displaySchedules.filter((s) => tripDateKey(s) === viewDate)
+    const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, viewDate))
     const byBus = new Map()
     for (const trip of dayTrips) {
       const busId = String(trip.busId?._id || trip.busId || 'unknown')
@@ -288,36 +307,72 @@ function SchedulesPage() {
   const timetableReady = useMemo(() => isTimetableReady(timetableRows), [timetableRows])
 
   useEffect(() => {
-    if (!showTimetable) {
-      setTimetableRangeSchedules([])
-      return undefined
-    }
+    if (!showTimetable) return undefined
 
-    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-    if (!dates.length) return undefined
+    const period = timetablePeriod
+    const anchor = timetableAnchor
+    const { from, to } = getTimetableDateBounds(period, anchor)
+    if (!from || !to) return undefined
 
     let cancelled = false
-    setLoadingTimetableRange(true)
-    api
-      .get('/schedules', {
-        params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
-      })
-      .then(({ data }) => {
-        if (!cancelled) {
-          setTimetableRangeSchedules(Array.isArray(data) ? data : [])
+    const covered = viewRangeCoversTimetable(viewMode, viewDate, period, anchor)
+    const instant = mergeSchedulesById(
+      timetableRangeSchedules,
+      filterSchedulesInDateRange(schedules, from, to)
+    )
+
+    setTimetableRangeSchedules(instant)
+    applyTimetableSource(period, anchor, instant)
+    setLoadingTimetableRange(!covered && instant.length === 0 && routes.length === 0)
+
+    ;(async () => {
+      const syncRange = async () => {
+        const { data } = await api.get('/schedules', {
+          params: { fromDate: from, toDate: to },
+        })
+        if (cancelled) return
+        const merged = mergeSchedulesById(instant, Array.isArray(data) ? data : [])
+        setTimetableRangeSchedules(merged)
+        applyTimetableSource(period, anchor, merged)
+      }
+
+      if (covered) {
+        try {
+          await syncRange()
+        } catch {
+          /* keep instant rows */
+        } finally {
+          if (!cancelled) setLoadingTimetableRange(false)
         }
-      })
-      .catch(() => {
-        if (!cancelled) setTimetableRangeSchedules([])
-      })
-      .finally(() => {
+        return
+      }
+
+      setLoadingTimetableRange(true)
+      try {
+        await syncRange()
+      } catch {
+        if (!cancelled && !instant.length) {
+          setTimetableRangeSchedules([])
+          applyTimetableSource(period, anchor, [])
+        }
+      } finally {
         if (!cancelled) setLoadingTimetableRange(false)
-      })
+      }
+    })()
 
     return () => {
       cancelled = true
     }
-  }, [showTimetable, timetablePeriod, timetableAnchor])
+  }, [
+    showTimetable,
+    timetablePeriod,
+    timetableAnchor,
+    viewMode,
+    viewDate,
+    schedules,
+    routes,
+    applyTimetableSource,
+  ])
 
   const timetableConflicts = useMemo(() => {
     if (!showTimetable) return null
@@ -408,6 +463,7 @@ function SchedulesPage() {
 
   const closeScheduleModals = ({ clearSelection = false } = {}) => {
     setShowAdjustDrawer(false)
+    setShowTripDetailsDrawer(false)
     setAdjustAwaitingTrip(false)
     setShowConflictPanel(false)
     setShowTimetable(false)
@@ -416,21 +472,48 @@ function SchedulesPage() {
     if (clearSelection) setSelected(null)
   }
 
-  const selectTrip = (trip, { openDrawer } = {}) => {
+  const openAdjustDrawer = () => {
+    if (!selected) {
+      setAdjustAwaitingTrip(true)
+      setShowTripDetailsDrawer(false)
+      setShowAdjustDrawer(true)
+      setShowConflictPanel(false)
+      return
+    }
+    setAdjustForm(syncTripForm(selected))
+    setShowTripDetailsDrawer(false)
+    setShowAdjustDrawer(true)
+    setAdjustAwaitingTrip(false)
+    setShowConflictPanel(false)
+  }
+
+  const selectTrip = (trip, { openDetails = true, openAdjust = false } = {}) => {
     setSelected(trip)
     setShowConflictPanel(false)
     if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
     setAdjustForm(syncTripForm(trip))
-    if (openDrawer !== false) {
+    if (openAdjust || adjustAwaitingTrip) {
+      setShowTripDetailsDrawer(false)
       setShowAdjustDrawer(true)
       setAdjustAwaitingTrip(false)
+    } else if (openDetails) {
+      setShowAdjustDrawer(false)
+      setShowTripDetailsDrawer(true)
     }
   }
 
   const openTimetableDrawer = () => {
-    setTimetablePeriod(viewMode)
-    setTimetableAnchor(viewDate)
-    setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
+    const period = viewMode === 'monthly' ? 'daily' : viewMode
+    const anchor = viewDate
+    const { from, to } = getTimetableDateBounds(period, anchor)
+    const instant = mergeSchedulesById(
+      timetableRangeSchedules,
+      filterSchedulesInDateRange(schedules, from, to)
+    )
+    setTimetablePeriod(period)
+    setTimetableAnchor(anchor)
+    setTimetableRangeSchedules(instant)
+    setTimetableRows(buildTimetableRowsForPeriod(routes, instant, period, anchor))
     setError('')
     setShowTimetable(true)
   }
@@ -460,12 +543,10 @@ function SchedulesPage() {
 
   const handleTimetablePeriodChange = (period) => {
     setTimetablePeriod(period)
-    setTimetableRows(buildTimetableRows(routes, schedules, timetableAnchor))
   }
 
   const handleTimetableAnchorChange = (date) => {
     setTimetableAnchor(date)
-    setTimetableRows(buildTimetableRows(routes, schedules, date))
   }
 
   const handleAdjustChange = (e) => {
@@ -775,8 +856,9 @@ function SchedulesPage() {
           data.status === 'completed' ? 'Trip marked completed' : 'Schedule updated'
         )
       } else {
-        selectTrip(data, { openDrawer: false })
-        closeScheduleModals()
+        selectTrip(data, { openDetails: true })
+        setShowAdjustDrawer(false)
+        setShowConflictPanel(false)
         showToast('Schedule updated')
       }
       invalidateRelatedPages()
@@ -872,18 +954,7 @@ function SchedulesPage() {
                 </ModulePrimaryButton>
               )}
               {canAdjustSchedules && (
-                <ModuleSecondaryButton
-                  icon="tune"
-                  onClick={() => {
-                    if (selected) {
-                      setAdjustAwaitingTrip(false)
-                      setShowAdjustDrawer(true)
-                    } else {
-                      setAdjustAwaitingTrip(true)
-                      setShowAdjustDrawer(false)
-                    }
-                  }}
-                >
+                <ModuleSecondaryButton icon="tune" onClick={openAdjustDrawer}>
                   {isDepotManager ? 'Adjust trip' : 'Adjust'}
                 </ModuleSecondaryButton>
               )}
@@ -1107,6 +1178,16 @@ function SchedulesPage() {
         </div>
       </div>
 
+      <ScheduleTripDetailsDrawer
+        open={showTripDetailsDrawer}
+        onClose={() => {
+          setShowTripDetailsDrawer(false)
+        }}
+        selected={selected}
+        canAdjustSchedules={canAdjustSchedules}
+        onAdjust={openAdjustDrawer}
+      />
+
       <ScheduleAdjustDrawer
         open={showAdjustDrawer}
         onClose={() => {
@@ -1139,7 +1220,6 @@ function SchedulesPage() {
           setMaintenanceConfirm(true)
         }}
         onPickCoverDriver={handlePickCoverDriver}
-        canAdjustSchedules={canAdjustSchedules}
       />
 
       <ConfirmDialog
@@ -1179,11 +1259,7 @@ function SchedulesPage() {
         tripCount={timetableTripCount}
         conflictPreview={timetableConflicts}
         rowConflictHints={timetableRowConflicts}
-        canCreateTimetable={
-          timetableReady &&
-          !loadingTimetableRange &&
-          !timetableConflicts?.hasConflict
-        }
+        canCreateTimetable={timetableReady && !timetableConflicts?.hasConflict}
         onRefresh={handleTimetableRefresh}
         refreshing={timetableRefreshing}
         checkingConflicts={loadingTimetableRange}

@@ -328,6 +328,7 @@ function Admins() {
         <table className="w-full min-w-[820px] text-sm">
           <thead>
             <tr className="border-b border-outline-variant bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              <th className="w-12 px-4 py-3">#</th>
               <th className="px-4 py-3">Administrator</th>
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Depot</th>
@@ -338,19 +339,20 @@ function Admins() {
           <tbody>
             {loading && admins.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading administrators...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
                   No administrators match your search.
                 </td>
               </tr>
             ) : (
-              filtered.map((admin) => (
+              filtered.map((admin, index) => (
                 <tr key={admin._id} className="border-b border-outline-variant/60 last:border-0">
+                  <td className="px-4 py-3 text-neutral-500 tabular-nums">{index + 1}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-900">{admin.name}</p>
                     <p className="text-xs text-on-surface-variant">{admin.email}</p>

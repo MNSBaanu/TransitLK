@@ -108,9 +108,22 @@ export function ganttReturnLegPosition(departureTime, arrivalTime) {
   return ganttPositionFromMinutes(arr, busyEnd)
 }
 
+/** Calendar date for a trip or date field — matches server UTC-noon tripDate storage */
+export function parseTripDate(value) {
+  if (!value) return null
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (match) return parseLocalDateInput(match[1])
+  }
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+}
+
 export function formatTripDate(date) {
-  if (!date) return '—'
-  return new Date(date).toLocaleDateString('en-GB', {
+  const d = parseTripDate(date)
+  if (!d) return '—'
+  return d.toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'short',
@@ -119,14 +132,15 @@ export function formatTripDate(date) {
 }
 
 export function toDateInputValue(date) {
-  const d = new Date(date)
+  const d = parseTripDate(date) || new Date(date)
+  if (Number.isNaN(d.getTime())) return ''
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 
-function parseLocalDateInput(dateStr) {
+export function parseLocalDateInput(dateStr) {
   if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split('-').map(Number)
     return new Date(y, m - 1, d)
@@ -176,7 +190,50 @@ export function getMonthDayDates(anchorDate) {
 export function getTimetableDates(period, anchorDate) {
   if (period === 'weekly') return getWeekDayDates(anchorDate)
   if (period === 'monthly') return getMonthDayDates(anchorDate)
-  return [toDateInputValue(new Date(anchorDate))]
+  return [toDateInputValue(anchorDate)]
+}
+
+export function getTimetableDateBounds(period, anchorDate) {
+  const dates = getTimetableDates(period, anchorDate)
+  if (!dates.length) return { from: '', to: '' }
+  return { from: dates[0], to: dates[dates.length - 1] }
+}
+
+export function filterSchedulesInDateRange(schedules, fromDate, toDate) {
+  if (!fromDate || !toDate) return []
+  return (schedules || []).filter((s) => isTripInDateRange(s, fromDate, toDate))
+}
+
+export function mergeSchedulesById(...lists) {
+  const map = new Map()
+  for (const list of lists) {
+    for (const item of list || []) {
+      if (item?._id != null) map.set(String(item._id), item)
+    }
+  }
+  return [...map.values()]
+}
+
+export function viewRangeCoversTimetable(viewMode, viewDate, timetablePeriod, timetableAnchor) {
+  const view = getViewDateRange(viewMode, viewDate)
+  const ttMode =
+    timetablePeriod === 'monthly' ? 'monthly' : timetablePeriod === 'weekly' ? 'weekly' : 'daily'
+  const timetable = getViewDateRange(ttMode, timetableAnchor)
+  return timetable.from >= view.from && timetable.to <= view.to
+}
+
+export function schedulesForTimetableRows(schedules, period, anchorDate) {
+  const { from, to } = getTimetableDateBounds(period, anchorDate)
+  const inRange = filterSchedulesInDateRange(schedules, from, to)
+  if (period === 'daily') {
+    return inRange.filter((s) => isTripOnDate(s, anchorDate))
+  }
+  return inRange
+}
+
+export function buildTimetableRowsForPeriod(routes, schedules, period, anchorDate) {
+  const source = schedulesForTimetableRows(schedules, period, anchorDate)
+  return buildTimetableRows(routes, source, anchorDate)
 }
 
 /** Start and end points for schedule/timetable route labels */
@@ -261,12 +318,13 @@ export function duplicateTimetableRow(route, siblingRows = []) {
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
   const active = routes.filter(isSchedulableRoute)
   const rows = []
+  const dayKey = toDateInputValue(anchorDate)
 
   for (const route of active) {
     const routeId = String(route._id)
     const existingTrips = schedules.filter(
       (s) =>
-        String(s.routeId?._id || s.routeId) === routeId && tripDateKey(s) === anchorDate
+        String(s.routeId?._id || s.routeId) === routeId && tripDateKey(s) === dayKey
     )
     if (existingTrips.length) {
       for (const trip of existingTrips) {
@@ -565,17 +623,25 @@ export function formatPeriodLabel(viewMode, anchorDate) {
 
 export function tripDateKey(trip) {
   if (!trip?.tripDate) return ''
-  const raw = trip.tripDate
-  if (typeof raw === 'string') {
-    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/)
-    if (match) return match[1]
-  }
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) return ''
-  const y = d.getUTCFullYear()
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(d.getUTCDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
+  return toDateInputValue(trip.tripDate)
+}
+
+export function isTripOnDate(trip, dateStr) {
+  if (!dateStr) return false
+  return tripDateKey(trip) === toDateInputValue(dateStr)
+}
+
+export function isTripInDateRange(trip, fromDate, toDate) {
+  const key = tripDateKey(trip)
+  if (!key || !fromDate || !toDate) return false
+  const from = toDateInputValue(fromDate)
+  const to = toDateInputValue(toDate)
+  return key >= from && key <= to
+}
+
+export function isTripInViewRange(trip, viewMode, anchorDate) {
+  const { from, to } = getViewDateRange(viewMode, anchorDate)
+  return isTripInDateRange(trip, from, to)
 }
 
 export function formatTimeRange(departureTime, arrivalTime) {

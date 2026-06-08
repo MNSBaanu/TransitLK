@@ -4,6 +4,7 @@ import {
   formatTimeRange,
   getMonthDayDates,
   scheduleCode,
+  parseLocalDateInput,
   scheduleStatusClass,
   toDateInputValue,
   tripDateKey,
@@ -11,7 +12,7 @@ import {
 
 function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip, onPickDay }) {
   const monthDays = getMonthDayDates(anchorDate)
-  const firstDow = new Date(monthDays[0]).getDay()
+  const firstDow = parseLocalDateInput(monthDays[0]).getDay()
   const padStart = firstDow === 0 ? 6 : firstDow - 1
 
   const byDay = new Map()
@@ -51,7 +52,7 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
                 onClick={() => onPickDay(dayKey)}
                 className="mb-1 flex items-center justify-between text-left text-xs font-bold text-neutral-900 hover:underline"
               >
-                {new Date(dayKey).getDate()}
+                {parseLocalDateInput(dayKey).getDate()}
                 {trips.length > 0 && (
                   <span className="rounded-full bg-depot-navy px-1.5 py-0.5 text-[10px] text-white">
                     {trips.length}
