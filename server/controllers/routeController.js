@@ -40,7 +40,10 @@ const sortRoutes = (query) =>
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const buildRouteFilter = (req, search = '') => {
+const ROUTE_STATUS_FILTERS = new Set(['active', 'inactive', 'draft'])
+const ROUTE_SERVICE_FILTERS = new Set(['express', 'ordinary', 'semi-luxury'])
+
+const buildRouteFilter = (req, { search = '', status = '', serviceType = '' } = {}) => {
   const filter = {}
   if (!isSuperadministrator(req.user)) {
     filter.depotId = requireUserDepot(req.user)
@@ -57,6 +60,13 @@ const buildRouteFilter = (req, search = '') => {
       { viaDescription: regex },
       { stops: regex },
     ]
+  }
+
+  if (status && ROUTE_STATUS_FILTERS.has(status)) {
+    filter.status = status
+  }
+  if (serviceType && ROUTE_SERVICE_FILTERS.has(serviceType)) {
+    filter.serviceType = serviceType
   }
 
   return filter
@@ -157,12 +167,19 @@ const assertRouteStatusTransition = async (existing, nextStatus) => {
 export const getRoutes = async (req, res) => {
   try {
     const rawSearch = typeof req.query.search === 'string' ? req.query.search : ''
+    const status = typeof req.query.status === 'string' ? req.query.status.trim() : ''
+    const serviceType =
+      typeof req.query.serviceType === 'string' ? req.query.serviceType.trim() : ''
     const requestedPage = Number.parseInt(req.query.page, 10)
     const requestedLimit = Number.parseInt(req.query.limit, 10)
     const search = rawSearch.trim()
     const wantsPagination =
-      Number.isFinite(requestedPage) || Number.isFinite(requestedLimit) || Boolean(search)
-    const filter = buildRouteFilter(req, search)
+      Number.isFinite(requestedPage) ||
+      Number.isFinite(requestedLimit) ||
+      Boolean(search) ||
+      Boolean(status) ||
+      Boolean(serviceType)
+    const filter = buildRouteFilter(req, { search, status, serviceType })
 
     if (!wantsPagination) {
       const routes = await populateRoute(sortRoutes(Route.find(filter)))

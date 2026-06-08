@@ -9,11 +9,29 @@ function routeCode(route) {
   return route._id.slice(-6).toUpperCase()
 }
 
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'inactive', label: 'Inactive' },
+]
+
+const SERVICE_FILTER_OPTIONS = [
+  { value: '', label: 'All services' },
+  { value: 'ordinary', label: 'Ordinary' },
+  { value: 'express', label: 'Express' },
+  { value: 'semi-luxury', label: 'Semi Luxury' },
+]
+
 function RouteListTable({
   routes,
   loading,
   search,
   onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+  serviceTypeFilter,
+  onServiceTypeFilterChange,
   pagination,
   pageSize,
   pageSizeOptions,
@@ -36,6 +54,30 @@ function RouteListTable({
           placeholder="Search route no, name, stops..."
           className="min-w-[240px]"
         />
+        <select
+          value={statusFilter}
+          onChange={(e) => onStatusFilterChange(e.target.value)}
+          aria-label="Filter by status"
+          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900"
+        >
+          {STATUS_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || 'all-status'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={serviceTypeFilter}
+          onChange={(e) => onServiceTypeFilterChange(e.target.value)}
+          aria-label="Filter by service type"
+          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900"
+        >
+          {SERVICE_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || 'all-service'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         <label className="ml-auto flex items-center gap-2 text-sm text-on-surface-variant">
           <span>Rows</span>
           <select
