@@ -6,10 +6,12 @@ import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
+import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import {
   formatRouteEndpointsLabel,
+  formatRouteStopsLabel,
+  formatTimeRange,
   formatTripDate,
-  scheduleCode,
   tripDateKey,
 } from '../utils/scheduleHelpers'
 import {
@@ -38,6 +40,7 @@ function ScheduleApprovals() {
   const [toast, setToast] = useState('')
   const [rejectTargetId, setRejectTargetId] = useState(null)
   const [rejectReason, setRejectReason] = useState('Incomplete allocation')
+  const [viewTrip, setViewTrip] = useState(null)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -150,51 +153,73 @@ function ScheduleApprovals() {
             {pending.length} schedule{pending.length === 1 ? '' : 's'} awaiting approval
           </p>
           <ul className="divide-y divide-amber-100">
-            {pending.map((trip, index) => (
-              <li
-                key={trip._id}
-                className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3"
-              >
-                <span className="w-8 shrink-0 text-sm font-medium tabular-nums text-neutral-400">
-                  {index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-neutral-900">{scheduleCode(trip)}</p>
-                  <p className="text-sm text-on-surface-variant">
-                    {formatRouteEndpointsLabel(trip.routeId)} · {trip.departureTime}–{trip.arrivalTime}
-                  </p>
-                  <p className="text-xs text-on-surface-variant">
-                    {formatTripDate(tripDateKey(trip))}
-                    {trip.busId?.regNumber ? ` · ${trip.busId.regNumber}` : ''}
-                    {trip.driverId?.name ? ` · ${trip.driverId.name}` : ''}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => handleApprove(trip._id)}
-                    className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setRejectReason('Incomplete allocation')
-                      setRejectTargetId(trip._id)
-                    }}
-                    className="rounded-lg border border-red-300 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </li>
-            ))}
+            {pending.map((trip, index) => {
+              const route = trip.routeId || {}
+              const routeTitle = route.routeName?.trim() || formatRouteEndpointsLabel(route)
+              const stopsLabel = formatRouteStopsLabel(route)
+              const timeAndStops = [formatTimeRange(trip.departureTime, trip.arrivalTime), stopsLabel]
+                .filter(Boolean)
+                .join(' · ')
+
+              return (
+                <li
+                  key={trip._id}
+                  className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3"
+                >
+                  <span className="w-8 shrink-0 text-sm font-medium tabular-nums text-neutral-400">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-neutral-900">{routeTitle}</p>
+                    <p className="text-sm text-on-surface-variant">{timeAndStops}</p>
+                    <p className="text-xs text-on-surface-variant">
+                      {formatTripDate(tripDateKey(trip))}
+                      {trip.busId?.regNumber ? ` · ${trip.busId.regNumber}` : ''}
+                      {trip.driverId?.name ? ` · ${trip.driverId.name}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setViewTrip(trip)}
+                      className="rounded-lg border border-outline-variant px-4 py-2 text-xs font-bold text-depot-blue-light hover:bg-surface-container disabled:opacity-50"
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => handleApprove(trip._id)}
+                      className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setRejectReason('Incomplete allocation')
+                        setRejectTargetId(trip._id)
+                      }}
+                      className="rounded-lg border border-red-300 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
+
+      <ScheduleTripDetailsDrawer
+        open={Boolean(viewTrip)}
+        onClose={() => setViewTrip(null)}
+        selected={viewTrip}
+        canAdjustSchedules={false}
+      />
 
       {rejectTargetId && (
         <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/40 p-4">

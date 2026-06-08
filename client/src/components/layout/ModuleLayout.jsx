@@ -8,7 +8,7 @@ export function ModuleHeader({ title, subtitle, action }) {
         <h2 className="pro-page-title">{title}</h2>
         {subtitle && <p className="pro-page-subtitle max-w-3xl">{subtitle}</p>}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="shrink-0 overflow-visible pt-2 pr-2">{action}</div> : null}
     </div>
   )
 }
@@ -27,17 +27,26 @@ export function ModulePrimaryButton({ children, onClick, icon, type = 'button', 
   )
 }
 
-export function ModuleSecondaryButton({ children, onClick, icon, type = 'button', disabled }) {
+export function ModuleSecondaryButton({ children, onClick, icon, type = 'button', disabled, badge }) {
+  const showBadge = Number(badge) > 0
+
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className="btn-outlined flex shrink-0 items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {icon && <Icon name={icon} size={18} />}
-      {children}
-    </button>
+    <div className="relative shrink-0 overflow-visible">
+      <button
+        type={type}
+        onClick={onClick}
+        disabled={disabled}
+        className="btn-outlined flex shrink-0 items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {icon && <Icon name={icon} size={18} />}
+        {children}
+      </button>
+      {showBadge && (
+        <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-amber-500">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+    </div>
   )
 }
 
