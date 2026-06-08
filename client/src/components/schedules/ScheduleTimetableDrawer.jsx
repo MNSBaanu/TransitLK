@@ -4,12 +4,13 @@ import {
   buildTimetableFeedbackCards,
   formatRouteEndpointsLabel,
   formatTimeRange,
+  formatTripDate,
+  isTripOnDate,
   getResourceNextAvailableTime,
   getTimetableDates,
   getTimetableRowValidationIssues,
   getTimetableRowStatus,
   isResourceFreeForTrip,
-  tripDateKey,
   validateTimeRange,
 } from '../../utils/scheduleHelpers'
 import { isDriverAssignable, isBusAssignable, defaultMinCapacityForService } from '../../utils/fleetHelpers'
@@ -161,7 +162,7 @@ function ScheduleTimetableDrawer({
     : null
 
   const anchorExistingTrips = (existingSchedules || []).filter(
-    (s) => s.status !== 'cancelled' && tripDateKey(s) === anchorDate
+    (s) => s.status !== 'cancelled' && isTripOnDate(s, anchorDate)
   )
 
   const feedbackPanel = (
@@ -454,6 +455,15 @@ function ScheduleTimetableDrawer({
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+            {period === 'daily' && (
+              <div className="mb-4 rounded-lg border border-depot-blue-light/30 bg-depot-navy/5 px-4 py-3">
+                <p className={`${labelClass} text-depot-navy`}>Showing trips for</p>
+                <p className="text-sm font-semibold text-neutral-900">{formatTripDate(anchorDate)}</p>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Only schedules on this date are listed. Change the trip date above to edit another day.
+                </p>
+              </div>
+            )}
             {rows.length === 0 ? (
               <p className="py-10 text-center text-sm text-on-surface-variant">
                 No active routes. Activate routes in Route Management before creating a timetable.
