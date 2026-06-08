@@ -2,8 +2,6 @@ import RouteMap from '../RouteMap'
 import { ModuleCard } from '../layout/ModuleLayout'
 import { formatRouteStatus, routeStatusClass } from '../../utils/routeHelpers'
 import { formatServiceType, driverAvailabilityLabel } from '../../utils/fleetHelpers'
-import RouteFleetAssignment from './RouteFleetAssignment'
-
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surface-variant'
 
 function ReadOnlyField({ label, value, className = '' }) {
@@ -20,8 +18,6 @@ function RouteView({
   routeCode,
   selectedBus,
   selectedDriver,
-  buses,
-  drivers,
   onEdit,
   onBack,
 }) {
@@ -118,19 +114,6 @@ function RouteView({
                 }
               />
             </div>
-
-            <RouteFleetAssignment
-              readOnly
-              serviceType={form.serviceType}
-              busId={form.busId}
-              driverId={form.driverId}
-              buses={buses}
-              drivers={drivers}
-              selectedBus={selectedBus}
-              selectedDriver={selectedDriver}
-              onBusChange={() => {}}
-              onDriverChange={() => {}}
-            />
           </div>
         </ModuleCard>
 
