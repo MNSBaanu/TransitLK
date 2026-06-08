@@ -1075,7 +1075,7 @@ function SchedulesPage() {
               {isAdministrator && canApproveSchedules && (
                 <ModuleSecondaryButton
                   icon="pending_actions"
-                  badgeLabel={`${pendingApprovalCount}·${rejectedApprovalCount}`}
+                  badge={pendingApprovalCount + rejectedApprovalCount}
                   onClick={() => navigate('/schedules/approvals')}
                 >
                   Approvals
