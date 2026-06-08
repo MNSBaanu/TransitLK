@@ -22,6 +22,38 @@ export function timesOverlap(depA, arrA, depB, arrB) {
   return a < d && c < b
 }
 
+export function minutesToTime(minutes) {
+  if (minutes == null || minutes < 0) return null
+  const capped = Math.min(minutes, 24 * 60 - 1)
+  const h = Math.floor(capped / 60)
+  const min = capped % 60
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+/** Mirror-outbound turnaround: busy until arrival + (arrival - departure) */
+export function getResourceBusyEndMinutes(departureTime, arrivalTime) {
+  const dep = timeToMinutes(departureTime)
+  const arr = timeToMinutes(arrivalTime)
+  if (dep == null || arr == null || arr <= dep) return null
+  return arr + (arr - dep)
+}
+
+export function getResourceBusyEndTime(departureTime, arrivalTime) {
+  const end = getResourceBusyEndMinutes(departureTime, arrivalTime)
+  return end == null ? null : minutesToTime(end)
+}
+
+/** Bus/driver busy windows including mirrored return journey */
+export function resourceWindowsOverlap(depA, arrA, depB, arrB) {
+  const startA = timeToMinutes(depA)
+  const busyEndA = getResourceBusyEndMinutes(depA, arrA)
+  const startB = timeToMinutes(depB)
+  const busyEndB = getResourceBusyEndMinutes(depB, arrB)
+  if ([startA, busyEndA, startB, busyEndB].some((v) => v == null)) return false
+  if (busyEndA <= startA || busyEndB <= startB) return false
+  return startA < busyEndB && startB < busyEndA
+}
+
 export function normalizeResourceId(value) {
   if (value == null || value === '') return ''
   if (typeof value === 'object' && value._id != null) return String(value._id)
@@ -37,6 +69,7 @@ export function sameAssignedResource(left, right) {
 
 export function toConflictTrip(trip = {}) {
   return {
+    tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
     routeId: normalizeResourceId(trip.routeId),
     routeName: trip.routeName || trip.routeId?.routeName,
     busId: normalizeResourceId(trip.busId),
@@ -46,12 +79,10 @@ export function toConflictTrip(trip = {}) {
   }
 }
 
-export function ganttPosition(departureTime, arrivalTime) {
-  const start = timeToMinutes(departureTime)
-  const end = timeToMinutes(arrivalTime)
-  if (start == null || end == null || end <= start) return null
-  const left = ((start - GANTT_START_MIN) / GANTT_SPAN) * 100
-  const width = ((end - start) / GANTT_SPAN) * 100
+function ganttPositionFromMinutes(startMin, endMin) {
+  if (startMin == null || endMin == null || endMin <= startMin) return null
+  const left = ((startMin - GANTT_START_MIN) / GANTT_SPAN) * 100
+  const width = ((endMin - startMin) / GANTT_SPAN) * 100
   if (left + width <= 0 || left >= 100) return null
   const clampedLeft = Math.max(0, left)
   const clampedWidth = Math.min(100 - clampedLeft, width)
@@ -63,6 +94,18 @@ export function ganttPosition(departureTime, arrivalTime) {
       width: `max(2.5rem, calc(${clampedWidth}% - ${GANTT_CARD_START_INSET_PX}px))`,
     },
   }
+}
+
+export function ganttPosition(departureTime, arrivalTime) {
+  return ganttPositionFromMinutes(timeToMinutes(departureTime), timeToMinutes(arrivalTime))
+}
+
+/** Return-leg extension on Gantt (arrival → mirrored busy end) */
+export function ganttReturnLegPosition(departureTime, arrivalTime) {
+  const arr = timeToMinutes(arrivalTime)
+  const busyEnd = getResourceBusyEndMinutes(departureTime, arrivalTime)
+  if (arr == null || busyEnd == null || busyEnd <= arr) return null
+  return ganttPositionFromMinutes(arr, busyEnd)
 }
 
 export function formatTripDate(date) {
@@ -144,46 +187,189 @@ export function formatRouteEndpointsLabel(route = {}) {
   return buildRouteName(start, end) || route.routeName || 'Route'
 }
 
+function newTripRowId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `new-${crypto.randomUUID()}`
+  }
+  return `new-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+export function createTimetableRowFromRoute(route, existing = null) {
+  const tripRowId = existing?._id ? `sched-${existing._id}` : newTripRowId()
+  return {
+    tripRowId,
+    scheduleId: existing?._id || null,
+    routeId: route._id,
+    routeName: route.routeName,
+    startPoint: route.startPoint,
+    endPoint: route.endPoint,
+    distance: route.distance,
+    serviceType: route.serviceType,
+    stops: route.stops?.length ? [...route.stops] : [],
+    viaDescription: route.viaDescription || '',
+    included: false,
+    departureTime: existing?.departureTime || '08:00',
+    arrivalTime: existing?.arrivalTime || '12:00',
+    busId: String(
+      existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''
+    ),
+    driverId: String(
+      existing?.driverId?._id ||
+        existing?.driverId ||
+        route.driverId?._id ||
+        route.driverId ||
+        ''
+    ),
+  }
+}
+
+export function suggestNextTripTimes(existingRowsForRoute = []) {
+  if (!existingRowsForRoute.length) {
+    return { departureTime: '08:00', arrivalTime: '12:00' }
+  }
+  const first = existingRowsForRoute[0]
+  const dep0 = timeToMinutes(first.departureTime)
+  const arr0 = timeToMinutes(first.arrivalTime)
+  const duration = dep0 != null && arr0 != null && arr0 > dep0 ? arr0 - dep0 : 4 * 60
+
+  let maxArr = 0
+  for (const row of existingRowsForRoute) {
+    const arr = timeToMinutes(row.arrivalTime)
+    if (arr != null && arr > maxArr) maxArr = arr
+  }
+  const dep = maxArr
+  const arr = dep + duration
+  if (arr >= 24 * 60) {
+    return { departureTime: '08:00', arrivalTime: '12:00' }
+  }
+  return { departureTime: minutesToTime(dep), arrivalTime: minutesToTime(arr) }
+}
+
+export function duplicateTimetableRow(route, siblingRows = []) {
+  const sameRouteRows = siblingRows.filter((r) => String(r.routeId) === String(route._id))
+  const { departureTime, arrivalTime } = suggestNextTripTimes(sameRouteRows)
+  return {
+    ...createTimetableRowFromRoute(route, null),
+    departureTime,
+    arrivalTime,
+    included: true,
+    busId: '',
+    driverId: '',
+  }
+}
+
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
   const active = routes.filter(isSchedulableRoute)
-  return active.map((route) => {
+  const rows = []
+
+  for (const route of active) {
     const routeId = String(route._id)
-    const existing = schedules.find(
+    const existingTrips = schedules.filter(
       (s) =>
         String(s.routeId?._id || s.routeId) === routeId && tripDateKey(s) === anchorDate
     )
-    return {
-      routeId: route._id,
-      routeName: route.routeName,
-      startPoint: route.startPoint,
-      endPoint: route.endPoint,
-      distance: route.distance,
-      serviceType: route.serviceType,
-      stops: route.stops?.length ? [...route.stops] : [],
-      viaDescription: route.viaDescription || '',
-      included: false,
-      departureTime: existing?.departureTime || '08:00',
-      arrivalTime: existing?.arrivalTime || '12:00',
-      busId: String(existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''),
-      driverId: String(
-        existing?.driverId?._id || existing?.driverId || route.driverId?._id || route.driverId || ''
-      ),
-    }
-  })
-}
-
-/** Group timetable conflict issues by route for row-level hints */
-export function groupTimetableConflictsByRoute(issues = [], rows = []) {
-  const byRoute = new Map()
-  for (const summary of summarizeTimetableConflicts(issues, rows)) {
-    for (const routeId of summary.involvedRouteIds) {
-      const key = String(routeId)
-      const list = byRoute.get(key) || []
-      if (!list.includes(summary.text)) list.push(summary.text)
-      byRoute.set(key, list)
+    if (existingTrips.length) {
+      for (const trip of existingTrips) {
+        rows.push(createTimetableRowFromRoute(route, trip))
+      }
+    } else {
+      rows.push(createTimetableRowFromRoute(route, null))
     }
   }
-  return byRoute
+
+  return rows
+}
+
+export function isResourceFreeForTrip(
+  resourceId,
+  resourceField,
+  proposedTrip,
+  otherTrips,
+  { excludeTripRowId } = {}
+) {
+  if (!resourceId) return true
+  const proposed = toConflictTrip(proposedTrip)
+  for (const other of otherTrips) {
+    if (excludeTripRowId && String(other.tripRowId) === String(excludeTripRowId)) continue
+    const o = toConflictTrip(other)
+    if (!sameAssignedResource(o[resourceField], resourceId)) continue
+    if (
+      resourceWindowsOverlap(
+        proposed.departureTime,
+        proposed.arrivalTime,
+        o.departureTime,
+        o.arrivalTime
+      )
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+export function getResourceNextAvailableTime(resourceId, resourceField, trips) {
+  if (!resourceId) return null
+  let latestBusyEnd = null
+  for (const trip of trips) {
+    const t = toConflictTrip(trip)
+    if (!sameAssignedResource(t[resourceField], resourceId)) continue
+    const end = getResourceBusyEndMinutes(t.departureTime, t.arrivalTime)
+    if (end != null && (latestBusyEnd == null || end > latestBusyEnd)) {
+      latestBusyEnd = end
+    }
+  }
+  return latestBusyEnd == null ? null : minutesToTime(latestBusyEnd)
+}
+
+/** Group timetable conflict issues by trip row for row-level hints */
+export function groupTimetableConflictsByRoute(issues = [], rows = []) {
+  const byRow = new Map()
+  const included = (rows || []).filter((r) => r.included !== false)
+
+  for (const row of included) {
+    const proposed = toConflictTrip(row)
+    const hints = []
+    for (const other of included) {
+      if (String(other.tripRowId) === String(row.tripRowId)) continue
+      const pairConflicts = []
+      compareTripOverlap(proposed, other, pairConflicts, {})
+      for (const c of pairConflicts) {
+        const msg = formatStructuredConflictMessage(c, proposed, other)
+        if (!hints.includes(msg)) hints.push(msg)
+      }
+    }
+    if (hints.length) byRow.set(String(row.tripRowId), hints)
+  }
+
+  for (const summary of summarizeTimetableConflicts(issues, rows)) {
+    for (const tripRowId of summary.involvedTripRowIds || []) {
+      const key = String(tripRowId)
+      const list = byRow.get(key) || []
+      if (!list.includes(summary.text)) list.push(summary.text)
+      byRow.set(key, list)
+    }
+  }
+
+  return byRow
+}
+
+function formatStructuredConflictMessage(c, a, b) {
+  if (c.type === 'bus') {
+    const busyEnd = getResourceBusyEndTime(b.departureTime, b.arrivalTime)
+    return busyEnd
+      ? `Bus turnaround: busy until ${busyEnd} after ${b.departureTime}–${b.arrivalTime}`
+      : `Bus conflict ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`
+  }
+  if (c.type === 'driver') {
+    const busyEnd = getResourceBusyEndTime(b.departureTime, b.arrivalTime)
+    return busyEnd
+      ? `Driver turnaround: busy until ${busyEnd} after ${b.departureTime}–${b.arrivalTime}`
+      : `Driver conflict ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`
+  }
+  if (c.type === 'route') {
+    return `Route overlap ${a.departureTime}–${a.arrivalTime} vs ${b.departureTime}–${b.arrivalTime}`
+  }
+  return c.message || 'Scheduling conflict'
 }
 
 export function timetableRouteLabel(row) {
@@ -191,8 +377,8 @@ export function timetableRouteLabel(row) {
 }
 
 export const TIMETABLE_CONFLICT_CAUSE_SHORT = {
-  bus: 'same bus',
-  driver: 'same driver',
+  bus: 'same bus (including return turnaround)',
+  driver: 'same driver (including return turnaround)',
   route: 'same route double-booked',
 }
 
@@ -207,7 +393,7 @@ function formatOverlapCausePhrase(types) {
 /** One readable line per conflicting pair (deduped, causes combined). */
 export function summarizeTimetableConflicts(issues = [], rows = []) {
   const pairMap = new Map()
-  const rowById = (id) => rows.find((r) => String(r.routeId) === String(id))
+  const rowByRouteId = (id) => rows.find((r) => String(r.routeId) === String(id))
 
   for (const issue of issues) {
     if (issue.routeName === 'Validation') continue
@@ -217,21 +403,23 @@ export function summarizeTimetableConflicts(issues = [], rows = []) {
       const [idA, idB] = [routeIdA, routeIdB].sort()
       const tripDate = c.tripDate || issue.tripDate || ''
       const times = [c.departureTime || '', c.otherDepartureTime || ''].sort().join('|')
-      const pairKey = `${tripDate}|${idA}|${idB}|${times}`
+      const pairKey = `${tripDate}|${idA}|${idB}|${times}|${c.type}`
 
       if (!pairMap.has(pairKey)) {
-        const rowA = rowById(issue.routeId)
-        const rowB = rowById(c.otherRouteId)
+        const rowA = rowByRouteId(issue.routeId)
+        const rowB = rowByRouteId(c.otherRouteId)
         pairMap.set(pairKey, {
           tripDate,
           routeA: {
             routeId: issue.routeId,
+            tripRowId: rowA?.tripRowId,
             label: timetableRouteLabel(rowA) || issue.routeName,
             departureTime: c.departureTime || issue.departureTime,
             arrivalTime: c.arrivalTime || issue.arrivalTime,
           },
           routeB: {
             routeId: c.otherRouteId,
+            tripRowId: rowB?.tripRowId,
             label: rowB
               ? timetableRouteLabel(rowB)
               : c.otherRouteName || 'Another trip',
@@ -240,6 +428,9 @@ export function summarizeTimetableConflicts(issues = [], rows = []) {
           },
           causes: new Set(),
           involvedRouteIds: new Set([routeIdA, routeIdB].filter((id) => id && id !== 'other')),
+          involvedTripRowIds: new Set(
+            [rowA?.tripRowId, rowB?.tripRowId].filter(Boolean).map(String)
+          ),
         })
       }
       const entry = pairMap.get(pairKey)
@@ -258,6 +449,7 @@ export function summarizeTimetableConflicts(issues = [], rows = []) {
       tripDate,
       causes: [...causes],
       involvedRouteIds: [...entry.involvedRouteIds],
+      involvedTripRowIds: [...entry.involvedTripRowIds],
       routeId: routeA.routeId,
       routeName: routeA.label,
     }
@@ -286,6 +478,7 @@ export function buildTimetableFeedbackCards(rows = [], issues = []) {
     id: `conflict-${index}`,
     routeId: summary.involvedRouteIds[0],
     involvedRouteIds: summary.involvedRouteIds,
+    involvedTripRowIds: summary.involvedTripRowIds,
     items: [{ kind: 'conflict', text: summary.text, causes: summary.causes }],
   }))
 
@@ -482,33 +675,41 @@ export function detectDayConflicts(schedules) {
 function appendOverlapConflicts(a, b, conflicts) {
   const left = toConflictTrip(a)
   const right = toConflictTrip(b)
-  if (!timesOverlap(left.departureTime, left.arrivalTime, right.departureTime, right.arrivalTime)) {
-    return
+
+  if (resourceWindowsOverlap(left.departureTime, left.arrivalTime, right.departureTime, right.arrivalTime)) {
+    if (sameAssignedResource(left.busId, right.busId)) {
+      const busyEnd = getResourceBusyEndTime(right.departureTime, right.arrivalTime)
+      conflicts.push({
+        type: 'bus',
+        a,
+        b,
+        message: busyEnd
+          ? `Bus turnaround: busy until ${busyEnd} after ${right.departureTime}–${right.arrivalTime}`
+          : `Bus overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
+      })
+    }
+    if (sameAssignedResource(left.driverId, right.driverId)) {
+      const busyEnd = getResourceBusyEndTime(right.departureTime, right.arrivalTime)
+      conflicts.push({
+        type: 'driver',
+        a,
+        b,
+        message: busyEnd
+          ? `Driver turnaround: busy until ${busyEnd} after ${right.departureTime}–${right.arrivalTime}`
+          : `Driver overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
+      })
+    }
   }
 
-  if (sameAssignedResource(left.busId, right.busId)) {
-    conflicts.push({
-      type: 'bus',
-      a,
-      b,
-      message: `Bus overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
-    })
-  }
-  if (sameAssignedResource(left.driverId, right.driverId)) {
-    conflicts.push({
-      type: 'driver',
-      a,
-      b,
-      message: `Driver overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
-    })
-  }
-  if (left.routeId && sameAssignedResource(left.routeId, right.routeId)) {
-    conflicts.push({
-      type: 'route',
-      a,
-      b,
-      message: `Route overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
-    })
+  if (timesOverlap(left.departureTime, left.arrivalTime, right.departureTime, right.arrivalTime)) {
+    if (left.routeId && sameAssignedResource(left.routeId, right.routeId)) {
+      conflicts.push({
+        type: 'route',
+        a,
+        b,
+        message: `Route overlap ${left.departureTime}–${left.arrivalTime} vs ${right.departureTime}–${right.arrivalTime}`,
+      })
+    }
   }
 }
 
@@ -533,17 +734,20 @@ function pushStructuredOverlap(conflicts, type, proposed, other, { tripDate, oth
 function compareTripOverlap(proposed, other, conflicts, { tripDate, otherLabel, otherRouteId } = {}) {
   const a = toConflictTrip(proposed)
   const b = toConflictTrip(other)
-  if (!timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
-    return
+
+  if (resourceWindowsOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    if (sameAssignedResource(a.busId, b.busId)) {
+      pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
+    }
+    if (sameAssignedResource(a.driverId, b.driverId)) {
+      pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
+    }
   }
-  if (sameAssignedResource(a.busId, b.busId)) {
-    pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
-  }
-  if (sameAssignedResource(a.driverId, b.driverId)) {
-    pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
-  }
-  if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
-    pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
+
+  if (timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
+      pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
+    }
   }
 }
 
