@@ -36,6 +36,8 @@ function normalizeOptions(path, options = {}) {
       page: Math.max(Number(options.page) || 1, 1),
       limit: [10, 15].includes(limit) ? limit : 10,
       search: typeof options.search === 'string' ? options.search.trim() : '',
+      status: typeof options.status === 'string' ? options.status.trim() : '',
+      serviceType: typeof options.serviceType === 'string' ? options.serviceType.trim() : '',
     }
   }
 
@@ -63,7 +65,7 @@ function getCacheKey(path, options = {}) {
   const normalized = normalizeOptions(path, options)
 
   if (path === '/routes') {
-    return `${path}?page=${normalized.page}&limit=${normalized.limit}&search=${encodeURIComponent(normalized.search)}`
+    return `${path}?page=${normalized.page}&limit=${normalized.limit}&search=${encodeURIComponent(normalized.search)}&status=${encodeURIComponent(normalized.status)}&serviceType=${encodeURIComponent(normalized.serviceType)}`
   }
 
   if (path === '/schedules') {
@@ -112,10 +114,10 @@ async function fetchRouteSupportData({ force = false } = {}) {
 }
 
 async function fetchRoutesPageData(options = {}) {
-  const { page, limit, search } = normalizeOptions('/routes', options)
+  const { page, limit, search, status, serviceType } = normalizeOptions('/routes', options)
   const [routeRes, support] = await Promise.all([
     api.get('/routes', {
-      params: { page, limit, search },
+      params: { page, limit, search, status, serviceType },
     }),
     fetchRouteSupportData(),
   ])
@@ -142,6 +144,8 @@ async function fetchRoutesPageData(options = {}) {
     page,
     limit,
     search,
+    status,
+    serviceType,
   }
 }
 

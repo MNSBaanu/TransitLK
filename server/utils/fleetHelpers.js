@@ -18,26 +18,40 @@ export function isWithinWorkingHours(workingHours) {
   return minutes >= start && minutes < end
 }
 
-/** Check if departure time (HH:mm) falls within working hours string */
-export function isWithinWorkingHoursAtTime(workingHours, departureTime) {
+function isTimeWithinWorkingHours(workingHours, time, { allowEndBoundary = false } = {}) {
   if (!workingHours?.trim()) return true
   if (/off|leave|unavailable/i.test(workingHours)) return false
 
   const match = workingHours.match(/(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?/i)
   if (!match) return true
 
-  const depMatch = String(departureTime || '').match(/^(\d{1,2}):(\d{2})$/)
-  if (!depMatch) return true
+  const timeMatch = String(time || '').match(/^(\d{1,2}):(\d{2})$/)
+  if (!timeMatch) return true
 
   const startH = Number(match[1])
   const startM = Number(match[2] || 0)
   const endH = Number(match[3])
   const endM = Number(match[4] || 0)
-  const minutes = Number(depMatch[1]) * 60 + Number(depMatch[2])
+  const minutes = Number(timeMatch[1]) * 60 + Number(timeMatch[2])
   const start = startH * 60 + startM
   let end = endH * 60 + endM
   if (end <= start) end += 24 * 60
-  return minutes >= start && minutes < end
+  return allowEndBoundary
+    ? minutes >= start && minutes <= end
+    : minutes >= start && minutes < end
+}
+
+/** Check if departure time (HH:mm) falls within working hours string */
+export function isWithinWorkingHoursAtTime(workingHours, departureTime) {
+  return isTimeWithinWorkingHours(workingHours, departureTime)
+}
+
+/** Check full trip window against driver working hours */
+export function isTripWithinWorkingHours(workingHours, departureTime, arrivalTime) {
+  return (
+    isTimeWithinWorkingHours(workingHours, departureTime) &&
+    isTimeWithinWorkingHours(workingHours, arrivalTime, { allowEndBoundary: true })
+  )
 }
 
 export const SERVICE_MIN_CAPACITY = {
