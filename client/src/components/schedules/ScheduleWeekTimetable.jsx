@@ -5,6 +5,7 @@ import {
   formatTimeRange,
   formatTripDate,
   getWeekDayDates,
+  parseLocalDateInput,
   scheduleCode,
   scheduleStatusClass,
   tripDateKey,
@@ -39,10 +40,10 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
   }, [routes, schedules])
 
   const tripsFor = (routeId, dayKey) =>
-    schedules.filter(
-      (s) =>
-        String(s.routeId?._id || s.routeId) === String(routeId) && tripDateKey(s) === dayKey
-    )
+    schedules.filter((s) => {
+      if (tripDateKey(s) !== dayKey) return false
+      return String(s.routeId?._id || s.routeId) === String(routeId)
+    })
 
   return (
     <div className="glass-card overflow-x-auto">
@@ -54,7 +55,10 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
               <th key={day} className="min-w-[110px] px-2 py-3 text-left">
                 <span className="block">{DAY_LABELS[i]}</span>
                 <span className="font-normal normal-case text-white/70">
-                  {new Date(day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                  {parseLocalDateInput(day).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'short',
+                  })}
                 </span>
               </th>
             ))}

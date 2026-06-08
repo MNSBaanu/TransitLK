@@ -33,6 +33,8 @@ import {
   isTimetableReady,
   scheduleCode,
   toDateInputValue,
+  isTripInViewRange,
+  isTripOnDate,
   tripDateKey,
   validateTimeRange,
 } from '../utils/scheduleHelpers'
@@ -198,8 +200,6 @@ function SchedulesPage() {
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
-      setTimetableRows(buildTimetableRows(data.routes, data.schedules, timetableAnchor))
-
       const dates = getTimetableDates(timetablePeriod, timetableAnchor)
       if (dates.length) {
         const { data: rangeSchedules } = await api.get('/schedules', {
@@ -217,7 +217,7 @@ function SchedulesPage() {
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
     return schedules.filter((s) => {
-      if (viewMode === 'daily' && tripDateKey(s) !== viewDate) return false
+      if (!isTripInViewRange(s, viewMode, viewDate)) return false
       if (routeFilter && String(s.routeId?._id || s.routeId) !== routeFilter) return false
       if (driverFilter && String(s.driverId?._id || s.driverId) !== driverFilter) return false
       if (!q) return true
@@ -266,7 +266,7 @@ function SchedulesPage() {
   }, [buses, selected, adjustForm.busId])
 
   const ganttRows = useMemo(() => {
-    const dayTrips = displaySchedules.filter((s) => tripDateKey(s) === viewDate)
+    const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, viewDate))
     const byBus = new Map()
     for (const trip of dayTrips) {
       const busId = String(trip.busId?._id || trip.busId || 'unknown')
@@ -321,6 +321,28 @@ function SchedulesPage() {
       cancelled = true
     }
   }, [showTimetable, timetablePeriod, timetableAnchor])
+
+  const rebuildTimetableRows = useCallback(
+    (anchor, sourceSchedules = timetableRangeSchedules) => {
+      const daySchedules =
+        timetablePeriod === 'daily'
+          ? sourceSchedules.filter((s) => isTripOnDate(s, anchor))
+          : sourceSchedules
+      setTimetableRows(buildTimetableRows(routes, daySchedules, anchor))
+    },
+    [routes, timetablePeriod, timetableRangeSchedules]
+  )
+
+  useEffect(() => {
+    if (!showTimetable || loadingTimetableRange) return
+    rebuildTimetableRows(timetableAnchor, timetableRangeSchedules)
+  }, [
+    showTimetable,
+    loadingTimetableRange,
+    timetableAnchor,
+    timetableRangeSchedules,
+    rebuildTimetableRows,
+  ])
 
   const timetableConflicts = useMemo(() => {
     if (!showTimetable) return null
@@ -451,9 +473,8 @@ function SchedulesPage() {
   }
 
   const openTimetableDrawer = () => {
-    setTimetablePeriod(viewMode)
+    setTimetablePeriod(viewMode === 'monthly' ? 'daily' : viewMode)
     setTimetableAnchor(viewDate)
-    setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
     setError('')
     setShowTimetable(true)
   }
@@ -483,12 +504,10 @@ function SchedulesPage() {
 
   const handleTimetablePeriodChange = (period) => {
     setTimetablePeriod(period)
-    setTimetableRows(buildTimetableRows(routes, schedules, timetableAnchor))
   }
 
   const handleTimetableAnchorChange = (date) => {
     setTimetableAnchor(date)
-    setTimetableRows(buildTimetableRows(routes, schedules, date))
   }
 
   const handleAdjustChange = (e) => {
