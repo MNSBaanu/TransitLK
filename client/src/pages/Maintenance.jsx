@@ -91,8 +91,8 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Bus ID (MongoDB _id)</label>
-            <input name="bus_id" value={form.bus_id} onChange={handle} required placeholder="Enter bus _id"
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Bus ID</label>
+            <input name="bus_id" value={form.bus_id} onChange={handle} required placeholder="Enter bus ID"
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`} />
             <FieldError message={fieldErrors.bus_id} />
           </div>
