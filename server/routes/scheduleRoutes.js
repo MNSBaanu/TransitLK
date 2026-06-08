@@ -13,6 +13,7 @@ import {
   submitSchedule,
   approveSchedule,
   rejectSchedule,
+  updateDriverTripStatus,
 } from '../controllers/scheduleController.js'
 import protect from '../middleware/authMiddleware.js'
 import { authorize } from '../middleware/authorizeMiddleware.js'
@@ -56,6 +57,12 @@ router.post(
   '/:id/reject',
   authorize(ROLES.DEPOT_MANAGER, ROLES.ADMINISTRATOR),
   rejectSchedule
+)
+
+router.patch(
+  '/:id/trip-status',
+  authorize(ROLES.DRIVER),
+  updateDriverTripStatus
 )
 
 router

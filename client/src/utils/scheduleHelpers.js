@@ -1001,6 +1001,7 @@ export const SCHEDULE_STATUS_LABELS = {
   pending: 'Pending approval',
   approved: 'Approved',
   scheduled: 'Scheduled',
+  'on-duty': 'On duty',
   'on-time': 'On time',
   delayed: 'Delayed',
   completed: 'Completed',
@@ -1016,6 +1017,7 @@ export const SCHEDULE_STATUS_STYLES = {
   pending: 'bg-amber-100 text-amber-800',
   approved: 'bg-indigo-100 text-indigo-800',
   scheduled: 'bg-blue-100 text-blue-800',
+  'on-duty': 'bg-indigo-100 text-indigo-800',
   'on-time': 'bg-green-100 text-green-800',
   delayed: 'bg-amber-100 text-amber-800',
   completed: 'bg-slate-100 text-slate-600',
@@ -1024,4 +1026,16 @@ export const SCHEDULE_STATUS_STYLES = {
 
 export function scheduleStatusClass(status) {
   return SCHEDULE_STATUS_STYLES[status] || 'bg-slate-100 text-slate-600'
+}
+
+export function canDriverAcknowledgeTrip(status) {
+  return ['approved', 'scheduled', 'delayed'].includes(status)
+}
+
+export function canDriverReportIssue(status) {
+  return ['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'].includes(status)
+}
+
+export function canDriverCompleteTrip(status) {
+  return ['on-duty', 'on-time', 'delayed'].includes(status)
 }
