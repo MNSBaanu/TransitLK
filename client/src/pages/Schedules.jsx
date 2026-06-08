@@ -2,7 +2,7 @@
 // Module: Schedule Management
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import {
   getCachedPageData,
@@ -91,6 +91,8 @@ function SchedulesPage() {
       viewDate: initialViewDate,
     })
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [schedules, setSchedules] = useState(() => initialData?.schedules || [])
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
   const [buses, setBuses] = useState(() => initialData?.buses || [])
@@ -129,7 +131,6 @@ function SchedulesPage() {
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
   const viewDatePickerRef = useRef(null)
-  const navigate = useNavigate()
 
   const showToast = (msg) => {
     setToast(msg)
@@ -551,6 +552,25 @@ function SchedulesPage() {
     }
   }
 
+  useEffect(() => {
+    const focusId = location.state?.focusScheduleId
+    const focusDate = location.state?.viewDate
+    const openAdjust = Boolean(location.state?.openAdjust)
+    if (!focusId) return undefined
+
+    if (focusDate) {
+      setViewMode('daily')
+      setViewDate(focusDate)
+    }
+
+    const trip = schedules.find((item) => item._id === focusId)
+    if (!trip) return undefined
+
+    selectTrip(trip, { openDetails: !openAdjust, openAdjust })
+    navigate(location.pathname, { replace: true, state: {} })
+    return undefined
+  }, [location.pathname, location.state, navigate, schedules])
+
   const openTimetableDrawer = () => {
     const period = viewMode
     const anchor = normalizeTimetableAnchor(period, viewDate)
@@ -829,6 +849,11 @@ function SchedulesPage() {
       getCachedPageData('/schedules/approvals') || getStalePageData('/schedules/approvals')
     return cached?.pending?.length ?? 0
   })
+  const [rejectedApprovalCount, setRejectedApprovalCount] = useState(() => {
+    const cached =
+      getCachedPageData('/schedules/approvals') || getStalePageData('/schedules/approvals')
+    return cached?.rejected?.length ?? 0
+  })
 
   const handleSubmitDraft = async () => {
     if (!selected || selected.status !== 'draft') return
@@ -960,20 +985,23 @@ function SchedulesPage() {
   const canApproveSchedules = isDepotManager || isAdministrator
   const canAdjustSchedules = canPlanSchedules || isDepotManager
 
+  const shouldPrefetchApprovals =
+    canApproveSchedules || (isScheduler && !isAdministrator)
+
   useEffect(() => {
-    if (!canApproveSchedules) return undefined
+    if (!shouldPrefetchApprovals) return undefined
 
     let cancelled = false
     void prefetchScheduleApprovals().then((data) => {
-      if (!cancelled && data?.pending) {
-        setPendingApprovalCount(data.pending.length)
-      }
+      if (cancelled || !data) return
+      if (data.pending) setPendingApprovalCount(data.pending.length)
+      if (data.rejected) setRejectedApprovalCount(data.rejected.length)
     })
 
     return () => {
       cancelled = true
     }
-  }, [canApproveSchedules, schedules])
+  }, [shouldPrefetchApprovals, schedules])
 
   const scheduleHeaderTitle =
     canApproveSchedules && canPlanSchedules
@@ -994,6 +1022,16 @@ function SchedulesPage() {
             value: pendingApprovalCount,
             hint: pendingApprovalCount ? 'Open pending approvals' : 'No pending trips',
             icon: 'pending_actions',
+          },
+        ]
+      : []),
+    ...(isScheduler && !isAdministrator
+      ? [
+          {
+            label: 'Rejected',
+            value: rejectedApprovalCount,
+            hint: rejectedApprovalCount ? 'Review rejected trips' : 'No rejected trips',
+            icon: 'cancel',
           },
         ]
       : []),
@@ -1034,13 +1072,31 @@ function SchedulesPage() {
                   {isDepotManager ? 'Adjust trip' : 'Adjust'}
                 </ModuleSecondaryButton>
               )}
-              {canApproveSchedules && (
+              {isAdministrator && canApproveSchedules && (
+                <ModuleSecondaryButton
+                  icon="pending_actions"
+                  badge={pendingApprovalCount + rejectedApprovalCount}
+                  onClick={() => navigate('/schedules/approvals')}
+                >
+                  Approvals
+                </ModuleSecondaryButton>
+              )}
+              {isDepotManager && (
                 <ModuleSecondaryButton
                   icon="pending_actions"
                   badge={pendingApprovalCount}
                   onClick={() => navigate('/schedules/approvals')}
                 >
                   Pending approvals
+                </ModuleSecondaryButton>
+              )}
+              {isScheduler && !isAdministrator && (
+                <ModuleSecondaryButton
+                  icon="cancel"
+                  badge={rejectedApprovalCount}
+                  onClick={() => navigate('/schedules/approvals?tab=rejected')}
+                >
+                  Rejected approvals
                 </ModuleSecondaryButton>
               )}
             </div>

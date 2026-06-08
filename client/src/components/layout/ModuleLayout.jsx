@@ -27,8 +27,30 @@ export function ModulePrimaryButton({ children, onClick, icon, type = 'button', 
   )
 }
 
-export function ModuleSecondaryButton({ children, onClick, icon, type = 'button', disabled, badge }) {
-  const showBadge = Number(badge) > 0
+const BADGE_TONES = {
+  amber: 'bg-amber-500 text-white ring-amber-500',
+  red: 'bg-red-600 text-white ring-red-600',
+}
+
+function formatBadgeCount(value) {
+  const count = Number(value) || 0
+  return count > 99 ? '99+' : count
+}
+
+export function ModuleSecondaryButton({
+  children,
+  onClick,
+  icon,
+  type = 'button',
+  disabled,
+  badge,
+  badges,
+  badgeLabel,
+}) {
+  const badgeItems =
+    badges ??
+    (Number(badge) > 0 ? [{ value: badge, tone: 'amber' }] : [])
+  const showCombinedBadge = Boolean(badgeLabel)
 
   return (
     <div className="relative shrink-0 overflow-visible">
@@ -41,11 +63,22 @@ export function ModuleSecondaryButton({ children, onClick, icon, type = 'button'
         {icon && <Icon name={icon} size={18} />}
         {children}
       </button>
-      {showBadge && (
-        <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-amber-500">
-          {badge > 99 ? '99+' : badge}
+      {showCombinedBadge ? (
+        <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold leading-none text-white ring-2 ring-amber-500">
+          {badgeLabel}
         </span>
-      )}
+      ) : badgeItems.length > 0 ? (
+        <span className="absolute -right-2 -top-2 flex items-center gap-1">
+          {badgeItems.map((item) => (
+            <span
+              key={item.tone}
+              className={`flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-bold leading-none ring-2 ${BADGE_TONES[item.tone] || BADGE_TONES.amber}`}
+            >
+              {formatBadgeCount(item.value)}
+            </span>
+          ))}
+        </span>
+      ) : null}
     </div>
   )
 }

@@ -17,7 +17,7 @@ node_modules/
 npm-debug.log*
 
 # DB setup / seed / import / backfill scripts (local use; DB already populated)
-server/scripts/
+server/scripts
 
 # OS files
 .DS_Store
