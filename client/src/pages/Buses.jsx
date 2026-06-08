@@ -1082,19 +1082,21 @@ function Buses() {
         subtitle="Manage your district vehicles and active driver roster."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowMaintenanceAlerts(true)}
-              className="relative flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700"
-            >
-              <Icon name="warning" size={18} />
-              Maintenance
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMaintenanceAlerts(true)}
+                className="btn-outlined flex items-center gap-2 border-red-400 text-red-600 hover:border-red-500 hover:text-red-700"
+              >
+                <Icon name="build" size={18} />
+                Maintenance
+              </button>
               {maintenanceAlertCount > 0 && (
-                <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1.5 text-xs font-bold leading-none text-red-600 ring-2 ring-red-600">
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white ring-2 ring-red-600">
                   {maintenanceAlertCount}
                 </span>
               )}
-            </button>
+            </div>
             {tab === 'drivers' ? (
               <ModulePrimaryButton icon="person_add" onClick={() => setShowAddDriver(true)}>
                 Add New Driver

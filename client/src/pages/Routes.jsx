@@ -54,6 +54,8 @@ const DEFAULT_ROUTE_OPTIONS = {
   page: 1,
   limit: DEFAULT_PAGE_SIZE,
   search: '',
+  status: '',
+  serviceType: '',
 }
 const EMPTY_PAGINATION = {
   page: 1,
@@ -103,6 +105,8 @@ function RoutesPage() {
   const [pageView, setPageView] = useState('list')
   const [searchInput, setSearchInput] = useState(() => initialData?.search || '')
   const [search, setSearch] = useState(() => initialData?.search || '')
+  const [statusFilter, setStatusFilter] = useState(() => initialData?.status || '')
+  const [serviceTypeFilter, setServiceTypeFilter] = useState(() => initialData?.serviceType || '')
   const [currentPage, setCurrentPage] = useState(() => initialData?.pagination?.page || 1)
   const [pageSize, setPageSize] = useState(() => initialData?.pagination?.limit || DEFAULT_PAGE_SIZE)
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
@@ -143,6 +147,8 @@ function RoutesPage() {
       page = currentPage,
       limit = pageSize,
       search: searchTerm = search,
+      status: statusTerm = statusFilter,
+      serviceType: serviceTypeTerm = serviceTypeFilter,
       force = false,
       keepContent = false,
     } = {}) => {
@@ -151,6 +157,8 @@ function RoutesPage() {
           page,
           limit,
           search: searchTerm,
+          status: statusTerm,
+          serviceType: serviceTypeTerm,
         })
       if (cached) {
         setRoutes(cached.routes)
@@ -173,6 +181,8 @@ function RoutesPage() {
             page,
             limit,
             search: searchTerm,
+            status: statusTerm,
+            serviceType: serviceTypeTerm,
           },
           { force }
         )
@@ -190,7 +200,7 @@ function RoutesPage() {
       setLoading(false)
     }
     },
-    [currentPage, pageSize, search]
+    [currentPage, pageSize, search, statusFilter, serviceTypeFilter]
   )
 
   useEffect(() => {
@@ -201,13 +211,15 @@ function RoutesPage() {
           page: currentPage,
           limit: pageSize,
           search,
+          status: statusFilter,
+          serviceType: serviceTypeFilter,
         })
       }
     })
     return () => {
       cancelled = true
     }
-  }, [currentPage, pageSize, search, loadRoutes])
+  }, [currentPage, pageSize, search, statusFilter, serviceTypeFilter, loadRoutes])
 
   useAutoRefresh(
     () =>
@@ -215,6 +227,8 @@ function RoutesPage() {
         page: currentPage,
         limit: pageSize,
         search,
+        status: statusFilter,
+        serviceType: serviceTypeFilter,
         force: true,
         keepContent: true,
       }),
@@ -238,8 +252,10 @@ function RoutesPage() {
       page: pagination.page + 1,
       limit: pagination.limit,
       search,
+      status: statusFilter,
+      serviceType: serviceTypeFilter,
     })
-  }, [pagination, search])
+  }, [pagination, search, statusFilter, serviceTypeFilter])
 
   const routeStats = useMemo(() => {
     const distanceValues = routes
@@ -555,6 +571,16 @@ function RoutesPage() {
               loading={loading}
               search={searchInput}
               onSearchChange={setSearchInput}
+              statusFilter={statusFilter}
+              onStatusFilterChange={(value) => {
+                setCurrentPage(1)
+                setStatusFilter(value)
+              }}
+              serviceTypeFilter={serviceTypeFilter}
+              onServiceTypeFilterChange={(value) => {
+                setCurrentPage(1)
+                setServiceTypeFilter(value)
+              }}
               pagination={pagination}
               pageSize={pageSize}
               pageSizeOptions={PAGE_SIZE_OPTIONS}
