@@ -5,6 +5,26 @@ const GANTT_END_MIN = 24 * 60
 const GANTT_SPAN = GANTT_END_MIN - GANTT_START_MIN
 export const GANTT_CARD_START_INSET_PX = 6
 
+/** Default departure/arrival for all routes in a new timetable */
+export const DEFAULT_TRIP_DEPARTURE_TIME = '08:00'
+export const DEFAULT_TRIP_ARRIVAL_TIME = '12:00'
+
+export function defaultTripTimes() {
+  return {
+    departureTime: DEFAULT_TRIP_DEPARTURE_TIME,
+    arrivalTime: DEFAULT_TRIP_ARRIVAL_TIME,
+  }
+}
+
+/** Apply the same departure/arrival window to every timetable row */
+export function applySharedTripTimes(rows, { departureTime, arrivalTime }) {
+  return (rows || []).map((row) => ({
+    ...row,
+    ...(departureTime != null ? { departureTime } : {}),
+    ...(arrivalTime != null ? { arrivalTime } : {}),
+  }))
+}
+
 export function timeToMinutes(time) {
   if (!time?.trim()) return null
   const match = String(time).trim().match(/^(\d{1,2}):(\d{2})$/)
@@ -301,8 +321,7 @@ export function createTimetableRowFromRoute(route, existing = null) {
     stops: route.stops?.length ? [...route.stops] : [],
     viaDescription: route.viaDescription || '',
     included: false,
-    departureTime: existing?.departureTime || '08:00',
-    arrivalTime: existing?.arrivalTime || '12:00',
+    ...defaultTripTimes(),
     busId: String(
       existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''
     ),
@@ -313,12 +332,13 @@ export function createTimetableRowFromRoute(route, existing = null) {
         route.driverId ||
         ''
     ),
+    remarks: existing?.adjustmentNotes || '',
   }
 }
 
 export function suggestNextTripTimes(existingRowsForRoute = []) {
   if (!existingRowsForRoute.length) {
-    return { departureTime: '08:00', arrivalTime: '12:00' }
+    return defaultTripTimes()
   }
   const first = existingRowsForRoute[0]
   const dep0 = timeToMinutes(first.departureTime)
@@ -333,7 +353,7 @@ export function suggestNextTripTimes(existingRowsForRoute = []) {
   const dep = maxArr
   const arr = dep + duration
   if (arr >= 24 * 60) {
-    return { departureTime: '08:00', arrivalTime: '12:00' }
+    return defaultTripTimes()
   }
   return { departureTime: minutesToTime(dep), arrivalTime: minutesToTime(arr) }
 }
@@ -348,6 +368,7 @@ export function duplicateTimetableRow(route, siblingRows = []) {
     included: true,
     busId: '',
     driverId: '',
+    remarks: '',
   }
 }
 
