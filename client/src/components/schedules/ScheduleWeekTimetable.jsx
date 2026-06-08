@@ -50,6 +50,7 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
       <table className="w-full min-w-[800px] text-sm">
         <thead className="bg-depot-navy text-xs font-semibold uppercase tracking-wide text-white">
           <tr>
+            <th className="w-12 px-4 py-3 text-left">#</th>
             <th className="sticky left-0 z-10 bg-depot-navy px-4 py-3 text-left">Route</th>
             {weekDays.map((day, i) => (
               <th key={day} className="min-w-[110px] px-2 py-3 text-left">
@@ -67,13 +68,14 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
         <tbody className="divide-y divide-outline-variant bg-white">
           {routeRows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={9} className="py-10 text-center text-on-surface-variant">
                 No routes or schedules this week. Add a schedule to build the timetable.
               </td>
             </tr>
           ) : (
-            routeRows.map((route) => (
+            routeRows.map((route, index) => (
               <tr key={route._id} className="hover:bg-surface-container/40">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">{index + 1}</td>
                 <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-neutral-900">
                   <p>{formatRouteEndpointsLabel(route)}</p>
                 </td>

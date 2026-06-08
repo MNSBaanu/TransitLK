@@ -146,11 +146,14 @@ function ScheduleApprovals() {
             {pending.length} schedule{pending.length === 1 ? '' : 's'} awaiting approval
           </p>
           <ul className="divide-y divide-amber-100">
-            {pending.map((trip) => (
+            {pending.map((trip, index) => (
               <li
                 key={trip._id}
                 className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3"
               >
+                <span className="w-8 shrink-0 text-sm font-medium tabular-nums text-neutral-400">
+                  {index + 1}
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-neutral-900">{scheduleCode(trip)}</p>
                   <p className="text-sm text-on-surface-variant">
