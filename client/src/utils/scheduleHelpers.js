@@ -25,6 +25,53 @@ export function applySharedTripTimes(rows, { departureTime, arrivalTime }) {
   }))
 }
 
+function approvalRecencyTime(trip, kind) {
+  if (kind === 'pending') {
+    return new Date(trip.receivedAt || trip.submittedAt || trip.updatedAt || trip.createdAt || 0).getTime()
+  }
+  return new Date(trip.rejectedAt || trip.updatedAt || trip.createdAt || 0).getTime()
+}
+
+export function formatApprovalTimestamp(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Pending tab — when the request arrived in the approval queue */
+export function formatApprovalReceived(trip) {
+  const received = trip.receivedAt || trip.submittedAt || trip.createdAt
+  return formatApprovalTimestamp(received)
+}
+
+/** Rejected tab — when sent for approval and when rejected */
+export function formatApprovalSent(trip) {
+  const sent = trip.submittedAt || trip.createdAt
+  return formatApprovalTimestamp(sent)
+}
+
+export function formatApprovalResponded(trip) {
+  const responded =
+    trip.rejectedAt ||
+    (trip.rejectionReason ? trip.updatedAt : null) ||
+    null
+  return formatApprovalTimestamp(responded)
+}
+
+/** Pending/rejected approval lists — newest first */
+export function sortApprovalTripsByRecent(trips, kind = 'pending') {
+  return [...(trips || [])].sort(
+    (a, b) => approvalRecencyTime(b, kind) - approvalRecencyTime(a, kind)
+  )
+}
+
 export function timeToMinutes(time) {
   if (!time?.trim()) return null
   const match = String(time).trim().match(/^(\d{1,2}):(\d{2})$/)

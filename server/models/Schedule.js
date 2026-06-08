@@ -60,6 +60,9 @@ const scheduleSchema = new mongoose.Schema(
       default: 'draft',
     },
     submittedAt: { type: Date },
+    receivedAt: { type: Date },
+    approvedAt: { type: Date },
+    rejectedAt: { type: Date },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     rejectionReason: { type: String, trim: true },
     adjustmentReason: {

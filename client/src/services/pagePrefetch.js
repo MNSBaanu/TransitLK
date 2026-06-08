@@ -4,6 +4,7 @@ import {
   applyReportPeriodRange,
   getViewDateRange,
   parseLocalDateInput,
+  sortApprovalTripsByRecent,
   toDateInputValue,
 } from '../utils/scheduleHelpers'
 
@@ -359,8 +360,8 @@ async function fetchScheduleApprovalsPageData() {
     api.get('/schedules', { params: { status: 'rejected' } }),
   ])
   return {
-    pending: asArray(pendingRes.data),
-    rejected: asArray(rejectedRes.data),
+    pending: sortApprovalTripsByRecent(asArray(pendingRes.data), 'pending'),
+    rejected: sortApprovalTripsByRecent(asArray(rejectedRes.data), 'rejected'),
   }
 }
 
