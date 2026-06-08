@@ -12,7 +12,10 @@ import {
   formatRouteStopsLabel,
   formatTimeRange,
   formatTripDate,
+  formatScheduleStatusLabel,
+  getResourceBusyEndTime,
   reasonToStatus,
+  scheduleStatusClass,
   requiresAdjustmentNotes,
   scheduleCode,
   tripDateKey,
@@ -61,6 +64,7 @@ function ScheduleQuickAdjust({
   onPickMaintenanceBus,
   onMaintenanceOffline,
   onPickCoverDriver,
+  canAdjustSchedules = true,
 }) {
   const form = adjustForm || defaultAdjust
   const timeErr = selected ? validateTimeRange(form.departureTime, form.arrivalTime) : null
@@ -185,7 +189,9 @@ function ScheduleQuickAdjust({
     <div className={panelClass}>
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
         <div>
-          <h3 className="text-headline text-xl">{selected ? 'Adjust trip' : 'Adjust schedule'}</h3>
+          <h3 className="text-headline text-xl">
+            {selected ? 'Trip details' : 'Adjust schedule'}
+          </h3>
           {selected ? (
             <p className="mt-0.5 text-xs text-on-surface-variant">
               {scheduleCode(selected)} · {formatTripDate(tripDateKey(selected))}
@@ -207,21 +213,23 @@ function ScheduleQuickAdjust({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-5 py-4">
-        <div className={`mb-4 flex items-center justify-between ${sectionClass} px-3 py-2.5`}>
-          <div className="flex items-center gap-2">
-            <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
-            <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
+        {canAdjustSchedules && (
+          <div className={`mb-4 flex items-center justify-between ${sectionClass} px-3 py-2.5`}>
+            <div className="flex items-center gap-2">
+              <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
+              <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
+            </div>
+            <label className="relative inline-flex cursor-pointer items-center">
+              <input
+                type="checkbox"
+                checked={emergencyMode}
+                onChange={(e) => onEmergencyToggle(e.target.checked)}
+                className="peer sr-only"
+              />
+              <span className="h-6 w-11 rounded-full bg-[#d1d5db] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:bg-depot-blue-light peer-checked:after:translate-x-full" />
+            </label>
           </div>
-          <label className="relative inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              checked={emergencyMode}
-              onChange={(e) => onEmergencyToggle(e.target.checked)}
-              className="peer sr-only"
-            />
-            <span className="h-6 w-11 rounded-full bg-[#d1d5db] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:bg-depot-blue-light peer-checked:after:translate-x-full" />
-          </label>
-        </div>
+        )}
 
         {!selected ? (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -249,7 +257,7 @@ function ScheduleQuickAdjust({
         ) : (
           <>
           <div className={`${sectionClass} mb-4 p-4`}>
-            <p className={`${labelClass} mb-2`}>Selected trip</p>
+            <p className={`${labelClass} mb-2`}>Trip overview</p>
             {selected.routeId && (
               <div className="mb-3 border-b border-outline-variant/60 pb-3">
                 <p className="text-sm font-semibold text-neutral-900">
@@ -276,9 +284,21 @@ function ScheduleQuickAdjust({
                 </p>
               </div>
               <div>
-                <span className={labelClass}>Current window</span>
+                <span className={labelClass}>Outbound window</span>
                 <p className="mt-1 font-semibold tabular-nums text-neutral-900">
-                  {selected.departureTime}–{selected.arrivalTime}
+                  {formatTimeRange(selected.departureTime, selected.arrivalTime)}
+                </p>
+              </div>
+              <div>
+                <span className={labelClass}>Busy until (return)</span>
+                <p className="mt-1 font-semibold tabular-nums text-neutral-900">
+                  {getResourceBusyEndTime(selected.departureTime, selected.arrivalTime) || '—'}
+                </p>
+              </div>
+              <div>
+                <span className={labelClass}>Service type</span>
+                <p className="mt-1 font-semibold capitalize text-neutral-900">
+                  {selected.routeId?.serviceType || '—'}
                 </p>
               </div>
               <div>
@@ -294,20 +314,40 @@ function ScheduleQuickAdjust({
                 </p>
               </div>
             </div>
-            <p className="mt-3 text-xs">
-              <span className="font-semibold text-on-surface-variant">Status: </span>
-              <span className="capitalize text-neutral-900">{selected.status}</span>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(selected.status)}`}
+              >
+                {formatScheduleStatusLabel(selected.status)}
+              </span>
               {selected.adjustmentReason && selected.adjustmentReason !== 'normal' && (
-                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
                   {ADJUSTMENT_REASON_LABELS[selected.adjustmentReason] || selected.adjustmentReason}
                 </span>
               )}
-            </p>
+            </div>
             {selected.adjustmentNotes && (
-              <p className="mt-1 text-xs text-on-surface-variant">
+              <p className="mt-2 text-xs text-on-surface-variant">
                 <span className="font-semibold">Last note: </span>
                 {selected.adjustmentNotes}
               </p>
+            )}
+            {Array.isArray(selected.adjustmentHistory) && selected.adjustmentHistory.length > 0 && (
+              <div className="mt-3 border-t border-outline-variant/60 pt-3">
+                <p className={`${labelClass} mb-2`}>Recent changes</p>
+                <ul className="max-h-28 space-y-1.5 overflow-y-auto text-xs text-on-surface-variant">
+                  {selected.adjustmentHistory
+                    .slice(-3)
+                    .reverse()
+                    .map((entry, i) => (
+                      <li key={entry._id || i} className="rounded-md bg-white/80 px-2 py-1.5">
+                        {(entry.changes || []).map(formatAdjustmentChange).filter(Boolean).join(' · ') ||
+                          entry.notes ||
+                          'Adjustment recorded'}
+                      </li>
+                    ))}
+                </ul>
+              </div>
             )}
           </div>
 
@@ -317,6 +357,8 @@ function ScheduleQuickAdjust({
           </div>
         )}
 
+        {canAdjustSchedules ? (
+        <>
         <div className="space-y-5">
           <section className={`${sectionClass} p-4`}>
             <span className={`${labelClass} mb-3 block`}>Adjust timing</span>
@@ -685,6 +727,14 @@ function ScheduleQuickAdjust({
             Immediate maintenance offline
           </button>
         </div>
+        </>
+        ) : (
+          <div className="mt-4 border-t border-outline-variant pt-4">
+            <button type="button" onClick={onClose} className="btn-primary w-full">
+              Close
+            </button>
+          </div>
+        )}
           </>
         )}
       </div>
