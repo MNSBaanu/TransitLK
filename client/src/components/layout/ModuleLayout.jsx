@@ -3,12 +3,12 @@ import Icon from '../Icon'
 /** Shared page chrome — TransitLK professional module layout */
 export function ModuleHeader({ title, subtitle, action }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-      <div>
+    <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div className="min-w-0 flex-1">
         <h2 className="pro-page-title">{title}</h2>
-        {subtitle && <p className="pro-page-subtitle">{subtitle}</p>}
+        {subtitle && <p className="pro-page-subtitle max-w-3xl">{subtitle}</p>}
       </div>
-      {action}
+      {action ? <div className="shrink-0">{action}</div> : null}
     </div>
   )
 }
@@ -19,7 +19,7 @@ export function ModulePrimaryButton({ children, onClick, icon, type = 'button', 
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="btn-primary flex items-center gap-2 disabled:cursor-not-allowed"
+      className="btn-primary flex shrink-0 items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
     >
       {icon && <Icon name={icon} size={18} />}
       {children}
@@ -33,7 +33,7 @@ export function ModuleSecondaryButton({ children, onClick, icon, type = 'button'
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="btn-outlined flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+      className="btn-outlined flex shrink-0 items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
     >
       {icon && <Icon name={icon} size={18} />}
       {children}

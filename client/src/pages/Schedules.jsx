@@ -1006,7 +1006,7 @@ function SchedulesPage() {
         subtitle={scheduleHeaderSubtitle}
         action={
           canPlanSchedules || canAdjustSchedules ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
               {canPlanSchedules && (
                 <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
                   Create Timetable
