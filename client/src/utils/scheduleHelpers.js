@@ -190,7 +190,50 @@ export function getMonthDayDates(anchorDate) {
 export function getTimetableDates(period, anchorDate) {
   if (period === 'weekly') return getWeekDayDates(anchorDate)
   if (period === 'monthly') return getMonthDayDates(anchorDate)
-  return [toDateInputValue(new Date(anchorDate))]
+  return [toDateInputValue(anchorDate)]
+}
+
+export function getTimetableDateBounds(period, anchorDate) {
+  const dates = getTimetableDates(period, anchorDate)
+  if (!dates.length) return { from: '', to: '' }
+  return { from: dates[0], to: dates[dates.length - 1] }
+}
+
+export function filterSchedulesInDateRange(schedules, fromDate, toDate) {
+  if (!fromDate || !toDate) return []
+  return (schedules || []).filter((s) => isTripInDateRange(s, fromDate, toDate))
+}
+
+export function mergeSchedulesById(...lists) {
+  const map = new Map()
+  for (const list of lists) {
+    for (const item of list || []) {
+      if (item?._id != null) map.set(String(item._id), item)
+    }
+  }
+  return [...map.values()]
+}
+
+export function viewRangeCoversTimetable(viewMode, viewDate, timetablePeriod, timetableAnchor) {
+  const view = getViewDateRange(viewMode, viewDate)
+  const ttMode =
+    timetablePeriod === 'monthly' ? 'monthly' : timetablePeriod === 'weekly' ? 'weekly' : 'daily'
+  const timetable = getViewDateRange(ttMode, timetableAnchor)
+  return timetable.from >= view.from && timetable.to <= view.to
+}
+
+export function schedulesForTimetableRows(schedules, period, anchorDate) {
+  const { from, to } = getTimetableDateBounds(period, anchorDate)
+  const inRange = filterSchedulesInDateRange(schedules, from, to)
+  if (period === 'daily') {
+    return inRange.filter((s) => isTripOnDate(s, anchorDate))
+  }
+  return inRange
+}
+
+export function buildTimetableRowsForPeriod(routes, schedules, period, anchorDate) {
+  const source = schedulesForTimetableRows(schedules, period, anchorDate)
+  return buildTimetableRows(routes, source, anchorDate)
 }
 
 /** Start and end points for schedule/timetable route labels */
