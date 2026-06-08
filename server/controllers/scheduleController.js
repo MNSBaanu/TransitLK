@@ -818,6 +818,65 @@ export const rejectSchedule = async (req, res) => {
   }
 }
 
+const DRIVER_TRIP_STATUS_TARGETS = new Set(['on-time', 'delayed', 'completed'])
+const DRIVER_TRIP_STATUS_SOURCES = new Set(['approved', 'scheduled', 'on-time', 'delayed'])
+
+export const updateDriverTripStatus = async (req, res) => {
+  try {
+    if (!isDriver(req.user)) {
+      return res.status(403).json({ message: 'Only drivers can update trip status here' })
+    }
+
+    const { status } = req.body
+    if (!status || !DRIVER_TRIP_STATUS_TARGETS.has(status)) {
+      return res.status(400).json({ message: 'Status must be on-time, delayed, or completed' })
+    }
+
+    const schedule = await Schedule.findById(req.params.id)
+    if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
+
+    if (!DRIVER_TRIP_STATUS_SOURCES.has(schedule.status)) {
+      return res.status(400).json({ message: 'This trip status cannot be changed' })
+    }
+    if (schedule.status === status) {
+      return res.status(400).json({ message: 'Trip is already in that status' })
+    }
+
+    const statusLabel = { 'on-time': 'on time', delayed: 'delayed', completed: 'completed' }[status]
+    let notes = req.body.notes?.trim()
+    let adjustmentReason = 'normal'
+
+    if (status === 'delayed') {
+      if (!notes) {
+        return res.status(400).json({ message: 'Please describe the issue before reporting' })
+      }
+      adjustmentReason = 'obstruction'
+    } else if (status === 'on-time') {
+      notes = notes || 'Driver acknowledged trip'
+    } else {
+      notes = notes || `Driver marked trip as ${statusLabel}`
+    }
+
+    appendAdjustmentHistory(
+      schedule,
+      { status, adjustmentReason, adjustmentNotes: notes },
+      req.user?.id
+    )
+    schedule.status = status
+    schedule.adjustmentReason = adjustmentReason
+    schedule.adjustmentNotes = notes
+    await schedule.save()
+    await syncBusStatusForBusId(schedule.busId)
+
+    const populated = await populateSchedule(Schedule.findById(schedule._id))
+    res.json(populated)
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).json({ message: error.message })
+  }
+}
+
 export const checkScheduleConflicts = async (req, res) => {
   try {
     const { tripDate, routeId, busId, driverId, departureTime, arrivalTime, excludeId } =

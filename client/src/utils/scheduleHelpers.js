@@ -1025,3 +1025,15 @@ export const SCHEDULE_STATUS_STYLES = {
 export function scheduleStatusClass(status) {
   return SCHEDULE_STATUS_STYLES[status] || 'bg-slate-100 text-slate-600'
 }
+
+export function canDriverAcknowledgeTrip(status) {
+  return ['approved', 'scheduled', 'delayed'].includes(status)
+}
+
+export function canDriverReportIssue(status) {
+  return ['approved', 'scheduled', 'on-time', 'delayed'].includes(status)
+}
+
+export function canDriverCompleteTrip(status) {
+  return ['on-time', 'delayed'].includes(status)
+}
