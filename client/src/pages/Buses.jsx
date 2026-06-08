@@ -54,21 +54,16 @@ const STATUS_STYLES = {
 const SCHEDULE_PHASE_STYLES = {
   'in-progress': 'bg-blue-100 text-blue-700',
   upcoming: 'bg-amber-100 text-amber-800',
-  next: 'bg-violet-100 text-violet-800',
   completed: 'bg-neutral-100 text-neutral-600',
 }
 
-function formatTripDateShort(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  })
+function NotAssignedLabel() {
+  return <span className="text-xs italic text-neutral-400">Not assigned</span>
 }
 
 function formatCurrentRouteCell(route) {
   if (!route?.routeName) {
-    return <span className="text-xs text-neutral-400">—</span>
+    return <NotAssignedLabel />
   }
   return (
     <div>
@@ -82,16 +77,14 @@ function formatCurrentRouteCell(route) {
 
 function formatCurrentScheduleCell(schedule) {
   if (!schedule) {
-    return <span className="text-xs text-neutral-400">—</span>
+    return <NotAssignedLabel />
   }
   const phaseLabel =
     schedule.phase === 'in-progress'
       ? 'In progress'
       : schedule.phase === 'upcoming'
         ? 'Next today'
-        : schedule.phase === 'next'
-          ? `Next · ${formatTripDateShort(schedule.tripDate)}`
-          : 'Completed today'
+        : 'Completed today'
   return (
     <div>
       <p className="font-medium text-neutral-800">
