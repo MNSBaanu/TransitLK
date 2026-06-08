@@ -1,10 +1,7 @@
 import Maintenance from '../models/Maintenance.js'
 import Bus from '../models/Bus.js'
 import { cancelActiveSchedulesForBus } from '../utils/fleetAssignmentHelpers.js'
-import {
-  reconcileFleetMaintenanceData,
-  syncBusMaintenanceFields,
-} from '../utils/busMaintenanceSync.js'
+import { syncBusMaintenanceFields } from '../utils/busMaintenanceSync.js'
 import { buildFuelMaintenanceReport } from '../services/fuelMaintenanceReport.js'
 import { createFuelMaintenanceReportPdfStream } from '../services/fuelMaintenanceReportPdf.js'
 import { buildFuelMaintenanceReportSpreadsheet } from '../utils/excelExport.js'
@@ -90,8 +87,6 @@ export const createMaintenance = async (req, res) => {
 // @access  Protected
 export const getAllMaintenance = async (req, res) => {
   try {
-    await reconcileFleetMaintenanceData()
-
     const { bus_id, from, to } = req.query
     const filter = {}
 

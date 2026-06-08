@@ -46,19 +46,38 @@ export async function ensureMaintenanceRecordForBus(
   })
 }
 
-/** Align fleet status, maintenance logs, and bus maintenance dates */
+/** Align fleet status, maintenance logs, and bus maintenance dates (write paths / seed only) */
 export async function reconcileFleetMaintenanceData() {
-  const maintenanceBuses = await Bus.find({ status: 'maintenance' }).select('_id')
-  for (const bus of maintenanceBuses) {
-    await ensureMaintenanceRecordForBus(
-      bus._id,
-      'Vehicle in maintenance (synced from fleet)'
+  const maintenanceBuses = await Bus.find({ status: 'maintenance' }).select('_id').lean()
+  await Promise.all(
+    maintenanceBuses.map((bus) =>
+      ensureMaintenanceRecordForBus(bus._id, 'Vehicle in maintenance (synced from fleet)')
     )
-    await syncBusMaintenanceFields(bus._id)
-  }
+  )
 
-  const busIdsWithRecords = await Maintenance.distinct('bus_id')
-  for (const busId of busIdsWithRecords) {
-    await syncBusMaintenanceFields(busId)
-  }
+  const latestByBus = await Maintenance.aggregate([
+    { $sort: { service_date: -1 } },
+    {
+      $group: {
+        _id: '$bus_id',
+        lastMaintenanceDate: { $first: '$service_date' },
+      },
+    },
+  ])
+
+  if (!latestByBus.length) return
+
+  const bulkOps = latestByBus.map((row) => ({
+    updateOne: {
+      filter: { _id: row._id },
+      update: {
+        $set: {
+          lastMaintenanceDate: row.lastMaintenanceDate,
+          nextMaintenanceDate: computeNextMaintenanceDate(row.lastMaintenanceDate),
+        },
+      },
+    },
+  }))
+
+  await Bus.bulkWrite(bulkOps, { ordered: false })
 }

@@ -93,7 +93,10 @@ async function fetchRouteSupportData({ force = false } = {}) {
     return inflightRequests.get(ROUTE_SUPPORT_CACHE_KEY)
   }
 
-  const request = Promise.all([api.get('/buses'), api.get('/drivers')])
+  const request = Promise.all([
+    api.get('/buses', { params: { light: 1 } }),
+    api.get('/drivers', { params: { light: 1 } }),
+  ])
     .then(([busRes, driverRes]) => {
       const data = {
         buses: asArray(busRes.data),
@@ -161,9 +164,9 @@ async function fetchSchedulesPageData(options = {}) {
         view: viewMode,
       },
     }),
-    api.get('/routes'),
-    api.get('/buses'),
-    api.get('/drivers'),
+    api.get('/routes', { params: { summary: 1 } }),
+    api.get('/buses', { params: { light: 1 } }),
+    api.get('/drivers', { params: { light: 1 } }),
   ])
 
   return {

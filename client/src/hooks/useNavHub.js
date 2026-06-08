@@ -79,7 +79,7 @@ export function useNavHub() {
 
       try {
         const [busesRes, maintRes, schedRes] = await Promise.all([
-          api.get('/buses'),
+          api.get('/buses', { params: { light: 1 } }),
           api.get('/maintenance').catch(() => ({ data: [] })),
           api.get('/schedules', { params: { fromDate: today, toDate: today } }),
         ])
