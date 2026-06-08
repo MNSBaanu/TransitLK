@@ -910,52 +910,47 @@ function SchedulesPage() {
   const isAdministrator = user?.role === ROLES.ADMINISTRATOR
   const isDepotManager = user?.role === ROLES.DEPOT_MANAGER
   const canPlanSchedules = isScheduler || isAdministrator
+  const canApproveSchedules = isDepotManager || isAdministrator
   const canAdjustSchedules = canPlanSchedules || isDepotManager
 
-  const scheduleHeaderTitle = isDepotManager
-    ? 'Schedule Approval & Operations'
-    : 'Schedule Management'
+  const scheduleHeaderTitle =
+    canApproveSchedules && canPlanSchedules
+      ? 'Schedule Management & Approvals'
+      : canApproveSchedules
+        ? 'Schedule Approval & Operations'
+        : 'Schedule Management'
 
-  const scheduleHeaderSubtitle = isDepotManager
+  const scheduleHeaderSubtitle = canApproveSchedules
     ? 'Review pending timetables from schedulers, approve trips for drivers, return incomplete plans, and adjust live trips when depot operations change.'
     : 'Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval.'
 
-  const scheduleStatItems = isDepotManager
-    ? [
-        {
-          label: 'Awaiting approval',
-          value: pendingSchedules.length,
-          hint: pendingSchedules.length ? 'Open pending approvals' : 'No pending trips',
-          icon: 'pending_actions',
-        },
-        {
-          label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
-          value: scheduleStats.trips,
-          icon: 'event',
-        },
-        { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
-        {
-          label: 'Conflicts',
-          value: scheduleStats.conflicts,
-          hint: scheduleStats.conflicts ? 'Resolve in adjust panel' : 'No overlaps',
-          icon: 'warning',
-        },
-      ]
-    : [
-        {
-          label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
-          value: scheduleStats.trips,
-          icon: 'event',
-        },
-        { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
-        {
-          label: 'Conflicts',
-          value: scheduleStats.conflicts,
-          hint: scheduleStats.conflicts ? 'Resolve in panel' : 'No overlaps',
-          icon: 'warning',
-        },
-        { label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' },
-      ]
+  const scheduleStatItems = [
+    ...(canApproveSchedules
+      ? [
+          {
+            label: 'Awaiting approval',
+            value: pendingSchedules.length,
+            hint: pendingSchedules.length ? 'Open pending approvals' : 'No pending trips',
+            icon: 'pending_actions',
+          },
+        ]
+      : []),
+    {
+      label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
+      value: scheduleStats.trips,
+      icon: 'event',
+    },
+    { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
+    {
+      label: 'Conflicts',
+      value: scheduleStats.conflicts,
+      hint: scheduleStats.conflicts ? 'Resolve in adjust panel' : 'No overlaps',
+      icon: 'warning',
+    },
+    ...(!canApproveSchedules
+      ? [{ label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' }]
+      : []),
+  ]
 
   return (
     <div className="w-full">
@@ -977,7 +972,7 @@ function SchedulesPage() {
                   {isDepotManager ? 'Adjust trip' : 'Adjust'}
                 </ModuleSecondaryButton>
               )}
-              {isDepotManager && (
+              {canApproveSchedules && (
                 <ModuleSecondaryButton
                   icon="pending_actions"
                   onClick={() => navigate('/schedules/approvals')}

@@ -20,6 +20,12 @@ import {
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
+const APPROVER_ROLES = new Set([ROLES.DEPOT_MANAGER, ROLES.ADMINISTRATOR])
+
+function canApproveSchedules(role) {
+  return APPROVER_ROLES.has(role)
+}
+
 function ScheduleApprovals() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -49,7 +55,7 @@ function ScheduleApprovals() {
   }, [])
 
   useEffect(() => {
-    if (user?.role === ROLES.DEPOT_MANAGER) {
+    if (canApproveSchedules(user?.role)) {
       loadPending()
     } else {
       setLoading(false)
@@ -98,10 +104,13 @@ function ScheduleApprovals() {
     }
   }
 
-  if (user?.role !== ROLES.DEPOT_MANAGER) {
+  if (!canApproveSchedules(user?.role)) {
     return (
       <div className="w-full">
-        <ModuleHeader title="Schedule approvals" subtitle="This page is for depot managers only." />
+        <ModuleHeader
+          title="Schedule approvals"
+          subtitle="This page is for depot managers and administrators only."
+        />
         <Link to="/schedules" className="text-sm font-semibold text-depot-blue-light hover:underline">
           Back to schedules
         </Link>
