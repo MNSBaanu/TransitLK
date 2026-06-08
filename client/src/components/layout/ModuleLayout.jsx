@@ -54,7 +54,7 @@ export function ModuleStats({ items }) {
           </div>
           <p className="text-2xl font-bold text-neutral-900">{item.value}</p>
           {item.hint && (
-            <p className={`mt-1 text-xs ${item.hintClass || 'text-on-surface-variant'}`}>{item.hint}</p>
+            <p className={`mt-1 text-xs ${item.hintClass || 'text-neutral-900'}`}>{item.hint}</p>
           )}
         </div>
       ))}
