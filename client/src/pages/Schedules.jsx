@@ -824,10 +824,11 @@ function SchedulesPage() {
     }
   }
 
-  const pendingSchedules = useMemo(
-    () => schedules.filter((s) => s.status === 'pending'),
-    [schedules]
-  )
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(() => {
+    const cached =
+      getCachedPageData('/schedules/approvals') || getStalePageData('/schedules/approvals')
+    return cached?.pending?.length ?? 0
+  })
 
   const handleSubmitDraft = async () => {
     if (!selected || selected.status !== 'draft') return
@@ -960,10 +961,19 @@ function SchedulesPage() {
   const canAdjustSchedules = canPlanSchedules || isDepotManager
 
   useEffect(() => {
-    if (canApproveSchedules) {
-      prefetchScheduleApprovals()
+    if (!canApproveSchedules) return undefined
+
+    let cancelled = false
+    void prefetchScheduleApprovals().then((data) => {
+      if (!cancelled && data?.pending) {
+        setPendingApprovalCount(data.pending.length)
+      }
+    })
+
+    return () => {
+      cancelled = true
     }
-  }, [canApproveSchedules])
+  }, [canApproveSchedules, schedules])
 
   const scheduleHeaderTitle =
     canApproveSchedules && canPlanSchedules
@@ -981,8 +991,8 @@ function SchedulesPage() {
       ? [
           {
             label: 'Awaiting approval',
-            value: pendingSchedules.length,
-            hint: pendingSchedules.length ? 'Open pending approvals' : 'No pending trips',
+            value: pendingApprovalCount,
+            hint: pendingApprovalCount ? 'Open pending approvals' : 'No pending trips',
             icon: 'pending_actions',
           },
         ]
@@ -1013,7 +1023,7 @@ function SchedulesPage() {
         subtitle={scheduleHeaderSubtitle}
         action={
           canPlanSchedules || canAdjustSchedules ? (
-            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto">
+            <div className="flex flex-wrap items-center justify-end gap-2 overflow-visible">
               {canPlanSchedules && (
                 <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
                   Create Timetable
@@ -1027,10 +1037,10 @@ function SchedulesPage() {
               {canApproveSchedules && (
                 <ModuleSecondaryButton
                   icon="pending_actions"
+                  badge={pendingApprovalCount}
                   onClick={() => navigate('/schedules/approvals')}
                 >
                   Pending approvals
-                  {pendingSchedules.length > 0 ? ` (${pendingSchedules.length})` : ''}
                 </ModuleSecondaryButton>
               )}
             </div>
