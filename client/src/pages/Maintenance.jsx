@@ -700,7 +700,6 @@ function Maintenance() {
   const [logModal, setLogModal] = useState(false)
   const [maintenanceModal, setMaintenanceModal] = useState(null)
   const [fuelModal, setFuelModal] = useState(null)
-  const [menuOpen, setMenuOpen] = useState(null)
 
   // Auto-open maintenance modal if busId is in URL
   useEffect(() => {
@@ -890,6 +889,7 @@ function Maintenance() {
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                   <tr>
+                    <th className="w-12 px-4 py-3 text-left">#</th>
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Service Type</th>
@@ -899,13 +899,16 @@ function Maintenance() {
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
                   {loading && maintenance.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
-                  ) : paginated.map((r) => {
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
+                  ) : paginated.map((r, index) => {
                     const style = serviceStyle(r.description)
                     return (
                       <tr key={r._id} className="hover:bg-surface-container-low transition-colors">
+                        <td className="px-4 py-3 text-neutral-500 tabular-nums">
+                          {(page - 1) * ITEMS_PER_PAGE + index + 1}
+                        </td>
                         <td className="px-4 py-3 text-neutral-600">{formatDate(r.service_date)}</td>
                         <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                         <td className="px-4 py-3">
@@ -916,23 +919,23 @@ function Maintenance() {
                         </td>
                         <td className="px-4 py-3 text-neutral-700">{formatCurrency(r.cost)}</td>
                         <td className="px-4 py-3">
-                          <div className="relative">
-                            <button onClick={() => setMenuOpen(menuOpen === r._id ? null : r._id)}
-                              className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container">
-                              <Icon name="more_vert" size={16} />
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setMaintenanceModal(r)}
+                              className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container"
+                              title="Edit"
+                            >
+                              <Icon name="edit" size={16} />
                             </button>
-                            {menuOpen === r._id && (
-                              <div className="absolute right-0 z-10 mt-1 w-36 rounded-xl border border-outline-variant bg-white shadow-lg">
-                                <button onClick={() => { setMaintenanceModal(r); setMenuOpen(null) }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-surface-container">
-                                  <Icon name="edit" size={14} /> Edit
-                                </button>
-                                <button onClick={() => { handleDeleteMaintenance(r._id); setMenuOpen(null) }}
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
-                                  <Icon name="delete" size={14} /> Delete
-                                </button>
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMaintenance(r._id)}
+                              className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                              title="Delete"
+                            >
+                              <Icon name="delete" size={16} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -949,6 +952,7 @@ function Maintenance() {
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                   <tr>
+                    <th className="w-12 px-4 py-3 text-left">#</th>
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Liters</th>
@@ -958,11 +962,14 @@ function Maintenance() {
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
                   {loading && fuelLogs.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
-                    <tr><td colSpan={5} className="py-10 text-center text-on-surface-variant">No fuel logs found</td></tr>
-                  ) : paginated.map((r) => (
+                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">No fuel logs found</td></tr>
+                  ) : paginated.map((r, index) => (
                     <tr key={r._id} className="hover:bg-surface-container-low transition-colors">
+                      <td className="px-4 py-3 text-neutral-500 tabular-nums">
+                        {(page - 1) * ITEMS_PER_PAGE + index + 1}
+                      </td>
                       <td className="px-4 py-3 text-neutral-600">{formatDate(r.fuel_date)}</td>
                       <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                       <td className="px-4 py-3">
@@ -973,23 +980,23 @@ function Maintenance() {
                       </td>
                       <td className="px-4 py-3 text-neutral-700">{formatCurrency(r.amount)}</td>
                       <td className="px-4 py-3">
-                        <div className="relative">
-                          <button onClick={() => setMenuOpen(menuOpen === r._id ? null : r._id)}
-                            className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container">
-                            <Icon name="more_vert" size={16} />
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setFuelModal(r)}
+                            className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container"
+                            title="Edit"
+                          >
+                            <Icon name="edit" size={16} />
                           </button>
-                          {menuOpen === r._id && (
-                            <div className="absolute right-0 z-10 mt-1 w-36 rounded-xl border border-outline-variant bg-white shadow-lg">
-                              <button onClick={() => { setFuelModal(r); setMenuOpen(null) }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-surface-container">
-                                <Icon name="edit" size={14} /> Edit
-                              </button>
-                              <button onClick={() => { handleDeleteFuel(r._id); setMenuOpen(null) }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
-                                <Icon name="delete" size={14} /> Delete
-                              </button>
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFuel(r._id)}
+                            className="rounded-lg p-1.5 text-red-400 hover:bg-red-50"
+                            title="Delete"
+                          >
+                            <Icon name="delete" size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>

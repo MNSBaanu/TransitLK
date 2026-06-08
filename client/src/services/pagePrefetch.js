@@ -334,6 +334,9 @@ export function invalidatePageData(path) {
       pageCache.delete(key)
     }
   }
+  if (path === '/buses' || path === '/routes' || path === '/schedules') {
+    pageCache.delete(ROUTE_SUPPORT_CACHE_KEY)
+  }
 }
 
 export function primeCriticalPageData() {

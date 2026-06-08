@@ -66,8 +66,11 @@ function DriverTrips() {
           </p>
         ) : (
           <ul className="divide-y divide-outline-variant">
-            {trips.map((trip) => (
+            {trips.map((trip, index) => (
               <li key={trip._id} className="flex flex-wrap items-start gap-4 px-5 py-4">
+                <span className="w-8 shrink-0 pt-2 text-sm font-medium tabular-nums text-neutral-400">
+                  {index + 1}
+                </span>
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-depot-navy/10 text-depot-navy">
                   <Icon name="event" size={22} />
                 </div>
