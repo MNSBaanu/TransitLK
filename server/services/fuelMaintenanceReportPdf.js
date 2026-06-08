@@ -90,16 +90,53 @@ function renderFuelMaintenancePdf(doc, data) {
   fixedText(doc, `Generated: ${fmtDate(new Date().toISOString())}`, MARGIN, 118, { fontSize: 9, color: WHITE })
 
   let y = 180
-  doc.roundedRect(MARGIN, y, CONTENT_W, 52, 5).fillAndStroke(NAVY_PANEL, NAVY_LIGHT)
-  fixedText(doc, 'Period overview', MARGIN + 12, y + 10, { fontSize: 8, color: MUTED, bold: true })
+  fixedText(doc, 'Fuel & maintenance summaries for eco-friendly, cost-effective operations.', MARGIN, y, {
+    fontSize: 9,
+    color: MUTED,
+    width: CONTENT_W,
+  })
+  y += 18
+
+  const halfW = (CONTENT_W - 12) / 2
+  doc.roundedRect(MARGIN, y, halfW, 72, 5).fillAndStroke('#fffbeb', '#fbbf24')
+  fixedText(doc, 'Fuel Summary', MARGIN + 10, y + 10, { fontSize: 9, bold: true, color: NAVY })
   fixedText(
     doc,
-    `Operational spend ${fmtLkr(combined.totalOperationalCost)} · fuel ${combined.fuelSharePct}% · maintenance ${combined.maintenanceSharePct}% · ${combined.highFuelVehicleCount} high-fuel vehicle(s)`,
-    MARGIN + 12,
-    y + 26,
-    { fontSize: 10, bold: true, color: NAVY, width: CONTENT_W - 24 }
+    `${fuel.totalLiters} L · ${fmtLkr(fuel.totalCost)} · ${fuel.avgLitersPerEntry} L/entry · fleet ${fuel.fleetAvgLitersPerTrip ?? '—'} L/trip`,
+    MARGIN + 10,
+    y + 28,
+    { fontSize: 8, color: INK, width: halfW - 20 }
   )
-  y += 68
+  if (fuel.topRoute) {
+    fixedText(
+      doc,
+      `Top route: ${fuel.topRoute.routeName} (${fuel.topRoute.liters} L, ${fuel.topRoute.fuelShare}%)`,
+      MARGIN + 10,
+      y + 50,
+      { fontSize: 8, color: MUTED, width: halfW - 20 }
+    )
+  }
+
+  const mx = MARGIN + halfW + 12
+  doc.roundedRect(mx, y, halfW, 72, 5).fillAndStroke('#eff6ff', '#60a5fa')
+  fixedText(doc, 'Maintenance Summary', mx + 10, y + 10, { fontSize: 9, bold: true, color: NAVY })
+  fixedText(
+    doc,
+    `${fmtLkr(maintenance.totalCost)} · ${maintenance.totalEntries} jobs · ${maintenance.vehiclesServiced} vehicles · fuel ${combined.fuelSharePct}% / maint ${combined.maintenanceSharePct}%`,
+    mx + 10,
+    y + 28,
+    { fontSize: 8, color: INK, width: halfW - 20 }
+  )
+  if (maintenance.topServiceType) {
+    fixedText(
+      doc,
+      `Top service: ${maintenance.topServiceType.type} (${fmtLkr(maintenance.topServiceType.cost)})`,
+      mx + 10,
+      y + 50,
+      { fontSize: 8, color: MUTED, width: halfW - 20 }
+    )
+  }
+  y += 84
 
   if (insights?.length) {
     fixedText(doc, 'Findings & recommendations', MARGIN, y, { fontSize: 12, bold: true, color: NAVY })
@@ -144,6 +181,38 @@ function renderFuelMaintenancePdf(doc, data) {
       [180, CONTENT_W - 180],
       ['Period', 'Cost (LKR)'],
       maintenance.trend.map((t) => [t.label, fmtLkr(t.cost)])
+    )
+  }
+
+  const routeRows = data.routesOfConcern || fuel.byRoute?.filter((r) => r.fuelShare >= 25) || []
+  if (routeRows.length > 0 && y < CONTENT_BOTTOM - 60) {
+    fixedText(doc, 'High-usage routes', MARGIN, y, { fontSize: 10, bold: true, color: NAVY })
+    y += 14
+    y = drawTable(
+      doc,
+      MARGIN,
+      y,
+      [CONTENT_W * 0.55, CONTENT_W * 0.2, CONTENT_W * 0.25],
+      ['Route', 'Liters', 'Fleet share'],
+      routeRows.slice(0, 4).map((r) => [r.routeName, `${r.liters} L`, `${r.fuelShare}%`])
+    )
+  }
+
+  const inefficient = data.inefficientVehicles || []
+  if (inefficient.length > 0 && y < CONTENT_BOTTOM - 60) {
+    fixedText(doc, 'Inefficient driving patterns', MARGIN, y, { fontSize: 10, bold: true, color: NAVY })
+    y += 14
+    y = drawTable(
+      doc,
+      MARGIN,
+      y,
+      [140, 100, CONTENT_W - 240],
+      ['Vehicle', 'L/trip', 'Fleet avg'],
+      inefficient.slice(0, 4).map((v) => [
+        v.regNumber,
+        `${v.litersPerTrip} L`,
+        fuel.fleetAvgLitersPerTrip != null ? `${fuel.fleetAvgLitersPerTrip} L` : '—',
+      ])
     )
   }
 

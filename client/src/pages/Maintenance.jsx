@@ -276,16 +276,50 @@ function LogActivityModal({ onClose, onSave }) {
 }
 
 // ── Report Tab ────────────────────────────────────────────────────────────────
+const REPORT_LABEL = 'text-[10px] font-bold uppercase tracking-wider text-fleet-ink-muted'
+
 const INSIGHT_STYLES = {
-  warning: 'border-amber-200 bg-amber-50 text-amber-900',
-  info: 'border-blue-200 bg-blue-50 text-blue-900',
-  success: 'border-green-200 bg-green-50 text-green-900',
+  warning: 'border-amber-200/70 bg-amber-50/50 text-amber-950',
+  info: 'border-white/50 bg-white/30 text-fleet-ink-muted',
+  success: 'border-emerald-200/70 bg-emerald-50/50 text-emerald-900',
 }
 
-function TrendBars({ items, valueKey, colorClass = 'bg-neutral-900' }) {
+function ReportMetricPill({ label, value }) {
+  return (
+    <div className="glass-subtle rounded-xl px-4 py-3">
+      <p className={REPORT_LABEL}>{label}</p>
+      <p className="mt-1 text-lg font-bold text-fleet-ink">{value}</p>
+    </div>
+  )
+}
+
+function ReportSectionHeader({ title, icon, subtitle, badge }) {
+  return (
+    <div className="glass-subtle flex flex-wrap items-center justify-between gap-3 border-b border-white/50 px-6 py-4">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-depot-navy/10 text-depot-navy">
+          <Icon name={icon} size={22} />
+        </span>
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-base font-semibold text-fleet-ink">{title}</h4>
+            {badge && (
+              <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                {badge}
+              </span>
+            )}
+          </div>
+          {subtitle && <p className="mt-0.5 text-xs text-fleet-ink-muted">{subtitle}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TrendBars({ items, valueKey, colorClass = 'bg-depot-navy' }) {
   const max = Math.max(...items.map((i) => i[valueKey] || 0), 1)
   return (
-    <div className="flex items-end gap-2 h-24">
+    <div className="flex h-28 items-end gap-2">
       {items.map((item, i) => (
         <div key={i} className="flex flex-1 flex-col items-center gap-1">
           <div className="flex w-full flex-1 items-end">
@@ -294,7 +328,7 @@ function TrendBars({ items, valueKey, colorClass = 'bg-neutral-900' }) {
               style={{ height: `${Math.max(4, ((item[valueKey] || 0) / max) * 100)}%` }}
             />
           </div>
-          <span className="text-[10px] text-on-surface-variant">{item.label}</span>
+          <span className="text-[10px] text-fleet-ink-muted">{item.label}</span>
         </div>
       ))}
     </div>
@@ -398,20 +432,25 @@ function SummaryReportPanel({ formatCurrency }) {
     }
   }
 
+  const periodLabel = period.charAt(0).toUpperCase() + period.slice(1)
+  const hasSpend = report?.combined?.totalOperationalCost > 0
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
+    <div className="relative space-y-6">
+      <div className="pointer-events-none absolute -left-16 top-0 h-48 w-48 rounded-full bg-depot-blue-light/15 blur-3xl" />
+
+      <div className="glass-panel flex flex-wrap items-end justify-between gap-4 p-4">
+        <div className="flex flex-wrap items-end gap-4">
           <div>
-            <p className="mb-1 text-xs font-medium text-on-surface-variant">Report period</p>
-            <div className="flex rounded-lg border border-outline-variant p-0.5">
+            <p className={`${REPORT_LABEL} mb-1 px-1`}>Report period</p>
+            <div className="pro-segmented">
               {['weekly', 'monthly'].map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => handlePeriodChange(p)}
-                  className={`rounded-md px-3 py-1.5 text-sm capitalize transition-colors ${
-                    period === p ? 'bg-neutral-900 text-white' : 'text-on-surface-variant hover:text-neutral-900'
+                  className={`rounded-md px-4 py-1.5 text-sm capitalize transition-colors ${
+                    period === p ? 'pro-segmented-active' : 'text-fleet-ink-muted hover:text-fleet-ink'
                   }`}
                 >
                   {p}
@@ -419,147 +458,224 @@ function SummaryReportPanel({ formatCurrency }) {
               ))}
             </div>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-on-surface-variant">From</label>
+          <div className="glass-subtle flex items-center gap-2 rounded-lg px-3 py-2">
+            <Icon name="calendar_today" size={18} className="text-fleet-ink-muted" />
             <input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="rounded-lg border border-outline-variant px-3 py-1.5 text-sm outline-none focus:border-neutral-900"
+              className="border-none bg-transparent text-sm outline-none"
             />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-on-surface-variant">To</label>
+            <span className="text-fleet-ink-muted">–</span>
             <input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="rounded-lg border border-outline-variant px-3 py-1.5 text-sm outline-none focus:border-neutral-900"
+              className="border-none bg-transparent text-sm outline-none"
             />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ModuleSecondaryButton icon="download" onClick={handleExportCsv} disabled={exportingCsv}>
-            {exportingCsv ? 'Exporting...' : 'Export CSV'}
-          </ModuleSecondaryButton>
-          <ModuleSecondaryButton icon="picture_as_pdf" onClick={handleExportPdf} disabled={exportingPdf}>
-            {exportingPdf ? 'Downloading...' : 'Download PDF'}
-          </ModuleSecondaryButton>
+          <button type="button" onClick={handleExportCsv} disabled={exportingCsv} className="btn-outlined flex items-center gap-1.5 disabled:opacity-50">
+            <Icon name="download" size={18} />
+            {exportingCsv ? 'Exporting...' : 'CSV'}
+          </button>
+          <button type="button" onClick={handleExportPdf} disabled={exportingPdf} className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
+            <Icon name="picture_as_pdf" size={18} />
+            {exportingPdf ? 'Downloading...' : 'PDF'}
+          </button>
         </div>
       </div>
 
       {dateRangeError && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{dateRangeError}</p>
+        <div className="glass-card border-red-200/60 bg-red-50/70 px-4 py-3 text-sm text-red-700">{dateRangeError}</div>
       )}
       {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
+        <div className="glass-card border-red-200/60 bg-red-50/70 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
       {loading && !report ? (
-        <p className="py-12 text-center text-sm text-on-surface-variant">Loading report...</p>
+        <div className="glass-card flex min-h-[280px] items-center justify-center">
+          <p className="text-sm text-fleet-ink-muted">Loading report...</p>
+        </div>
       ) : report ? (
         <>
-          <div className="rounded-xl border border-outline-variant bg-surface-container-low px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-              {period.charAt(0).toUpperCase() + period.slice(1)} report · {formatReportRangeLabel(fromDate, toDate)}
+          <div className="glass-card px-5 py-4">
+            <p className={REPORT_LABEL}>{periodLabel} report · {formatReportRangeLabel(fromDate, toDate)}</p>
+            <p className="mt-1 text-sm text-fleet-ink-muted">
+              Fuel and maintenance summaries to identify high-usage routes, inefficient driving, and support eco-friendly, cost-effective operations.
             </p>
-            <p className="mt-2 text-sm text-neutral-800">
-              Operational spend of {formatCurrency(report.combined.totalOperationalCost)} in this period
-              {' '}(fuel {report.combined.fuelSharePct}% · maintenance {report.combined.maintenanceSharePct}%).
-              {report.combined.highFuelVehicleCount > 0
-                ? ` ${report.combined.highFuelVehicleCount} vehicle(s) flagged for high fuel use.`
-                : ' No vehicles flagged for excessive fuel use.'}
-            </p>
+            {hasSpend && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <ReportMetricPill label="Operational spend" value={formatCurrency(report.combined.totalOperationalCost)} />
+                <ReportMetricPill label="Fuel share" value={`${report.combined.fuelSharePct}%`} />
+                <ReportMetricPill
+                  label="High-fuel vehicles"
+                  value={String(report.combined.highFuelVehicleCount)}
+                />
+              </div>
+            )}
           </div>
+
+          {!hasSpend && (
+            <div className="glass-card px-4 py-3 text-sm text-fleet-ink-muted">
+              No fuel or maintenance activity for this period. Log entries to unlock summaries and insights.
+            </div>
+          )}
+
+          <section className="glass-card overflow-hidden">
+            <ReportSectionHeader
+              title="Fuel Summary"
+              icon="local_gas_station"
+              subtitle="Consumption, cost, and route intensity for the selected period"
+            />
+            <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+              <ReportMetricPill label="Total volume" value={`${report.fuel.totalLiters} L`} />
+              <ReportMetricPill label="Total cost" value={formatCurrency(report.fuel.totalCost)} />
+              <ReportMetricPill label="Avg L / entry" value={`${report.fuel.avgLitersPerEntry} L`} />
+              <ReportMetricPill
+                label="Fleet avg L / trip"
+                value={report.fuel.fleetAvgLitersPerTrip != null ? `${report.fuel.fleetAvgLitersPerTrip} L` : '—'}
+              />
+            </div>
+            {report.fuel.topRoute && (
+              <div className="border-t border-white/40 px-6 pb-5">
+                <p className="text-sm text-fleet-ink-muted">
+                  Highest fuel route:{' '}
+                  <span className="font-semibold text-fleet-ink">{report.fuel.topRoute.routeName}</span>
+                  {' '}· {report.fuel.topRoute.liters} L · {report.fuel.topRoute.fuelShare}% of fleet fuel
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className="glass-card overflow-hidden">
+            <ReportSectionHeader
+              title="Maintenance Summary"
+              icon="build"
+              subtitle="Workshop spend and service coverage for the selected period"
+            />
+            <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+              <ReportMetricPill label="Total cost" value={formatCurrency(report.maintenance.totalCost)} />
+              <ReportMetricPill label="Service jobs" value={String(report.maintenance.totalEntries)} />
+              <ReportMetricPill label="Vehicles serviced" value={String(report.maintenance.vehiclesServiced)} />
+              <ReportMetricPill
+                label="Spend split"
+                value={`Fuel ${report.combined.fuelSharePct}% · Maint. ${report.combined.maintenanceSharePct}%`}
+              />
+            </div>
+            {report.maintenance.topServiceType && (
+              <div className="border-t border-white/40 px-6 pb-5">
+                <p className="text-sm text-fleet-ink-muted">
+                  Top service:{' '}
+                  <span className="font-semibold text-fleet-ink">{report.maintenance.topServiceType.type}</span>
+                  {' '}· {formatCurrency(report.maintenance.topServiceType.cost)}
+                </p>
+              </div>
+            )}
+          </section>
 
           {report.insights.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-neutral-900">Findings & recommendations</h4>
-              {report.insights.map((insight, i) => (
-                <div
-                  key={i}
-                  className={`rounded-lg border px-4 py-3 text-sm ${INSIGHT_STYLES[insight.type] || INSIGHT_STYLES.info}`}
-                >
-                  {insight.text}
-                </div>
-              ))}
-            </div>
+            <section className="glass-card overflow-hidden">
+              <ReportSectionHeader
+                title="Findings"
+                icon="psychology"
+                subtitle="Recommendations for eco-friendly and cost-effective fleet operations"
+              />
+              <div className="space-y-2 p-6 pt-2">
+                {report.insights.map((insight, i) => (
+                  <div
+                    key={i}
+                    className={`rounded-xl border px-4 py-3 text-sm ${INSIGHT_STYLES[insight.type] || INSIGHT_STYLES.info}`}
+                  >
+                    {insight.text}
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div className="rounded-xl border border-outline-variant p-4">
-              <h4 className="mb-3 text-sm font-semibold text-neutral-900">
-                {period === 'weekly' ? 'Daily fuel trend' : 'Weekly fuel trend'}
-              </h4>
-              {report.fuel.trend.some((t) => t.liters > 0) ? (
-                <TrendBars items={report.fuel.trend} valueKey="liters" colorClass="bg-yellow-500" />
-              ) : (
-                <p className="py-6 text-center text-sm text-on-surface-variant">No fuel activity in this period</p>
-              )}
-            </div>
-            <div className="rounded-xl border border-outline-variant p-4">
-              <h4 className="mb-3 text-sm font-semibold text-neutral-900">
-                {period === 'weekly' ? 'Daily maintenance cost' : 'Weekly maintenance cost'}
-              </h4>
-              {report.maintenance.trend.some((t) => t.cost > 0) ? (
-                <TrendBars items={report.maintenance.trend} valueKey="cost" colorClass="bg-blue-600" />
-              ) : (
-                <p className="py-6 text-center text-sm text-on-surface-variant">No maintenance activity in this period</p>
-              )}
-            </div>
-          </div>
-
-          {(report.vehiclesOfConcern?.length > 0) && (
-            <div className="overflow-x-auto rounded-xl border border-amber-200 bg-amber-50/30">
-              <div className="border-b border-amber-200 px-4 py-3">
-                <h4 className="text-sm font-semibold text-amber-950">Vehicles requiring attention</h4>
-                <p className="text-xs text-amber-800/80">High fuel use relative to fleet average</p>
+          {(report.routesOfConcern?.length > 0 || report.inefficientVehicles?.length > 0) && (
+            <section className="glass-card overflow-hidden ring-2 ring-amber-400/20">
+              <ReportSectionHeader
+                title="Efficiency alerts"
+                icon="warning"
+                badge="Review"
+                subtitle="High-usage routes and vehicles with inefficient driving patterns"
+              />
+              <div className="grid gap-4 p-6 lg:grid-cols-2">
+                {report.routesOfConcern?.length > 0 && (
+                  <div className="glass-subtle rounded-xl border border-amber-200/40 p-4">
+                    <p className={`${REPORT_LABEL} mb-3`}>High-usage routes</p>
+                    <ul className="space-y-2 text-sm">
+                      {report.routesOfConcern.map((r) => (
+                        <li key={r.routeId} className="flex justify-between gap-3">
+                          <span className="truncate font-medium text-fleet-ink">{r.routeName}</span>
+                          <span className="shrink-0 text-fleet-ink-muted">{r.liters} L · {r.fuelShare}%</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {report.inefficientVehicles?.length > 0 && (
+                  <div className="glass-subtle rounded-xl border border-amber-200/40 p-4">
+                    <p className={`${REPORT_LABEL} mb-3`}>Inefficient driving patterns</p>
+                    <ul className="space-y-2 text-sm">
+                      {report.inefficientVehicles.map((v) => (
+                        <li key={v.busId} className="flex justify-between gap-3">
+                          <span className="font-medium text-fleet-ink">{v.regNumber}</span>
+                          <span className="shrink-0 text-fleet-ink-muted">
+                            {v.litersPerTrip} L/trip
+                            {report.fuel.fleetAvgLitersPerTrip != null && ` · fleet ${report.fuel.fleetAvgLitersPerTrip} L`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <table className="w-full text-sm">
-                <thead className="bg-amber-100/60 text-xs font-semibold uppercase tracking-wide text-amber-950">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Vehicle</th>
-                    <th className="px-4 py-2 text-right">Liters</th>
-                    <th className="px-4 py-2 text-right">Fleet share</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-200/60">
-                  {report.vehiclesOfConcern.map((v) => (
-                    <tr key={v.busId}>
-                      <td className="px-4 py-2 font-medium text-amber-950">{v.regNumber}</td>
-                      <td className="px-4 py-2 text-right">{v.liters} L</td>
-                      <td className="px-4 py-2 text-right">{v.fuelShare}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            </section>
           )}
 
-          {report.maintenance.byServiceType.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border border-outline-variant">
-              <div className="border-b border-outline-variant px-4 py-3">
-                <h4 className="text-sm font-semibold text-neutral-900">Maintenance cost breakdown</h4>
-                <p className="text-xs text-on-surface-variant">By service type for this period</p>
+          <section className="glass-card overflow-hidden">
+            <ReportSectionHeader
+              title="Period trends"
+              icon="timeline"
+              subtitle={period === 'weekly' ? 'Daily fuel and maintenance activity' : 'Weekly fuel and maintenance activity'}
+            />
+            <div className="grid gap-6 p-6 lg:grid-cols-2">
+              <div>
+                <p className={`${REPORT_LABEL} mb-3`}>
+                  {period === 'weekly' ? 'Daily fuel trend' : 'Weekly fuel trend'}
+                </p>
+                {report.fuel.trend.some((t) => t.liters > 0) ? (
+                  <TrendBars items={report.fuel.trend} valueKey="liters" colorClass="bg-amber-500" />
+                ) : (
+                  <p className="py-8 text-center text-sm text-fleet-ink-muted">No fuel activity in this period</p>
+                )}
               </div>
-              <table className="w-full text-sm">
-                <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Service type</th>
-                    <th className="px-4 py-2 text-right">Count</th>
-                    <th className="px-4 py-2 text-right">Cost</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {report.maintenance.byServiceType.slice(0, 5).map((r) => (
-                    <tr key={r.type} className="hover:bg-surface-container-low">
-                      <td className="px-4 py-2">{r.type}</td>
-                      <td className="px-4 py-2 text-right">{r.count}</td>
-                      <td className="px-4 py-2 text-right">{formatCurrency(r.cost)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div>
+                <p className={`${REPORT_LABEL} mb-3`}>
+                  {period === 'weekly' ? 'Daily maintenance cost' : 'Weekly maintenance cost'}
+                </p>
+                {report.maintenance.trend.some((t) => t.cost > 0) ? (
+                  <TrendBars items={report.maintenance.trend} valueKey="cost" colorClass="bg-depot-navy" />
+                ) : (
+                  <p className="py-8 text-center text-sm text-fleet-ink-muted">No maintenance activity in this period</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {report.vehiclesOfConcern?.length > 0 && (
+            <div className="glass-card flex flex-wrap items-center gap-3 border-amber-200/50 bg-amber-50/40 px-5 py-4">
+              <Icon name="directions_bus" size={20} className="text-amber-800" />
+              <div>
+                <p className="text-sm font-semibold text-amber-950">Vehicles requiring attention</p>
+                <p className="mt-0.5 text-sm text-amber-900/90">
+                  {report.vehiclesOfConcern.map((v) => `${v.regNumber} (${v.liters} L)`).join(' · ')}
+                </p>
+              </div>
             </div>
           )}
         </>
@@ -652,11 +768,17 @@ function Maintenance() {
     <div className="w-full">
       <ModuleHeader
         title="Fuel & Maintenance"
-        subtitle="Manage fleet health and operational expenditures."
+        subtitle={
+          tab === 'report'
+            ? 'Fuel and maintenance summary reports for eco-friendly, cost-effective fleet operations.'
+            : 'Manage fleet health and operational expenditures.'
+        }
         action={
-          <ModulePrimaryButton icon="add_circle" onClick={() => setLogModal(true)}>
-            Log New Activity
-          </ModulePrimaryButton>
+          tab !== 'report' ? (
+            <ModulePrimaryButton icon="add_circle" onClick={() => setLogModal(true)}>
+              Log New Activity
+            </ModulePrimaryButton>
+          ) : null
         }
       />
 
@@ -710,10 +832,9 @@ function Maintenance() {
       </div>
       )}
 
-      {/* Tabs + Table */}
-      <div className="rounded-xl border border-outline-variant bg-white shadow-sm">
-        {/* Tab bar + search */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-5 pt-4 pb-0">
+      {/* Tabs */}
+      <div className={`mb-4 ${tab === 'report' ? 'glass-panel' : 'rounded-xl border border-outline-variant bg-white shadow-sm'}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-0 ${tab !== 'report' ? 'border-b border-outline-variant' : ''}`}>
           <div className="flex gap-1">
             {[
               { key: 'maintenance', label: 'Maintenance Logs' },
@@ -722,13 +843,15 @@ function Maintenance() {
             ].map(({ key, label }) => (
               <button key={key} onClick={() => { setTab(key); setPage(1); setSearch(''); setMinAmount('') }}
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  tab === key ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-on-surface-variant hover:text-neutral-900'
+                  tab === key
+                    ? 'border-depot-navy text-fleet-ink'
+                    : 'border-transparent text-fleet-ink-muted hover:text-fleet-ink'
                 }`}>
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="mb-2 flex items-center gap-2">
             {tab !== 'report' && (
             <>
             <div className="relative">
@@ -751,13 +874,15 @@ function Maintenance() {
             )}
             </>
             )}
-          </div>        </div>
+          </div>
+        </div>
+      </div>
 
+      {tab === 'report' ? (
+        <SummaryReportPanel formatCurrency={formatCurrency} />
+      ) : (
+      <div className="rounded-xl border border-outline-variant bg-white shadow-sm">
         <div className="p-5">
-          {/* Report */}
-          {tab === 'report' && (
-            <SummaryReportPanel formatCurrency={formatCurrency} />
-          )}
 
           {/* Maintenance Table */}
           {tab === 'maintenance' && (
@@ -875,7 +1000,6 @@ function Maintenance() {
           )}
 
           {/* Pagination */}
-          {tab !== 'report' && (
           <div className="mt-4 flex items-center justify-between text-sm text-on-surface-variant">
             <span>Showing {Math.min((page - 1) * ITEMS_PER_PAGE + 1, filtered.length)}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} of {filtered.length} entries</span>
             <div className="flex items-center gap-1">
@@ -895,9 +1019,9 @@ function Maintenance() {
               </button>
             </div>
           </div>
-          )}
         </div>
       </div>
+      )}
 
       {/* Modals */}
       {logModal && (

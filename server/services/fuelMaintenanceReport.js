@@ -1,5 +1,6 @@
 import FuelLog from '../models/FuelLog.js'
 import Maintenance from '../models/Maintenance.js'
+import Schedule from '../models/Schedule.js'
 import { parseReportRange } from './reportAnalytics.js'
 
 function round1(n) {
@@ -53,14 +54,24 @@ function buildTrendBuckets(start, end, period, fuelLogs, maintenanceRecords, val
   return items
 }
 
-function buildInsights({ fuelByVehicle, totalFuelCost, totalMaintCost, totalLiters, period }) {
+function buildInsights({
+  fuelByVehicle,
+  totalFuelCost,
+  totalMaintCost,
+  totalLiters,
+  period,
+  topFuelRoute,
+  routesOfConcern,
+  fleetAvgLitersPerTrip,
+  inefficientVehicles,
+}) {
   const insights = []
   const totalSpend = totalFuelCost + totalMaintCost
 
   if (totalSpend === 0) {
     insights.push({
       type: 'info',
-      text: `No fuel or maintenance spend recorded for this ${period} period. Log entries to track cost-effective operations.`,
+      text: `No fuel or maintenance spend recorded for this ${period} period. Log entries to track eco-friendly, cost-effective operations.`,
     })
     return insights
   }
@@ -85,8 +96,29 @@ function buildInsights({ fuelByVehicle, totalFuelCost, totalMaintCost, totalLite
     })
   }
 
+  if (topFuelRoute && totalLiters > 0 && topFuelRoute.fuelShare >= 25) {
+    insights.push({
+      type: 'warning',
+      text: `${topFuelRoute.routeName} is a high-usage route (${topFuelRoute.liters} L, ${topFuelRoute.fuelShare}% of fleet fuel). Review distance, load, and driving patterns.`,
+    })
+  } else if (routesOfConcern?.length > 1) {
+    insights.push({
+      type: 'info',
+      text: `High-usage routes: ${routesOfConcern.slice(0, 3).map((r) => r.routeName).join(', ')}. Monitor for sustained fuel intensity.`,
+    })
+  }
+
   const highFuel = fuelByVehicle.filter((v) => v.highUsage)
-  if (highFuel.length > 0) {
+  if (inefficientVehicles?.length > 0 && fleetAvgLitersPerTrip != null) {
+    const v = inefficientVehicles[0]
+    insights.push({
+      type: 'warning',
+      text:
+        inefficientVehicles.length === 1
+          ? `${v.regNumber} averages ${v.litersPerTrip} L/trip vs fleet ${fleetAvgLitersPerTrip} L/trip — review driving patterns for eco-efficiency.`
+          : `${inefficientVehicles.length} vehicles exceed fleet L/trip averages — check maintenance and driver habits.`,
+    })
+  } else if (highFuel.length > 0) {
     insights.push({
       type: 'warning',
       text:
@@ -109,14 +141,19 @@ export async function buildFuelMaintenanceReport(query = {}) {
   const { from, to, period = 'monthly' } = query
   const { start, end, mode } = parseReportRange({ from, to, period })
 
-  const [fuelLogs, maintenanceRecords] = await Promise.all([
+  const [fuelLogs, maintenanceRecords, schedules] = await Promise.all([
     FuelLog.find({ fuel_date: { $gte: start, $lte: end } })
       .populate('bus_id', 'regNumber')
       .sort({ fuel_date: -1 }),
     Maintenance.find({ service_date: { $gte: start, $lte: end } })
       .populate('bus_id', 'regNumber')
       .sort({ service_date: -1 }),
+    Schedule.find({ tripDate: { $gte: start, $lte: end } })
+      .populate('routeId', 'routeName distance')
+      .populate('busId', 'regNumber'),
   ])
+
+  const nonCancelled = schedules.filter((s) => s.status !== 'cancelled')
 
   const totalLiters = fuelLogs.reduce((s, f) => s + (f.liters || 0), 0)
   const totalFuelCost = fuelLogs.reduce((s, f) => s + (f.amount || 0), 0)
@@ -136,16 +173,28 @@ export async function buildFuelMaintenanceReport(query = {}) {
     row.entries += 1
   }
 
+  const tripCountByBus = new Map()
+  for (const s of nonCancelled) {
+    const bid = String(s.busId?._id || s.busId)
+    if (!bid) continue
+    tripCountByBus.set(bid, (tripCountByBus.get(bid) || 0) + 1)
+  }
+
   const fuelByVehicleRaw = [...fuelByBusMap.entries()]
-    .map(([busId, fuel]) => ({
-      busId,
-      regNumber: fuel.regNumber,
-      liters: round1(fuel.liters),
-      amount: Math.round(fuel.amount),
-      entries: fuel.entries,
-      avgLitersPerEntry: fuel.entries > 0 ? round1(fuel.liters / fuel.entries) : null,
-      fuelShare: roundPct(fuel.liters, totalLiters),
-    }))
+    .map(([busId, fuel]) => {
+      const tripCount = tripCountByBus.get(busId) || 0
+      return {
+        busId,
+        regNumber: fuel.regNumber,
+        liters: round1(fuel.liters),
+        amount: Math.round(fuel.amount),
+        entries: fuel.entries,
+        tripCount,
+        litersPerTrip: tripCount > 0 ? round1(fuel.liters / tripCount) : null,
+        avgLitersPerEntry: fuel.entries > 0 ? round1(fuel.liters / fuel.entries) : null,
+        fuelShare: roundPct(fuel.liters, totalLiters),
+      }
+    })
     .sort((a, b) => b.liters - a.liters)
 
   const avgLitersPerEntryFleet =
@@ -166,6 +215,70 @@ export async function buildFuelMaintenanceReport(query = {}) {
   }))
 
   const highFuelVehicleCount = fuelByVehicle.filter((v) => v.highUsage).length
+
+  const vehiclesWithTrips = fuelByVehicle.filter((v) => v.litersPerTrip != null)
+  const fleetAvgLitersPerTrip =
+    vehiclesWithTrips.length > 0
+      ? round1(vehiclesWithTrips.reduce((s, v) => s + v.litersPerTrip, 0) / vehiclesWithTrips.length)
+      : null
+
+  const INEFFICIENT_TRIP_FACTOR = 1.25
+  const inefficientVehicles = fuelByVehicle
+    .filter(
+      (v) =>
+        fleetAvgLitersPerTrip != null &&
+        v.litersPerTrip != null &&
+        v.litersPerTrip >= fleetAvgLitersPerTrip * INEFFICIENT_TRIP_FACTOR
+    )
+    .slice(0, 5)
+
+  const busToRoutes = new Map()
+  for (const s of nonCancelled) {
+    const bid = String(s.busId?._id || s.busId)
+    const rid = String(s.routeId?._id || s.routeId)
+    if (!bid || !rid) continue
+    if (!busToRoutes.has(bid)) busToRoutes.set(bid, new Set())
+    busToRoutes.get(bid).add(rid)
+  }
+
+  const routeMeta = new Map()
+  for (const s of nonCancelled) {
+    const rid = String(s.routeId?._id || s.routeId)
+    if (!rid || routeMeta.has(rid)) continue
+    routeMeta.set(rid, {
+      routeName: s.routeId?.routeName || 'Unknown',
+      distance: s.routeId?.distance || 0,
+    })
+  }
+
+  const routeFuelMap = new Map()
+  for (const [rid, meta] of routeMeta) {
+    routeFuelMap.set(rid, { ...meta, liters: 0 })
+  }
+  for (const log of fuelLogs) {
+    const bid = String(log.bus_id?._id || log.bus_id)
+    const routeIds = busToRoutes.get(bid)
+    if (!routeIds?.size) continue
+    const share = (log.liters || 0) / routeIds.size
+    for (const rid of routeIds) {
+      if (routeFuelMap.has(rid)) routeFuelMap.get(rid).liters += share
+    }
+  }
+
+  const fuelByRoute = [...routeFuelMap.entries()]
+    .filter(([, r]) => r.liters > 0)
+    .map(([routeId, r]) => ({
+      routeId,
+      routeName: r.routeName,
+      liters: round1(r.liters),
+      fuelShare: roundPct(r.liters, totalLiters),
+      litersPerKm: r.distance > 0 ? round1(r.liters / r.distance) : null,
+    }))
+    .sort((a, b) => b.liters - a.liters)
+
+  const HIGH_ROUTE_SHARE = 25
+  const routesOfConcern = fuelByRoute.filter((r) => r.fuelShare >= HIGH_ROUTE_SHARE).slice(0, 5)
+  const topFuelRoute = fuelByRoute[0] || null
 
   const maintByTypeMap = new Map()
   for (const rec of maintenanceRecords) {
@@ -204,9 +317,14 @@ export async function buildFuelMaintenanceReport(query = {}) {
     totalMaintCost,
     totalLiters,
     period: mode,
+    topFuelRoute,
+    routesOfConcern,
+    fleetAvgLitersPerTrip,
+    inefficientVehicles,
   })
 
   const vehiclesOfConcern = fuelByVehicle.filter((v) => v.highUsage)
+  const topMaintService = [...maintByTypeMap.values()].sort((a, b) => b.cost - a.cost)[0] || null
 
   return {
     period: {
@@ -226,6 +344,9 @@ export async function buildFuelMaintenanceReport(query = {}) {
       totalEntries: fuelLogs.length,
       avgLitersPerEntry: fuelLogs.length > 0 ? round1(totalLiters / fuelLogs.length) : 0,
       avgCostPerLiter: totalLiters > 0 ? round1(totalFuelCost / totalLiters) : 0,
+      fleetAvgLitersPerTrip,
+      topRoute: topFuelRoute,
+      byRoute: fuelByRoute.slice(0, 5),
       byVehicle: fuelByVehicle,
       trend: fuelTrend,
     },
@@ -233,6 +354,9 @@ export async function buildFuelMaintenanceReport(query = {}) {
       totalCost: Math.round(totalMaintCost),
       totalEntries: maintenanceRecords.length,
       vehiclesServiced: maintByBusMap.size,
+      topServiceType: topMaintService
+        ? { type: topMaintService.type, count: topMaintService.count, cost: Math.round(topMaintService.cost) }
+        : null,
       byServiceType: [...maintByTypeMap.values()]
         .map((r) => ({ ...r, cost: Math.round(r.cost) }))
         .sort((a, b) => b.cost - a.cost),
@@ -243,5 +367,7 @@ export async function buildFuelMaintenanceReport(query = {}) {
     },
     insights,
     vehiclesOfConcern,
+    routesOfConcern,
+    inefficientVehicles,
   }
 }
