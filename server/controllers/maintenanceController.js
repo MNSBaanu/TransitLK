@@ -1,5 +1,6 @@
 import Maintenance from '../models/Maintenance.js'
 import Bus from '../models/Bus.js'
+import { cancelActiveSchedulesForBus } from '../utils/fleetAssignmentHelpers.js'
 import { buildFuelMaintenanceReport } from '../services/fuelMaintenanceReport.js'
 import { createFuelMaintenanceReportPdfStream } from '../services/fuelMaintenanceReportPdf.js'
 import { buildFuelMaintenanceReportSpreadsheet } from '../utils/excelExport.js'
@@ -63,7 +64,10 @@ export const createMaintenance = async (req, res) => {
 
     const record = await Maintenance.create({ bus_id, service_date, description, cost })
 
-    // Update bus status to in maintenance
+    await cancelActiveSchedulesForBus(
+      bus_id,
+      description?.trim() || 'Vehicle logged for maintenance — schedule cancelled'
+    )
     await Bus.findByIdAndUpdate(bus_id, { status: 'maintenance' })
 
     res.status(201).json(record)

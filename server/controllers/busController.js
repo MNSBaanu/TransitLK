@@ -1,6 +1,9 @@
 import Bus from '../models/Bus.js'
 import Maintenance from '../models/Maintenance.js'
-import { attachFleetAssignmentContext } from '../utils/fleetAssignmentHelpers.js'
+import {
+  attachFleetAssignmentContext,
+  cancelActiveSchedulesForBus,
+} from '../utils/fleetAssignmentHelpers.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
@@ -114,6 +117,13 @@ export const updateBus = async (req, res) => {
 
     const updateData = { ...req.body }
     if (updateData.depotId === '') updateData.depotId = undefined
+
+    if (updateData.status === 'maintenance' && bus.status !== 'maintenance') {
+      await cancelActiveSchedulesForBus(
+        bus._id,
+        'Vehicle marked in maintenance — schedule cancelled'
+      )
+    }
 
     const updated = await Bus.findByIdAndUpdate(req.params.id, updateData, {
       new: true,

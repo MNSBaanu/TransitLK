@@ -8,6 +8,38 @@ import {
 } from './scheduleHelpers.js'
 
 const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
+const SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE = [
+  'draft',
+  'pending',
+  'approved',
+  'scheduled',
+  'on-time',
+  'delayed',
+]
+
+/** Cancel all non-completed schedules when a bus is placed in maintenance */
+export async function cancelActiveSchedulesForBus(
+  busId,
+  notes = 'Bus placed in maintenance — schedule cancelled'
+) {
+  if (!busId) return { cancelledCount: 0 }
+
+  const result = await Schedule.updateMany(
+    {
+      busId,
+      status: { $in: SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE },
+    },
+    {
+      $set: {
+        status: 'cancelled',
+        adjustmentReason: 'maintenance',
+        adjustmentNotes: notes,
+      },
+    }
+  )
+
+  return { cancelledCount: result.modifiedCount }
+}
 
 function hasActiveTripToday(trips) {
   return trips.some((trip) => !INACTIVE_SCHEDULE_STATUSES.includes(trip.status))
