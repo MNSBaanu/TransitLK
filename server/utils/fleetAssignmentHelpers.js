@@ -8,6 +8,7 @@ import {
 } from './scheduleHelpers.js'
 
 const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
+const UPCOMING_LOOKUP_DAYS = 30
 
 export function serializeRouteRef(route) {
   if (!route) return null
@@ -63,6 +64,17 @@ export function pickCurrentSchedule(schedules, now = new Date()) {
   return { schedule: sorted[sorted.length - 1], phase: 'completed' }
 }
 
+export function pickCurrentOrNextSchedule(todayTrips, nextTrip, now = new Date()) {
+  const todayPick = pickCurrentSchedule(todayTrips, now)
+  if (todayPick) return todayPick
+  if (!nextTrip) return null
+
+  const tripDay = startOfDay(nextTrip.tripDate)
+  const todayStart = startOfDay(now)
+  const phase = tripDay > todayStart ? 'next' : 'upcoming'
+  return { schedule: nextTrip, phase }
+}
+
 function indexRoutesByField(routes, field) {
   const map = new Map()
   for (const route of routes) {
@@ -83,16 +95,45 @@ function indexSchedulesByField(schedules, field) {
   return grouped
 }
 
+function indexFirstScheduleByField(schedules, field) {
+  const map = new Map()
+  for (const schedule of schedules) {
+    const key = schedule[field] ? String(schedule[field]) : ''
+    if (key && !map.has(key)) map.set(key, schedule)
+  }
+  return map
+}
+
+function supplementRoutesFromSchedules(routeMap, schedules, resourceField) {
+  for (const schedule of schedules) {
+    const key = schedule[resourceField] ? String(schedule[resourceField]) : ''
+    if (!key || routeMap.has(key)) continue
+    const route = schedule.routeId
+    if (route && typeof route === 'object' && route.routeName) {
+      routeMap.set(key, route)
+    }
+  }
+}
+
 /** Load route + schedule assignments from MongoDB for fleet list rows */
 async function loadFleetContextFromDb(resourceIds, resourceField, today = new Date()) {
   if (!resourceIds.length) {
-    return { routeByResourceId: new Map(), schedulesByResourceId: new Map() }
+    return {
+      routeByResourceId: new Map(),
+      schedulesByResourceId: new Map(),
+      nextScheduleByResourceId: new Map(),
+    }
   }
 
   const dayStart = startOfDay(today)
   const dayEnd = endOfDay(today)
+  const upcomingEnd = new Date(dayEnd)
+  upcomingEnd.setDate(upcomingEnd.getDate() + UPCOMING_LOOKUP_DAYS)
 
-  const [routes, schedules] = await Promise.all([
+  const scheduleSelect = `${resourceField} routeId departureTime arrivalTime status tripDate`
+  const schedulePopulate = { path: 'routeId', select: 'routeNo routeName serviceType status' }
+
+  const [routes, todaySchedules, upcomingSchedules] = await Promise.all([
     Route.find({ [resourceField]: { $in: resourceIds } })
       .select(`${resourceField} routeNo routeName serviceType status updatedAt createdAt`)
       .sort({ updatedAt: -1, createdAt: -1 })
@@ -102,15 +143,29 @@ async function loadFleetContextFromDb(resourceIds, resourceField, today = new Da
       tripDate: { $gte: dayStart, $lte: dayEnd },
       status: { $nin: INACTIVE_SCHEDULE_STATUSES },
     })
-      .populate('routeId', 'routeNo routeName serviceType status')
-      .select(`${resourceField} routeId departureTime arrivalTime status tripDate`)
+      .populate(schedulePopulate)
+      .select(scheduleSelect)
       .sort({ departureTime: 1 })
+      .lean(),
+    Schedule.find({
+      [resourceField]: { $in: resourceIds },
+      tripDate: { $gt: dayEnd, $lte: upcomingEnd },
+      status: { $nin: INACTIVE_SCHEDULE_STATUSES },
+    })
+      .populate(schedulePopulate)
+      .select(scheduleSelect)
+      .sort({ tripDate: 1, departureTime: 1 })
       .lean(),
   ])
 
+  const routeByResourceId = indexRoutesByField(routes, resourceField)
+  supplementRoutesFromSchedules(routeByResourceId, todaySchedules, resourceField)
+  supplementRoutesFromSchedules(routeByResourceId, upcomingSchedules, resourceField)
+
   return {
-    routeByResourceId: indexRoutesByField(routes, resourceField),
-    schedulesByResourceId: indexSchedulesByField(schedules, resourceField),
+    routeByResourceId,
+    schedulesByResourceId: indexSchedulesByField(todaySchedules, resourceField),
+    nextScheduleByResourceId: indexFirstScheduleByField(upcomingSchedules, resourceField),
   }
 }
 
@@ -130,11 +185,8 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
 
   const resourceIds = items.map((item) => item._id)
   const today = new Date()
-  const { routeByResourceId, schedulesByResourceId } = await loadFleetContextFromDb(
-    resourceIds,
-    resourceField,
-    today
-  )
+  const { routeByResourceId, schedulesByResourceId, nextScheduleByResourceId } =
+    await loadFleetContextFromDb(resourceIds, resourceField, today)
 
   return items.map((item) => {
     const doc = typeof item.toObject === 'function' ? item.toObject() : { ...item }
@@ -142,15 +194,20 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
 
     const assignedRoute = routeByResourceId.get(key)
     const todayTrips = schedulesByResourceId.get(key) || []
-    const currentPick = pickCurrentSchedule(todayTrips, today)
+    const nextTrip = nextScheduleByResourceId.get(key) || null
+    const currentPick = pickCurrentOrNextSchedule(todayTrips, nextTrip, today)
 
     doc.currentRoute = resolveCurrentRoute(assignedRoute, currentPick)
     doc.currentSchedule = currentPick
       ? serializeCurrentSchedule(currentPick.schedule, currentPick.phase)
       : null
 
-    if (resourceField === 'busId' && assignedRoute?.serviceType) {
-      doc.serviceType = assignedRoute.serviceType
+    if (resourceField === 'busId') {
+      const serviceType =
+        assignedRoute?.serviceType ||
+        currentPick?.schedule?.routeId?.serviceType ||
+        doc.serviceType
+      if (serviceType) doc.serviceType = serviceType
     }
 
     return doc
