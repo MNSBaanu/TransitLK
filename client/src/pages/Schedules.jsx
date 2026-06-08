@@ -21,7 +21,6 @@ import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
 import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
 import { isSchedulableRoute } from '../utils/routeHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
@@ -30,8 +29,9 @@ import {
   detectTimetableConflicts,
   formatPeriodLabel,
   formatTripDate,
+  applySharedTripTimes,
   buildTimetableRowsForPeriod,
-  duplicateTimetableRow,
+  defaultTripTimes,
   filterSchedulesInDateRange,
   getTimetableDateBounds,
   getTimetableDates,
@@ -117,8 +117,7 @@ function SchedulesPage() {
   const [timetableRefreshing, setTimetableRefreshing] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
   const [adjustForm, setAdjustForm] = useState({
-    departureTime: '08:00',
-    arrivalTime: '12:00',
+    ...defaultTripTimes(),
     busId: '',
     driverId: '',
     status: 'scheduled',
@@ -237,7 +236,8 @@ function SchedulesPage() {
 
   const applyTimetableSource = useCallback(
     (period, anchor, sourceSchedules) => {
-      setTimetableRows(buildTimetableRowsForPeriod(routes, sourceSchedules, period, anchor))
+      const built = buildTimetableRowsForPeriod(routes, sourceSchedules, period, anchor)
+      setTimetableRows(applySharedTripTimes(built, defaultTripTimes()))
     },
     [routes]
   )
@@ -306,20 +306,6 @@ function SchedulesPage() {
     const delayed = displaySchedules.filter((s) => s.status === 'delayed').length
     return { trips: displaySchedules.length, active, delayed, conflicts: conflicts.length }
   }, [displaySchedules, conflicts])
-
-  const adjustBuses = useMemo(() => {
-    const serviceType = selected?.routeId?.serviceType
-    const minCap = defaultMinCapacityForService(serviceType)
-    const currentBusId = String(adjustForm.busId || selected?.busId?._id || selected?.busId || '')
-    return buses.filter((b) => {
-      const id = String(b._id)
-      if (id === currentBusId) return true
-      return (
-        (b.status === 'available' || b.status === 'in-service') &&
-        isBusAssignable(b, serviceType, minCap)
-      )
-    })
-  }, [buses, selected, adjustForm.busId])
 
   const ganttRows = useMemo(() => {
     const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, viewDate))
@@ -582,26 +568,26 @@ function SchedulesPage() {
     setTimetablePeriod(period)
     setTimetableAnchor(anchor)
     setTimetableRangeSchedules(instant)
-    setTimetableRows(buildTimetableRowsForPeriod(routes, instant, period, anchor))
+    const built = buildTimetableRowsForPeriod(routes, instant, period, anchor)
+    setTimetableRows(applySharedTripTimes(built, defaultTripTimes()))
     setError('')
     setShowTimetable(true)
   }
 
   const handleTimetableRowChange = (tripRowId, field, value) => {
-    setTimetableRows((rows) =>
-      rows.map((r) => (String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: value } : r))
-    )
-  }
-
-  const handleAddTimetableTrip = (routeId) => {
-    const route = routes.find((r) => String(r._id) === String(routeId))
-    if (!route) return
     setTimetableRows((rows) => {
-      const newRow = duplicateTimetableRow(route, rows)
-      const lastIndex = rows.findLastIndex((r) => String(r.routeId) === String(routeId))
-      if (lastIndex < 0) return [...rows, newRow]
-      const next = [...rows]
-      next.splice(lastIndex + 1, 0, newRow)
+      const next = rows.map((r) =>
+        String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: value } : r
+      )
+      if (field === 'departureTime' || field === 'arrivalTime') {
+        const source = next.find((r) => String(r.tripRowId) === String(tripRowId))
+        if (source) {
+          return applySharedTripTimes(next, {
+            departureTime: source.departureTime,
+            arrivalTime: source.arrivalTime,
+          })
+        }
+      }
       return next
     })
   }
@@ -672,8 +658,7 @@ function SchedulesPage() {
   const closeMaintenanceOfflineUi = useCallback(() => {
     closeScheduleModals({ clearSelection: true })
     setAdjustForm({
-      departureTime: '08:00',
-      arrivalTime: '12:00',
+      ...defaultTripTimes(),
       busId: '',
       driverId: '',
       status: 'scheduled',
@@ -792,6 +777,7 @@ function SchedulesPage() {
           arrivalTime: row.arrivalTime,
           status: 'pending',
           adjustmentReason: 'normal',
+          adjustmentNotes: row.remarks?.trim() || '',
         }
         for (const day of dates) {
           try {
@@ -1353,7 +1339,7 @@ function SchedulesPage() {
         adjustForm={adjustForm}
         onAdjustChange={handleAdjustChange}
         drivers={drivers}
-        buses={adjustBuses}
+        buses={buses}
         allBuses={buses}
         conflicts={conflicts}
         showConflictPanel={showConflictPanel}
@@ -1399,7 +1385,6 @@ function SchedulesPage() {
         onAnchorDateChange={handleTimetableAnchorChange}
         rows={timetableRows}
         onRowChange={handleTimetableRowChange}
-        onAddTrip={handleAddTimetableTrip}
         onToggleAll={handleTimetableToggleAll}
         existingSchedules={timetableRangeSchedules}
         buses={buses}

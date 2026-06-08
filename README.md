@@ -2,7 +2,9 @@
 
 Web platform for Sri Lankan public transport depots — routes, timetables, fleet, maintenance, and role-based approvals.
 
-**Stack:** React (Vite) · Node.js / Express · MongoDB · JWT
+![Status](https://img.shields.io/badge/status-in%20progress-yellow)
+![Stack](https://img.shields.io/badge/stack-MERN-61DAFB)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Prerequisites
 

@@ -43,7 +43,6 @@ function RouteListTable({
   onPageSizeChange,
   onView,
   onEdit,
-  onAssignFleet,
   onDelete,
 }) {
   const startItem = routes.length === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1
@@ -101,7 +100,7 @@ function RouteListTable({
         <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           <tr>
             <th className="w-12 px-4 py-3 text-left">#</th>
-            {['Route No', 'Route', 'Stops', 'Service', 'Distance', 'Bus', 'Driver', 'Status', ''].map((h) => (
+            {['Route No', 'Route', 'Start Point', 'End Point', 'Stops', 'Service', 'Distance', 'Status', ''].map((h) => (
               <th key={h || 'actions'} className="px-4 py-3 text-left">
                 {h}
               </th>
@@ -136,16 +135,13 @@ function RouteListTable({
                   <button
                     type="button"
                     onClick={() => onView(route)}
-                    className="text-left hover:opacity-90"
+                    className="text-left font-semibold text-neutral-900 hover:underline"
                   >
-                    <p className="font-semibold text-neutral-900 hover:underline">
-                      {route.routeName}
-                    </p>
-                    <p className="text-xs text-on-surface-variant">
-                      {route.startPoint} → {route.endPoint}
-                    </p>
+                    {route.routeName}
                   </button>
                 </td>
+                <td className="px-4 py-3 text-on-surface-variant">{route.startPoint || '—'}</td>
+                <td className="px-4 py-3 text-on-surface-variant">{route.endPoint || '—'}</td>
                 <td className="px-4 py-3 text-on-surface-variant">
                   {route.stops?.length ? route.stops.join(', ') : route.viaDescription || '—'}
                 </td>
@@ -153,28 +149,6 @@ function RouteListTable({
                   {formatServiceType(route.serviceType)}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-neutral-700">{route.distance} km</td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onAssignFleet(route)}
-                    className="cursor-pointer text-left text-sm font-medium text-blue-800 hover:underline"
-                  >
-                    {route.busId?.regNumber || (
-                      <span className="text-on-surface-variant">Set bus</span>
-                    )}
-                  </button>
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onAssignFleet(route)}
-                    className="cursor-pointer text-left text-sm font-medium text-blue-800 hover:underline"
-                  >
-                    {route.driverId?.name || (
-                      <span className="text-on-surface-variant">Set driver</span>
-                    )}
-                  </button>
-                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${routeStatusClass(route.status)}`}

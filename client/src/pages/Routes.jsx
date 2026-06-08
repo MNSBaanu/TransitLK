@@ -625,7 +625,6 @@ function RoutesPage() {
               }}
               onView={openViewer}
               onEdit={openEditor}
-              onAssignFleet={setAssignRoute}
               onDelete={handleDeleteRequest}
             />
           </ModuleCard>
@@ -698,8 +697,6 @@ function RoutesPage() {
             routeCode={displayRouteCode}
             selectedBus={selectedBus}
             selectedDriver={selectedDriver}
-            buses={buses}
-            drivers={drivers}
             onEdit={() => openEditor(selectedRoute)}
             onBack={openList}
           />

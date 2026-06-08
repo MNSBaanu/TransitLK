@@ -489,9 +489,14 @@ export const getSchedules = async (req, res) => {
       filter.tripDate = { $gte: startOfDay(tripDate), $lte: endOfDay(tripDate) }
     }
 
-    const schedules = await populateSchedule(
-      Schedule.find(filter).sort({ tripDate: 1, departureTime: 1 })
-    )
+    let sort = { tripDate: 1, departureTime: 1 }
+    if (status === 'pending') {
+      sort = { receivedAt: -1, submittedAt: -1, createdAt: -1 }
+    } else if (status === 'rejected') {
+      sort = { rejectedAt: -1, updatedAt: -1, createdAt: -1 }
+    }
+
+    const schedules = await populateSchedule(Schedule.find(filter).sort(sort))
     res.json(schedules)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -568,6 +573,7 @@ export const createSchedule = async (req, res) => {
     const allowedCreateStatuses = ['draft', 'pending']
     const nextStatus = allowedCreateStatuses.includes(status) ? status : 'draft'
     const timetableMeta = parseTimetableMeta(req.body)
+    const submittedNow = nextStatus === 'pending' ? new Date() : undefined
 
     const schedule = await Schedule.create({
       routeId,
@@ -577,7 +583,8 @@ export const createSchedule = async (req, res) => {
       arrivalTime,
       tripDate: normalizedTripDate,
       status: nextStatus,
-      submittedAt: nextStatus === 'pending' ? new Date() : undefined,
+      submittedAt: submittedNow,
+      receivedAt: submittedNow,
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
       ...(timetableMeta || {}),
@@ -722,9 +729,13 @@ export const submitSchedule = async (req, res) => {
       return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
     }
 
+    const submittedNow = new Date()
     schedule.status = 'pending'
-    schedule.submittedAt = new Date()
+    schedule.submittedAt = submittedNow
+    schedule.receivedAt = submittedNow
     schedule.rejectionReason = undefined
+    schedule.rejectedAt = undefined
+    schedule.approvedAt = undefined
     await schedule.save()
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
@@ -770,7 +781,9 @@ export const approveSchedule = async (req, res) => {
 
     schedule.status = 'scheduled'
     schedule.approvedBy = req.user?.id
+    schedule.approvedAt = new Date()
     schedule.rejectionReason = undefined
+    schedule.rejectedAt = undefined
     await schedule.save()
     await syncBusServiceType(schedule.busId, route?.serviceType)
     await syncBusStatusForBusId(schedule.busId)
@@ -795,6 +808,8 @@ export const rejectSchedule = async (req, res) => {
     }
     schedule.status = 'draft'
     schedule.rejectionReason = reason.trim()
+    schedule.rejectedAt = new Date()
+    schedule.approvedAt = undefined
     await schedule.save()
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)

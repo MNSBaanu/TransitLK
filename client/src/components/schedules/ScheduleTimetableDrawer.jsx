@@ -3,18 +3,20 @@ import Icon from '../Icon'
 import {
   buildTimetableFeedbackCards,
   formatRouteEndpointsLabel,
-  formatTimeRange,
   formatTripDate,
   isTripOnDate,
-  getResourceNextAvailableTime,
   formatTimetableCoverageLabel,
   getTimetableDates,
-  getTimetableRowValidationIssues,
   getTimetableRowStatus,
   isResourceFreeForTrip,
   validateTimeRange,
 } from '../../utils/scheduleHelpers'
-import { isDriverAssignable, isBusAssignable, defaultMinCapacityForService } from '../../utils/fleetHelpers'
+import {
+  isDriverAssignable,
+  isBusAssignable,
+  isDriverStatusAvailable,
+  defaultMinCapacityForService,
+} from '../../utils/fleetHelpers'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-100'
@@ -66,7 +68,6 @@ function ScheduleTimetableDrawer({
   onAnchorDateChange,
   rows,
   onRowChange,
-  onAddTrip,
   onToggleAll,
   buses,
   drivers,
@@ -492,11 +493,10 @@ function ScheduleTimetableDrawer({
                     <th className={`${labelClass} pb-2 pr-3`}>Route</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Departure</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Arrival</th>
-                    <th className={`${labelClass} pb-2 pr-2`}>Window</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Bus</th>
-                    <th className={`${labelClass} pb-2`}>Driver</th>
+                    <th className={`${labelClass} pb-2 pr-2`}>Driver</th>
                     <th className={`${labelClass} pb-2 pr-2`}>Status</th>
-                    <th className={`${labelClass} w-24 pb-2`}>Actions</th>
+                    <th className={`${labelClass} pb-2`}>Remarks</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
@@ -506,8 +506,6 @@ function ScheduleTimetableDrawer({
                       : null
                     const rowHints = rowConflictHints?.get?.(String(row.tripRowId)) || []
                     const rowStatus = getTimetableRowStatus(row, { overlapHints: rowHints })
-                    const missingBus = row.included && !row.busId
-                    const missingDriver = row.included && !row.driverId
                     const rowMinCap = defaultMinCapacityForService(row.serviceType)
                     const availabilityTrips = [
                       ...rows.filter(
@@ -517,40 +515,34 @@ function ScheduleTimetableDrawer({
                         (s) => !row.scheduleId || String(s._id) !== String(row.scheduleId)
                       ),
                     ]
-                    const availableBuses = buses.filter(
+                    const rowBuses = buses.filter(
                       (b) =>
+                        b.status === 'available' &&
                         isBusAssignable(b, row.serviceType, rowMinCap) &&
                         (!row.included ||
                           isResourceFreeForTrip(b._id, 'busId', row, availabilityTrips, {
                             excludeTripRowId: row.tripRowId,
                           }))
                     )
-                    const availableDrivers = drivers.filter(
+                    const rowDrivers = drivers.filter(
                       (d) =>
+                        isDriverStatusAvailable(d) &&
                         isDriverAssignable(d, row.departureTime, anchorDate) &&
                         (!row.included ||
                           isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
                             excludeTripRowId: row.tripRowId,
                           }))
                     )
-                    const rowBuses = buses.filter(
-                      (b) =>
-                        (isBusAssignable(b, row.serviceType, rowMinCap) &&
-                          (!row.included ||
-                            isResourceFreeForTrip(b._id, 'busId', row, availabilityTrips, {
-                              excludeTripRowId: row.tripRowId,
-                            }))) ||
-                        (row.busId && String(b._id) === String(row.busId))
+                    const busSelectValue = rowBuses.some((b) => String(b._id) === String(row.busId))
+                      ? row.busId
+                      : ''
+                    const driverSelectValue = rowDrivers.some(
+                      (d) => String(d._id) === String(row.driverId)
                     )
-                    const rowDrivers = drivers.filter(
-                      (d) =>
-                        (isDriverAssignable(d, row.departureTime, anchorDate) &&
-                          (!row.included ||
-                            isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
-                              excludeTripRowId: row.tripRowId,
-                            }))) ||
-                        (row.driverId && String(d._id) === String(row.driverId))
-                    )
+                      ? row.driverId
+                      : ''
+                    const missingBus = row.included && !busSelectValue
+                    const missingDriver = row.included && !driverSelectValue
                     const isFocused = focusedRowIndices.includes(rowIndex)
                     const isPrimaryFocus = String(row.tripRowId) === primaryFocusTripRowId
                     const focusHighlight = isFocused
@@ -607,8 +599,11 @@ function ScheduleTimetableDrawer({
                             required={row.included}
                             data-field="departure"
                             {...(isPrimaryFocus && focusField === 'departure' ? { 'data-focus-priority': true } : {})}
-                            className={`${inputClass} time-field`}
+                            className={`${inputClass} time-field${timeErr ? ' border-red-400' : ''}`}
                           />
+                          {timeErr ? (
+                            <p className="mt-1 text-xs text-red-600">{timeErr}</p>
+                          ) : null}
                         </td>
                         <td className="py-3 pr-2 align-top">
                           <input
@@ -619,21 +614,12 @@ function ScheduleTimetableDrawer({
                             }
                             disabled={!row.included}
                             required={row.included}
-                            className={`${inputClass} time-field`}
+                            className={`${inputClass} time-field${timeErr ? ' border-red-400' : ''}`}
                           />
                         </td>
                         <td className="py-3 pr-2 align-top">
-                          {timeErr ? (
-                            <span className="text-xs text-red-600">{timeErr}</span>
-                          ) : (
-                            <span className="text-xs font-medium text-neutral-800">
-                              {formatTimeRange(row.departureTime, row.arrivalTime)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-2 align-top">
                           <select
-                            value={row.busId}
+                            value={busSelectValue}
                             onChange={(e) =>
                               onRowChange(row.tripRowId, 'busId', e.target.value)
                             }
@@ -644,33 +630,21 @@ function ScheduleTimetableDrawer({
                             className={`${inputClass}${missingBus ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select bus</option>
-                            {rowBuses.map((b) => {
-                              const busFree =
-                                !row.included ||
-                                isResourceFreeForTrip(b._id, 'busId', row, availabilityTrips, {
-                                  excludeTripRowId: row.tripRowId,
-                                })
-                              const nextAvail = busFree
-                                ? null
-                                : getResourceNextAvailableTime(b._id, 'busId', availabilityTrips)
-                              const busyHint = nextAvail ? ` · from ${nextAvail}` : ''
-                              return (
-                                <option key={b._id} value={b._id}>
-                                  {b.regNumber}
-                                  {busyHint}
-                                </option>
-                              )
-                            })}
-                            {row.included && availableBuses.length === 0 && !row.busId && (
+                            {rowBuses.map((b) => (
+                              <option key={b._id} value={b._id}>
+                                {b.regNumber}
+                              </option>
+                            ))}
+                            {row.included && rowBuses.length === 0 && (
                               <option disabled value="__no_bus__">
                                 No bus is available
                               </option>
                             )}
                           </select>
                         </td>
-                        <td className="py-3 align-top">
+                        <td className="py-3 pr-2 align-top">
                           <select
-                            value={row.driverId}
+                            value={driverSelectValue}
                             onChange={(e) =>
                               onRowChange(row.tripRowId, 'driverId', e.target.value)
                             }
@@ -681,24 +655,12 @@ function ScheduleTimetableDrawer({
                             className={`${inputClass}${missingDriver ? ' border-red-400' : ''}`}
                           >
                             <option value="">Select driver</option>
-                            {rowDrivers.map((d) => {
-                              const driverFree =
-                                !row.included ||
-                                isResourceFreeForTrip(d._id, 'driverId', row, availabilityTrips, {
-                                  excludeTripRowId: row.tripRowId,
-                                })
-                              const nextAvail = driverFree
-                                ? null
-                                : getResourceNextAvailableTime(d._id, 'driverId', availabilityTrips)
-                              const busyHint = nextAvail ? ` · from ${nextAvail}` : ''
-                              return (
-                                <option key={d._id} value={d._id}>
-                                  {d.name}
-                                  {busyHint}
-                                </option>
-                              )
-                            })}
-                            {row.included && availableDrivers.length === 0 && !row.driverId && (
+                            {rowDrivers.map((d) => (
+                              <option key={d._id} value={d._id}>
+                                {d.name}
+                              </option>
+                            ))}
+                            {row.included && rowDrivers.length === 0 && (
                               <option disabled value="__no_driver__">
                                 No driver is available
                               </option>
@@ -726,17 +688,16 @@ function ScheduleTimetableDrawer({
                           )}
                         </td>
                         <td className="py-3 align-top">
-                          {onAddTrip ? (
-                            <button
-                              type="button"
-                              onClick={() => onAddTrip(row.routeId)}
-                              className="flex items-center gap-1 rounded-md border border-outline-variant px-2 py-1 text-xs font-medium text-neutral-800 hover:bg-surface-container"
-                              title="Add another trip on this route"
-                            >
-                              <Icon name="add" size={14} />
-                              Add trip
-                            </button>
-                          ) : null}
+                          <input
+                            type="text"
+                            value={row.remarks || ''}
+                            onChange={(e) =>
+                              onRowChange(row.tripRowId, 'remarks', e.target.value)
+                            }
+                            disabled={!row.included}
+                            placeholder=""
+                            className={inputClass}
+                          />
                         </td>
                       </tr>
                     )

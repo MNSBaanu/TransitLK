@@ -5,9 +5,12 @@ import {
   formatServiceType,
   isBusAssignable,
   isDriverAssignable,
+  busUnassignableReason,
+  driverUnassignableReason,
 } from '../../utils/fleetHelpers'
 import {
   ADJUSTMENT_REASON_LABELS,
+  defaultTripTimes,
   formatAdjustmentChange,
   formatTimeRange,
   formatTripDate,
@@ -25,8 +28,7 @@ const sectionClass = 'border border-outline-variant bg-surface-container/40'
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-none bg-white'
 
 const defaultAdjust = {
-  departureTime: '08:00',
-  arrivalTime: '12:00',
+  ...defaultTripTimes(),
   busId: '',
   driverId: '',
   status: 'scheduled',
@@ -66,59 +68,39 @@ function ScheduleQuickAdjust({
   const [activePicker, setActivePicker] = useState(null)
   const tripDepartureTime = form.departureTime || selected?.departureTime
   const tripLicenseDate = selected ? tripDateKey(selected) : undefined
-
-  const assignableDrivers = useMemo(
-    () =>
-      drivers.filter(
-        (d) =>
-          isDriverAssignable(d, tripDepartureTime, tripLicenseDate) ||
-          String(d._id) === String(form.driverId || selected?.driverId?._id || selected?.driverId)
-      ),
-    [drivers, form.driverId, selected, tripDepartureTime, tripLicenseDate]
-  )
+  const busPool = allBuses.length ? allBuses : buses
+  const currentDriverId = String(form.driverId || selected?.driverId?._id || selected?.driverId || '')
+  const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
 
   const eligibleDrivers = useMemo(
     () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime, tripLicenseDate)),
     [drivers, tripDepartureTime, tripLicenseDate]
   )
 
-  const assignableBuses = useMemo(() => {
-    if (!selected) return []
-    const serviceType = selected.routeId?.serviceType
-    const minCap = defaultMinCapacityForService(serviceType)
-    const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
-    return buses.filter(
-      (b) => isBusAssignable(b, serviceType, minCap) || String(b._id) === currentBusId
-    )
-  }, [selected, buses, form.busId])
-
   const eligibleBuses = useMemo(() => {
     if (!selected) return []
     const serviceType = selected.routeId?.serviceType
     const minCap = defaultMinCapacityForService(serviceType)
-    return buses.filter((b) => isBusAssignable(b, serviceType, minCap))
-  }, [selected, buses])
+    return busPool.filter((b) => isBusAssignable(b, serviceType, minCap))
+  }, [selected, busPool])
 
   const maintenanceSwapOptions = useMemo(() => {
     if (!selected) return []
-    const currentBusId = String(selected.busId?._id || selected.busId || '')
     const serviceType = selected.routeId?.serviceType
     const minCap = defaultMinCapacityForService(serviceType)
-    const pool = allBuses.length ? allBuses : buses
-    return pool.filter(
+    return busPool.filter(
       (b) => String(b._id) !== currentBusId && isBusAssignable(b, serviceType, minCap)
     )
-  }, [selected, allBuses, buses])
+  }, [selected, busPool, currentBusId])
 
   const coverDriverOptions = useMemo(() => {
     if (!selected) return []
-    const currentDriverId = String(selected.driverId?._id || selected.driverId || '')
     return drivers.filter(
       (d) =>
         String(d._id) !== currentDriverId &&
-          isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
+        isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
     )
-  }, [selected, drivers, tripDepartureTime, tripLicenseDate])
+  }, [selected, drivers, currentDriverId, tripDepartureTime, tripLicenseDate])
 
   const togglePicker = (picker) => {
     setActivePicker((prev) => (prev === picker ? null : picker))
@@ -312,11 +294,19 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="">Select driver</option>
-                {assignableDrivers.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.name}
-                  </option>
-                ))}
+                {drivers.map((d) => {
+                  const isSelected = String(d._id) === currentDriverId
+                  const assignable = isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
+                  const hint = assignable
+                    ? ''
+                    : driverUnassignableReason(d, tripDepartureTime, tripLicenseDate)
+                  return (
+                    <option key={d._id} value={d._id} disabled={!isSelected && !assignable}>
+                      {d.name}
+                      {hint ? ` · ${hint}` : ''}
+                    </option>
+                  )
+                })}
                 {selected && eligibleDrivers.length === 0 && !form.driverId && (
                   <option disabled value="__no_driver__">
                     No driver is available
@@ -338,12 +328,22 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="">Select vehicle</option>
-                {assignableBuses.map((b) => (
-                  <option key={b._id} value={b._id}>
-                    {b.regNumber}
-                    {b.serviceType ? ` · ${b.serviceType}` : ''}
-                  </option>
-                ))}
+                {busPool.map((b) => {
+                  const serviceType = selected.routeId?.serviceType
+                  const minCap = defaultMinCapacityForService(serviceType)
+                  const isSelected = String(b._id) === currentBusId
+                  const assignable = isBusAssignable(b, serviceType, minCap)
+                  const hint = assignable
+                    ? ''
+                    : busUnassignableReason(b, serviceType, minCap)
+                  return (
+                    <option key={b._id} value={b._id} disabled={!isSelected && !assignable}>
+                      {b.regNumber}
+                      {b.serviceType ? ` · ${b.serviceType}` : ''}
+                      {hint ? ` · ${hint}` : ''}
+                    </option>
+                  )
+                })}
                 {selected && eligibleBuses.length === 0 && !form.busId && (
                   <option disabled value="__no_bus__">
                     No bus is available
