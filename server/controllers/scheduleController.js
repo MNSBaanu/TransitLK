@@ -13,6 +13,8 @@ import {
   startOfMonth,
   endOfMonth,
   normalizeTripDate,
+  normalizeTimetableAnchor,
+  parseTimetableMeta,
   validateTimeRange,
   validateTimetableRows,
   requiresAdjustmentNotes,
@@ -432,7 +434,19 @@ async function validateAssignment({
 
 export const getSchedules = async (req, res) => {
   try {
-    const { tripDate, fromDate, toDate, view, routeId, busId, driverId, status } = req.query
+    const {
+      tripDate,
+      fromDate,
+      toDate,
+      view,
+      routeId,
+      busId,
+      driverId,
+      status,
+      timetableId,
+      timetablePeriod,
+      timetableAnchor,
+    } = req.query
     const filter = {}
 
     if (isDriver(req.user) && req.user?.driverId) {
@@ -452,6 +466,13 @@ export const getSchedules = async (req, res) => {
       if (driverId) filter.driverId = driverId
     }
     if (status) filter.status = status
+
+    if (timetableId) filter.timetableId = String(timetableId).trim()
+    if (timetablePeriod) filter.timetablePeriod = timetablePeriod
+    if (timetableAnchor) {
+      const period = timetablePeriod || 'daily'
+      filter.timetableAnchor = normalizeTimetableAnchor(period, timetableAnchor)
+    }
 
     if (fromDate && toDate) {
       filter.tripDate = { $gte: startOfDay(fromDate), $lte: endOfDay(toDate) }
@@ -541,6 +562,7 @@ export const createSchedule = async (req, res) => {
 
     const allowedCreateStatuses = ['draft', 'pending']
     const nextStatus = allowedCreateStatuses.includes(status) ? status : 'draft'
+    const timetableMeta = parseTimetableMeta(req.body)
 
     const schedule = await Schedule.create({
       routeId,
@@ -553,6 +575,7 @@ export const createSchedule = async (req, res) => {
       submittedAt: nextStatus === 'pending' ? new Date() : undefined,
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
+      ...(timetableMeta || {}),
     })
 
     await syncBusServiceType(busId, route.serviceType)

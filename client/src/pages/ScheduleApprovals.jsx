@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { invalidatePageData } from '../services/pagePrefetch'
+import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
+import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import {
   formatRouteEndpointsLabel,
+  formatRouteStopsLabel,
+  formatTimeRange,
   formatTripDate,
-  scheduleCode,
   tripDateKey,
 } from '../utils/scheduleHelpers'
 import {
@@ -20,41 +23,40 @@ import {
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
+const APPROVER_ROLES = new Set([ROLES.DEPOT_MANAGER, ROLES.ADMINISTRATOR])
+
+function canApproveSchedules(role) {
+  return APPROVER_ROLES.has(role)
+}
+
 function ScheduleApprovals() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [pending, setPending] = useState([])
-  const [loading, setLoading] = useState(true)
+  const canApprove = canApproveSchedules(user?.role)
+  const stale = getStalePageData('/schedules/approvals')
+  const [pending, setPending] = useState(() => stale?.pending || [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [rejectTargetId, setRejectTargetId] = useState(null)
   const [rejectReason, setRejectReason] = useState('Incomplete allocation')
+  const [viewTrip, setViewTrip] = useState(null)
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
   }
 
-  const loadPending = useCallback(async () => {
+  const applyData = useCallback((payload) => {
+    setPending(payload?.pending || [])
     setError('')
-    try {
-      const { data } = await api.get('/schedules', { params: { status: 'pending' } })
-      setPending(Array.isArray(data) ? data : [])
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load pending schedules')
-    } finally {
-      setLoading(false)
-    }
   }, [])
 
-  useEffect(() => {
-    if (user?.role === ROLES.DEPOT_MANAGER) {
-      loadPending()
-    } else {
-      setLoading(false)
-    }
-  }, [user?.role, loadPending])
+  const { loading, reload } = useFastPageLoad('/schedules/approvals', {
+    applyData,
+    enabled: canApprove,
+    refreshEnabled: canApprove && !saving && !rejectTargetId,
+  })
 
   const handleApprove = async (id) => {
     setSaving(true)
@@ -62,10 +64,11 @@ function ScheduleApprovals() {
     try {
       await api.post(`/schedules/${id}/approve`)
       invalidatePageData('/schedules')
+      invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
       showToast('Schedule approved — driver can view the trip in My trips')
-      await loadPending()
+      await reload({ keepContent: true, force: true })
     } catch (err) {
       const msg = err.response?.data?.message || 'Approve failed'
       const conflictsData = err.response?.data?.conflicts
@@ -87,10 +90,11 @@ function ScheduleApprovals() {
       await api.post(`/schedules/${rejectTargetId}/reject`, { reason: rejectReason.trim() })
       setRejectTargetId(null)
       invalidatePageData('/schedules')
+      invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
       showToast('Returned to scheduler')
-      await loadPending()
+      await reload({ keepContent: true, force: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Reject failed')
     } finally {
@@ -98,10 +102,13 @@ function ScheduleApprovals() {
     }
   }
 
-  if (user?.role !== ROLES.DEPOT_MANAGER) {
+  if (!canApproveSchedules(user?.role)) {
     return (
       <div className="w-full">
-        <ModuleHeader title="Schedule approvals" subtitle="This page is for depot managers only." />
+        <ModuleHeader
+          title="Schedule approvals"
+          subtitle="This page is for depot managers and administrators only."
+        />
         <Link to="/schedules" className="text-sm font-semibold text-depot-blue-light hover:underline">
           Back to schedules
         </Link>
@@ -146,51 +153,73 @@ function ScheduleApprovals() {
             {pending.length} schedule{pending.length === 1 ? '' : 's'} awaiting approval
           </p>
           <ul className="divide-y divide-amber-100">
-            {pending.map((trip, index) => (
-              <li
-                key={trip._id}
-                className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3"
-              >
-                <span className="w-8 shrink-0 text-sm font-medium tabular-nums text-neutral-400">
-                  {index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-neutral-900">{scheduleCode(trip)}</p>
-                  <p className="text-sm text-on-surface-variant">
-                    {formatRouteEndpointsLabel(trip.routeId)} · {trip.departureTime}–{trip.arrivalTime}
-                  </p>
-                  <p className="text-xs text-on-surface-variant">
-                    {formatTripDate(tripDateKey(trip))}
-                    {trip.busId?.regNumber ? ` · ${trip.busId.regNumber}` : ''}
-                    {trip.driverId?.name ? ` · ${trip.driverId.name}` : ''}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => handleApprove(trip._id)}
-                    className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setRejectReason('Incomplete allocation')
-                      setRejectTargetId(trip._id)
-                    }}
-                    className="rounded-lg border border-red-300 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </li>
-            ))}
+            {pending.map((trip, index) => {
+              const route = trip.routeId || {}
+              const routeTitle = route.routeName?.trim() || formatRouteEndpointsLabel(route)
+              const stopsLabel = formatRouteStopsLabel(route)
+              const timeAndStops = [formatTimeRange(trip.departureTime, trip.arrivalTime), stopsLabel]
+                .filter(Boolean)
+                .join(' · ')
+
+              return (
+                <li
+                  key={trip._id}
+                  className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3"
+                >
+                  <span className="w-8 shrink-0 text-sm font-medium tabular-nums text-neutral-400">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-neutral-900">{routeTitle}</p>
+                    <p className="text-sm text-on-surface-variant">{timeAndStops}</p>
+                    <p className="text-xs text-on-surface-variant">
+                      {formatTripDate(tripDateKey(trip))}
+                      {trip.busId?.regNumber ? ` · ${trip.busId.regNumber}` : ''}
+                      {trip.driverId?.name ? ` · ${trip.driverId.name}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setViewTrip(trip)}
+                      className="rounded-lg border border-outline-variant px-4 py-2 text-xs font-bold text-depot-blue-light hover:bg-surface-container disabled:opacity-50"
+                    >
+                      View
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => handleApprove(trip._id)}
+                      className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => {
+                        setRejectReason('Incomplete allocation')
+                        setRejectTargetId(trip._id)
+                      }}
+                      className="rounded-lg border border-red-300 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
+
+      <ScheduleTripDetailsDrawer
+        open={Boolean(viewTrip)}
+        onClose={() => setViewTrip(null)}
+        selected={viewTrip}
+        canAdjustSchedules={false}
+      />
 
       {rejectTargetId && (
         <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/40 p-4">

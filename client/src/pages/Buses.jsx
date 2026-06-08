@@ -1119,6 +1119,7 @@ function Buses() {
   const { loading, reload } = useFastPageLoad('/buses', {
     applyData,
     forceRefresh: staleLacksFleetContext,
+    refreshEnabled: !showAddBus && !showAddDriver && !showMaintenanceAlerts,
   })
 
   return (

@@ -22,6 +22,67 @@ export function normalizeTripDate(value) {
   return d
 }
 
+const TIMETABLE_PERIODS = new Set(['daily', 'weekly', 'monthly'])
+
+function calendarDateAtNoonUtc(date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0, 0)
+  )
+}
+
+/** Canonical anchor for a timetable batch (week start or 1st of month). */
+export function normalizeTimetableAnchor(period, anchorDate) {
+  if (!TIMETABLE_PERIODS.has(period)) {
+    const error = new Error('Invalid timetable period')
+    error.statusCode = 400
+    throw error
+  }
+  if (period === 'weekly') {
+    return calendarDateAtNoonUtc(startOfWeek(anchorDate))
+  }
+  if (period === 'monthly') {
+    const d = parseDateInput(anchorDate)
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 12, 0, 0, 0))
+  }
+  return normalizeTripDate(anchorDate)
+}
+
+/** Validate optional timetable grouping fields sent together on create. */
+export function parseTimetableMeta(body = {}) {
+  const { timetableId, timetablePeriod, timetableAnchor } = body
+  const hasAny = Boolean(timetableId || timetablePeriod || timetableAnchor)
+  const hasAll = Boolean(timetableId && timetablePeriod && timetableAnchor)
+
+  if (!hasAny) return null
+
+  if (!hasAll) {
+    const error = new Error(
+      'timetableId, timetablePeriod, and timetableAnchor must be provided together'
+    )
+    error.statusCode = 400
+    throw error
+  }
+
+  if (!TIMETABLE_PERIODS.has(timetablePeriod)) {
+    const error = new Error('timetablePeriod must be daily, weekly, or monthly')
+    error.statusCode = 400
+    throw error
+  }
+
+  const id = String(timetableId).trim()
+  if (!id) {
+    const error = new Error('timetableId is required')
+    error.statusCode = 400
+    throw error
+  }
+
+  return {
+    timetableId: id,
+    timetablePeriod,
+    timetableAnchor: normalizeTimetableAnchor(timetablePeriod, timetableAnchor),
+  }
+}
+
 /** Parse "HH:mm" to minutes from midnight */
 export function timeToMinutes(time) {
   if (!time?.trim()) return null
