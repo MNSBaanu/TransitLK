@@ -26,6 +26,12 @@ export function formatRouteStatus(status) {
   return STATUS_LABELS[status] || status || '—'
 }
 
+export function getRouteDeleteDisabledReason(route) {
+  const count = Number(route?.scheduleCount) || 0
+  if (count <= 0) return null
+  return `Cannot delete — ${count} schedule${count !== 1 ? 's' : ''} linked to this route. Remove those trips first.`
+}
+
 export function routeStatusClass(status) {
   switch (status) {
     case 'active':

@@ -11,6 +11,7 @@ import {
 } from '../utils/routeHelpers.js'
 import {
   defaultMinCapacityForService,
+  getDriverLicenseInvalidReason,
   isBusAssignableForRoute,
 } from '../utils/fleetHelpers.js'
 import {
@@ -23,7 +24,7 @@ import {
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType mileage' }
 const driverPopulate = {
   path: 'driverId',
-  select: 'name licenseNo contactNo workingHours status',
+  select: 'name licenseNo licenseExpiry contactNo workingHours status',
 }
 const depotPopulate = { path: 'depotId', select: 'depotCode depotName region location' }
 const PAGE_SIZE_OPTIONS = new Set([10, 15])
@@ -37,6 +38,23 @@ const populateRoute = (query) =>
 
 const sortRoutes = (query) =>
   query.sort({ routeNo: 1, createdAt: 1 }).collation({ locale: 'en', numericOrdering: true })
+
+async function attachScheduleCounts(routes) {
+  const list = Array.isArray(routes) ? routes : []
+  if (!list.length) return list
+
+  const ids = list.map((route) => route._id)
+  const counts = await Schedule.aggregate([
+    { $match: { routeId: { $in: ids } } },
+    { $group: { _id: '$routeId', count: { $sum: 1 } } },
+  ])
+  const countMap = new Map(counts.map((entry) => [String(entry._id), entry.count]))
+
+  return list.map((route) => {
+    const plain = route.toObject ? route.toObject() : { ...route }
+    return { ...plain, scheduleCount: countMap.get(String(route._id)) || 0 }
+  })
+}
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -114,6 +132,12 @@ const validateDriverAssignment = async (driverId, routeDepotId) => {
     error.statusCode = 400
     throw error
   }
+  const licenseIssue = getDriverLicenseInvalidReason(driver)
+  if (licenseIssue) {
+    const error = new Error(licenseIssue)
+    error.statusCode = 400
+    throw error
+  }
   if (routeDepotId && driver.depotId && String(driver.depotId) !== String(routeDepotId)) {
     const error = new Error('Driver belongs to a different depot')
     error.statusCode = 400
@@ -182,7 +206,9 @@ export const getRoutes = async (req, res) => {
     const filter = buildRouteFilter(req, { search, status, serviceType })
 
     if (!wantsPagination) {
-      const routes = await populateRoute(sortRoutes(Route.find(filter)))
+      const routes = await attachScheduleCounts(
+        await populateRoute(sortRoutes(Route.find(filter)))
+      )
       return res.json(routes)
     }
 
@@ -206,8 +232,10 @@ export const getRoutes = async (req, res) => {
       ]),
     ])
 
+    const items = await attachScheduleCounts(routes)
+
     res.json({
-      items: routes,
+      items,
       pagination: {
         page,
         limit,
@@ -241,7 +269,8 @@ export const getRouteById = async (req, res) => {
     if (!route) {
       return res.status(404).json({ message: 'Route not found' })
     }
-    res.json(route)
+    const [withCounts] = await attachScheduleCounts([route])
+    res.json(withCounts)
   } catch (error) {
     const status = error.statusCode || 500
     res.status(status).json({ message: error.message })

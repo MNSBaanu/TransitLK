@@ -1,5 +1,5 @@
 import Bus from '../models/Bus.js'
-import Route from '../models/Route.js'
+import { attachFleetAssignmentContext } from '../utils/fleetAssignmentHelpers.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
@@ -38,37 +38,18 @@ export const getAllBuses = async (req, res) => {
     const buses = await Bus.find(filter)
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
-    const busIds = buses.map((bus) => bus._id)
-    const assignedRoutes = busIds.length
-      ? await Route.find({ busId: { $in: busIds } })
-          .select('busId routeName serviceType status updatedAt createdAt')
-          .sort({ updatedAt: -1, createdAt: -1 })
-      : []
 
-    const routeByBusId = new Map()
-    for (const route of assignedRoutes) {
-      const key = String(route.busId)
-      if (!routeByBusId.has(key)) routeByBusId.set(key, route)
-    }
+    const withAssignments = await attachFleetAssignmentContext(buses, {
+      idField: 'busId',
+      routeField: 'busId',
+    })
 
-    const result = buses.map((bus) => {
-      const assignedRoute = routeByBusId.get(String(bus._id))
-      const doc = bus.toObject()
-      if (assignedRoute?.serviceType) {
-        doc.serviceType = assignedRoute.serviceType
-        doc.assignedRoute = {
-          _id: assignedRoute._id,
-          routeName: assignedRoute.routeName,
-          serviceType: assignedRoute.serviceType,
-          status: assignedRoute.status,
-        }
-      }
-      // Calculate nextMaintenanceDate if not set (4 weeks from lastMaintenanceDate)
+    const result = withAssignments.map((doc, index) => {
+      const bus = buses[index]
       if (bus.lastMaintenanceDate && !bus.nextMaintenanceDate) {
         const nextDate = new Date(bus.lastMaintenanceDate)
-        nextDate.setDate(nextDate.getDate() + 28) // 4 weeks = 28 days
+        nextDate.setDate(nextDate.getDate() + 28)
         doc.nextMaintenanceDate = nextDate
-        // Update the bus document with the calculated date
         Bus.findByIdAndUpdate(bus._id, { nextMaintenanceDate: nextDate }).catch(() => {})
       } else {
         doc.nextMaintenanceDate = bus.nextMaintenanceDate
