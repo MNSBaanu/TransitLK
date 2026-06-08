@@ -221,11 +221,11 @@ async function fetchSchedulesTrips(options = {}) {
   return request
 }
 
-async function fetchSchedulesPageData(options = {}) {
+async function fetchSchedulesPageData(options = {}, { force = false } = {}) {
   const { viewMode, viewDate } = normalizeOptions('/schedules', options)
   const [schedules, support] = await Promise.all([
     fetchSchedulesTrips(options),
-    fetchScheduleSupportData(),
+    fetchScheduleSupportData({ force }),
   ])
 
   return {
@@ -425,7 +425,7 @@ export async function loadPageData(path, options = {}, { force = false } = {}) {
     return inflightRequests.get(cacheKey)
   }
 
-  const request = pageLoaders[path](normalized)
+  const request = pageLoaders[path](normalized, { force })
     .then((data) => {
       pageCache.set(cacheKey, {
         data,
