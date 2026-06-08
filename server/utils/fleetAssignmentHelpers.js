@@ -1,4 +1,5 @@
 import Bus from '../models/Bus.js'
+import Driver from '../models/Driver.js'
 import Schedule from '../models/Schedule.js'
 import {
   getResourceBusyEndMinutes,
@@ -13,6 +14,7 @@ const SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE = [
   'pending',
   'approved',
   'scheduled',
+  'on-duty',
   'on-time',
   'delayed',
 ]
@@ -68,6 +70,29 @@ export async function syncBusStatusForBusId(busId, today = new Date()) {
   const nextStatus = activeTripCount > 0 ? 'in-service' : 'available'
   if (bus.status !== nextStatus) {
     await Bus.findByIdAndUpdate(busId, { status: nextStatus })
+  }
+}
+
+const DRIVER_ON_DUTY_TRIP_STATUSES = ['on-duty', 'on-time', 'delayed']
+
+/** Keep driver.status aligned with active trips today */
+export async function syncDriverStatusForDriverId(driverId, today = new Date()) {
+  if (!driverId) return
+
+  const driver = await Driver.findById(driverId).select('status')
+  if (!driver || driver.status === 'on-leave' || driver.status === 'off-duty') return
+
+  const dayStart = startOfDay(today)
+  const dayEnd = endOfDay(today)
+  const activeTripCount = await Schedule.countDocuments({
+    driverId,
+    tripDate: { $gte: dayStart, $lte: dayEnd },
+    status: { $in: DRIVER_ON_DUTY_TRIP_STATUSES },
+  })
+
+  const nextStatus = activeTripCount > 0 ? 'on-duty' : 'available'
+  if (driver.status !== nextStatus) {
+    await Driver.findByIdAndUpdate(driverId, { status: nextStatus })
   }
 }
 

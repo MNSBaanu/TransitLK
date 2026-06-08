@@ -34,11 +34,11 @@ function tripDurationHours(departureTime, arrivalTime) {
 }
 
 function isCompletedStatus(status) {
-  return status === 'completed' || status === 'on-time'
+  return status === 'completed' || status === 'on-time' || status === 'on-duty'
 }
 
 function isScheduledStatus(status) {
-  return ['scheduled', 'approved', 'on-time', 'completed', 'delayed', 'pending'].includes(
+  return ['scheduled', 'approved', 'on-duty', 'on-time', 'completed', 'delayed', 'pending'].includes(
     status
   )
 }

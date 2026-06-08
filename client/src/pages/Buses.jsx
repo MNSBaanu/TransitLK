@@ -778,6 +778,7 @@ function getLicenseStatus(expiry) {
 
 const DRIVER_STATUS_STYLES = {
   available: 'bg-green-100 text-green-700',
+  'on-duty': 'bg-indigo-100 text-indigo-800',
   'on-leave': 'bg-amber-100 text-amber-800',
   'off-duty': 'bg-neutral-200 text-neutral-700',
 }
@@ -836,6 +837,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const driverId = (d) => `#DR-${d._id.slice(-4).toUpperCase()}`
 
   const availableDrivers = drivers.filter((d) => d.status === 'available')
+  const onDutyDrivers = drivers.filter((d) => d.status === 'on-duty')
   const onLeaveDrivers = drivers.filter((d) => d.status === 'on-leave')
   const offDutyDrivers = drivers.filter((d) => d.status === 'off-duty')
   const expiringLicenses = drivers.filter(
@@ -852,7 +854,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
     {
       label: 'Available',
       value: availableDrivers.length,
-      hint: `${onLeaveDrivers.length} on leave · ${offDutyDrivers.length} off duty`,
+      hint: `${onDutyDrivers.length} on duty · ${onLeaveDrivers.length} on leave · ${offDutyDrivers.length} off duty`,
       icon: 'directions_run',
     },
     {
@@ -886,6 +888,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
             className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900">
             <option value="">All Statuses</option>
             <option value="available">Available</option>
+            <option value="on-duty">On Duty</option>
             <option value="on-leave">On Leave</option>
             <option value="off-duty">Off Duty</option>
           </select>

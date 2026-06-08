@@ -4,6 +4,7 @@ import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import { formatServiceType } from '../utils/fleetHelpers'
 import {
   canDriverAcknowledgeTrip,
   canDriverCompleteTrip,
@@ -21,7 +22,7 @@ const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
 function DriverTrips() {
-  const { user } = useAuth()
+  const { user, refreshSession } = useAuth()
   const [trips, setTrips] = useState(() => getStalePageData('/my-trips')?.trips || [])
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
@@ -52,6 +53,7 @@ function DriverTrips() {
       invalidatePageData('/my-trips')
       invalidatePageData('/schedules')
       showToast(`Trip updated — ${formatScheduleStatusLabel(status)}`)
+      await refreshSession()
       await reload({ keepContent: true, force: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update trip')
@@ -60,7 +62,7 @@ function DriverTrips() {
     }
   }
 
-  const handleAcknowledge = (tripId) => handleStatusChange(tripId, 'on-time')
+  const handleAcknowledge = (tripId) => handleStatusChange(tripId, 'on-duty')
 
   const handleComplete = (tripId) => handleStatusChange(tripId, 'completed')
 
@@ -112,8 +114,8 @@ function DriverTrips() {
         </div>
         <div className="rounded-xl border border-outline-variant bg-white p-4">
           <p className="text-xs font-semibold uppercase text-on-surface-variant">Status</p>
-          <p className="mt-1 text-sm font-semibold capitalize text-neutral-900">
-            {user?.status || 'available'}
+          <p className="mt-1 text-sm font-semibold text-neutral-900">
+            {formatServiceType(user?.status || 'available')}
           </p>
         </div>
       </div>
