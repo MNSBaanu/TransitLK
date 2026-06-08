@@ -195,18 +195,7 @@ async function run() {
   await FuelLog.insertMany(fuelEntries)
   console.log(`Inserted ${fuelEntries.length} fuel log(s) for analytics.`)
 
-  const maintBus = allBuses.find((b) => b.status === 'maintenance') || allBuses[0]
-  await Maintenance.deleteMany({
-    bus_id: maintBus._id,
-    description: { $regex: /^Sample workshop/i },
-  })
-  await Maintenance.create({
-    bus_id: maintBus._id,
-    service_date: addDays(anchor, -3),
-    description: 'Sample workshop — brake pad replacement (seed data)',
-    cost: 42000,
-  })
-  console.log('Inserted 1 sample maintenance record.')
+  console.log('Maintenance sample data: run npm run seed:maintenance')
 
   const statusCounts = {}
   for (const t of inserted) {

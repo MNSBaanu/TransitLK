@@ -1,6 +1,10 @@
 import Maintenance from '../models/Maintenance.js'
 import Bus from '../models/Bus.js'
 import { cancelActiveSchedulesForBus } from '../utils/fleetAssignmentHelpers.js'
+import {
+  reconcileFleetMaintenanceData,
+  syncBusMaintenanceFields,
+} from '../utils/busMaintenanceSync.js'
 import { buildFuelMaintenanceReport } from '../services/fuelMaintenanceReport.js'
 import { createFuelMaintenanceReportPdfStream } from '../services/fuelMaintenanceReportPdf.js'
 import { buildFuelMaintenanceReportSpreadsheet } from '../utils/excelExport.js'
@@ -69,8 +73,13 @@ export const createMaintenance = async (req, res) => {
       description?.trim() || 'Vehicle logged for maintenance — schedule cancelled'
     )
     await Bus.findByIdAndUpdate(bus_id, { status: 'maintenance' })
+    await syncBusMaintenanceFields(bus_id)
 
-    res.status(201).json(record)
+    const populated = await Maintenance.findById(record._id).populate(
+      'bus_id',
+      'regNumber status lastMaintenanceDate nextMaintenanceDate'
+    )
+    res.status(201).json(populated)
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -81,6 +90,8 @@ export const createMaintenance = async (req, res) => {
 // @access  Protected
 export const getAllMaintenance = async (req, res) => {
   try {
+    await reconcileFleetMaintenanceData()
+
     const { bus_id, from, to } = req.query
     const filter = {}
 
@@ -92,7 +103,7 @@ export const getAllMaintenance = async (req, res) => {
     }
 
     const records = await Maintenance.find(filter)
-      .populate('bus_id', 'regNumber status')
+      .populate('bus_id', 'regNumber status lastMaintenanceDate nextMaintenanceDate')
       .sort({ service_date: -1 })
     res.json(records)
   } catch (error) {
@@ -125,11 +136,23 @@ export const updateMaintenance = async (req, res) => {
       return res.status(404).json({ message: 'Maintenance record not found' })
     }
 
+    const previousBusId = record.bus_id
+
     const updated = await Maintenance.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     })
-    res.json(updated)
+
+    await syncBusMaintenanceFields(updated.bus_id)
+    if (previousBusId && String(previousBusId) !== String(updated.bus_id)) {
+      await syncBusMaintenanceFields(previousBusId)
+    }
+
+    const populated = await Maintenance.findById(updated._id).populate(
+      'bus_id',
+      'regNumber status lastMaintenanceDate nextMaintenanceDate'
+    )
+    res.json(populated)
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -145,7 +168,22 @@ export const deleteMaintenance = async (req, res) => {
       return res.status(404).json({ message: 'Maintenance record not found' })
     }
 
+    const busId = record.bus_id
     await record.deleteOne()
+    await syncBusMaintenanceFields(busId)
+
+    const remaining = await Maintenance.countDocuments({ bus_id: busId })
+    if (remaining === 0) {
+      const bus = await Bus.findById(busId).select('status')
+      if (bus?.status === 'maintenance') {
+        await Bus.findByIdAndUpdate(busId, {
+          status: 'available',
+          lastMaintenanceDate: null,
+          nextMaintenanceDate: null,
+        })
+      }
+    }
+
     res.json({ message: 'Maintenance record removed successfully' })
   } catch (error) {
     res.status(500).json({ message: error.message })

@@ -70,14 +70,6 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
         await api.put(`/maintenance/${record._id}`, form)
       } else {
         await api.post('/maintenance', form)
-        // Update bus status to maintenance and update maintenance dates
-        if (form.bus_id) {
-          await api.put(`/buses/${form.bus_id}`, {
-            status: 'maintenance',
-            lastMaintenanceDate: form.service_date,
-            nextMaintenanceDate: new Date(new Date(form.service_date).getTime() + 28 * 24 * 60 * 60 * 1000).toISOString()
-          })
-        }
       }
       onSave()
     } catch (err) {
@@ -723,6 +715,7 @@ function Maintenance() {
 
   const refreshMaintenance = () => {
     invalidatePageData('/maintenance')
+    invalidatePageData('/buses')
     reload({ keepContent: true, force: true })
   }
 
@@ -758,7 +751,15 @@ function Maintenance() {
   }
 
   const totalMaintenanceCost = maintenance.reduce((sum, r) => sum + (r.cost || 0), 0)
-  const maintenanceOverdue = maintenance.filter((r) => r.bus_id?.status === 'maintenance')
+  const unitsInMaintenance = useMemo(() => {
+    const ids = new Set()
+    for (const record of maintenance) {
+      if (record.bus_id?.status === 'maintenance') {
+        ids.add(String(record.bus_id._id || record.bus_id))
+      }
+    }
+    return ids.size
+  }, [maintenance])
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
   const formatCurrency = (n) => `LKR ${Number(n || 0).toLocaleString()}`
@@ -825,7 +826,7 @@ function Maintenance() {
             <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Service</p>
             <Icon name="build_circle" size={18} className="text-outline" />
           </div>
-          <p className="text-2xl font-bold text-neutral-900">{maintenanceOverdue.length} <span className="text-sm font-normal">Units</span></p>
+          <p className="text-2xl font-bold text-neutral-900">{unitsInMaintenance} <span className="text-sm font-normal">Units</span></p>
           <p className="mt-1 text-xs text-on-surface-variant">In depot workshop</p>
         </div>
       </div>
