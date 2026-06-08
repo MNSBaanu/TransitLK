@@ -465,7 +465,12 @@ export const getSchedules = async (req, res) => {
       if (busId) filter.busId = busId
       if (driverId) filter.driverId = driverId
     }
-    if (status) filter.status = status
+    if (status === 'rejected') {
+      filter.status = 'draft'
+      filter.rejectionReason = { $exists: true, $ne: '' }
+    } else if (status) {
+      filter.status = status
+    }
 
     if (timetableId) filter.timetableId = String(timetableId).trim()
     if (timetablePeriod) filter.timetablePeriod = timetablePeriod
