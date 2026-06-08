@@ -11,6 +11,7 @@
     "seed:routes": "node scripts/importMataleRoutes.js",
     "import:matale-routes": "node scripts/importMataleRoutes.js",
     "seed:schedules": "node scripts/seedSchedule.js",
+    "seed:maintenance": "node scripts/seedMaintenance.js",
     "seed:sample": "npm run seed:fleet && npm run seed:routes && npm run seed:schedules",
     "seed:all": "npm run seed:sample",
     "backfill:route-service-types": "node scripts/backfillRouteServiceTypes.js"

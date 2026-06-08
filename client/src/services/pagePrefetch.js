@@ -328,14 +328,25 @@ export async function prefetchPageData(path, options = {}) {
   }
 }
 
-export function invalidatePageData(path) {
+function clearPageCache(path) {
   for (const key of pageCache.keys()) {
     if (key === path || key.startsWith(`${path}?`)) {
       pageCache.delete(key)
     }
   }
+}
+
+export function invalidatePageData(path) {
+  clearPageCache(path)
   if (path === '/buses' || path === '/routes' || path === '/schedules') {
     pageCache.delete(ROUTE_SUPPORT_CACHE_KEY)
+  }
+  const relatedPaths = {
+    '/maintenance': ['/buses'],
+    '/buses': ['/maintenance'],
+  }
+  for (const relatedPath of relatedPaths[path] || []) {
+    clearPageCache(relatedPath)
   }
 }
 
