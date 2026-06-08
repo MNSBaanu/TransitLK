@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import { invalidatePageData } from '../services/pagePrefetch'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
@@ -61,6 +62,10 @@ function ScheduleApprovals() {
       setLoading(false)
     }
   }, [user?.role, loadPending])
+
+  useAutoRefresh(() => loadPending(), {
+    enabled: canApproveSchedules(user?.role) && !saving && !rejectTargetId,
+  })
 
   const handleApprove = async (id) => {
     setSaving(true)
