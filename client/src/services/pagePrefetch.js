@@ -1,6 +1,6 @@
 import api from './api'
 import { ROLE_ALLOWED_PATHS } from '../config/roles'
-import { getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
+import { applyReportPeriodRange, getViewDateRange, toDateInputValue } from '../utils/scheduleHelpers'
 
 const CACHE_TTL_MS = 60 * 1000
 const pageCache = new Map()
@@ -8,17 +8,9 @@ const inflightRequests = new Map()
 const ROUTE_SUPPORT_CACHE_KEY = '__routes_support__'
 
 function asArray(value) {
-  return Array.isArray(value) ? value : []
-}
-
-function startOfMonth(date) {
-  const d = new Date(date)
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
-
-function endOfMonth(date) {
-  const d = new Date(date)
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
+  if (Array.isArray(value)) return value
+  if (value?.items && Array.isArray(value.items)) return value.items
+  return []
 }
 
 function getDefaultScheduleOptions() {
@@ -29,15 +21,11 @@ function getDefaultScheduleOptions() {
 }
 
 function getDefaultReportOptions() {
-  const today = new Date()
-  today.setHours(23, 59, 59, 999)
-  const start = startOfMonth(today)
-  const end = endOfMonth(today)
-
+  const { from, to } = applyReportPeriodRange('monthly')
   return {
     period: 'monthly',
-    fromDate: toDateInputValue(start),
-    toDate: toDateInputValue(end > today ? today : end),
+    fromDate: from,
+    toDate: to,
   }
 }
 

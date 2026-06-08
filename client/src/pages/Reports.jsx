@@ -10,6 +10,7 @@ import { ModuleHeader, ModuleToast } from '../components/layout/ModuleLayout'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
 import { hasErrors, validateDateRange } from '../utils/formValidation'
+import { applyReportPeriodRange } from '../utils/scheduleHelpers'
 
 const labelClass = 'text-[10px] font-bold uppercase tracking-wider text-fleet-ink-muted'
 
@@ -25,63 +26,6 @@ const RECOMMENDATION_STYLES = {
   medium: 'border-amber-200/70 bg-amber-50/50 text-amber-950',
   low: 'border-emerald-200/70 bg-emerald-50/50 text-emerald-900',
   info: 'border-white/50 bg-white/30 text-fleet-ink-muted',
-}
-
-function toInputDate(d) {
-  const x = new Date(d)
-  const y = x.getFullYear()
-  const m = String(x.getMonth() + 1).padStart(2, '0')
-  const day = String(x.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function startOfWeek(date) {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function endOfWeek(date) {
-  const d = startOfWeek(date)
-  d.setDate(d.getDate() + 6)
-  return d
-}
-
-function startOfMonth(date) {
-  const d = new Date(date)
-  return new Date(d.getFullYear(), d.getMonth(), 1)
-}
-
-function endOfMonth(date) {
-  const d = new Date(date)
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
-}
-
-function applyPeriodRange(period, anchor = new Date()) {
-  const today = new Date()
-  today.setHours(23, 59, 59, 999)
-  if (period === 'weekly') {
-    const start = startOfWeek(anchor)
-    const end = endOfWeek(anchor)
-    return {
-      from: toInputDate(start),
-      to: toInputDate(end > today ? today : end),
-    }
-  }
-  const start = startOfMonth(anchor)
-  const end = endOfMonth(anchor)
-  return {
-    from: toInputDate(start),
-    to: toInputDate(end > today ? today : end),
-  }
-}
-
-function formatRangeLabel(from, to) {
-  const opts = { month: 'short', day: 'numeric', year: 'numeric' }
-  return `${new Date(from).toLocaleDateString('en-GB', opts)} – ${new Date(to).toLocaleDateString('en-GB', opts)}`
 }
 
 function statusBadge(status) {
@@ -158,6 +102,7 @@ function OperationalInsightsSection({ insights }) {
     bestPerformingRoute,
     worstPerformingRoute,
     highestFuelConsumingRoute,
+    highestFuelConsumingVehicle,
     fleetUtilization,
     routeDelayAnalysis = [],
     recommendations = [],
@@ -173,7 +118,7 @@ function OperationalInsightsSection({ insights }) {
         decision-making.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
         <InsightHighlightCard title="Best performing route" icon="emoji_events" tone="success">
           {bestPerformingRoute ? (
             <>
@@ -230,6 +175,30 @@ function OperationalInsightsSection({ insights }) {
           )}
         </InsightHighlightCard>
 
+        <InsightHighlightCard title="Highest fuel consuming vehicle" icon="directions_bus" tone="fuel">
+          {highestFuelConsumingVehicle ? (
+            <>
+              <p className="text-base font-bold text-fleet-ink">
+                {highestFuelConsumingVehicle.regNumber}
+              </p>
+              <p className="mt-1 text-sm font-semibold text-fleet-ink">
+                {highestFuelConsumingVehicle.liters} L
+              </p>
+              {highestFuelConsumingVehicle.litersPerTrip != null && (
+                <p className="mt-0.5 text-xs text-fleet-ink-muted">
+                  {highestFuelConsumingVehicle.litersPerTrip} L/trip ·{' '}
+                  {highestFuelConsumingVehicle.fuelShare}% of fleet fuel
+                </p>
+              )}
+              {highestFuelConsumingVehicle.highUsage && (
+                <p className="mt-1 text-xs font-semibold text-amber-700">High usage flagged</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-fleet-ink-muted">No fuel logs for vehicles in this period.</p>
+          )}
+        </InsightHighlightCard>
+
         <InsightHighlightCard title="Fleet utilization" icon="directions_bus" tone="warning">
           <p className="text-2xl font-bold text-fleet-ink">{fleetRate}%</p>
           <p className="mt-1 text-sm text-fleet-ink-muted">
@@ -273,7 +242,7 @@ function OperationalInsightsSection({ insights }) {
               ) : (
                 routeDelayAnalysis.map((row) => (
                   <tr
-                    key={row.routeName}
+                    key={row.routeId || row.routeName}
                     className="border-b border-white/30 last:border-0 hover:bg-white/20"
                   >
                     <td className="px-4 py-3 font-semibold text-fleet-ink">{row.routeName}</td>
@@ -357,7 +326,7 @@ function Reports() {
   const { user } = useAuth()
   const printRef = useRef(null)
   const initialPeriod = 'monthly'
-  const initialRange = applyPeriodRange(initialPeriod)
+  const initialRange = applyReportPeriodRange(initialPeriod)
   const initialData =
     getCachedPageData('/reports', {
       period: initialPeriod,
@@ -385,7 +354,7 @@ function Reports() {
 
   const handlePeriodChange = (p) => {
     setPeriod(p)
-    const { from, to } = applyPeriodRange(p, toDate)
+    const { from, to } = applyReportPeriodRange(p, fromDate)
     setFromDate(from)
     setToDate(to)
   }
@@ -514,6 +483,7 @@ function Reports() {
     (data?.monthlySummary || []).length > 0
       ? data.monthlySummary
       : (data?.routes || []).filter((r) => r.tripCount > 0).map((r) => ({
+          routeId: r.routeId,
           depotUnit: r.routeName,
           operationalHours: `${r.operationalHours} hrs`,
           incidentsLabel:
@@ -617,26 +587,6 @@ function Reports() {
 
       {data && (
         <>
-          <div className="glass-panel flex flex-wrap items-center gap-3 rounded-2xl px-5 py-4">
-            <Icon name="insights" size={20} className="text-depot-navy" />
-            <div>
-              <p className="text-sm font-semibold text-fleet-ink">
-                {periodLabel} operations report
-              </p>
-              <p className="text-xs text-fleet-ink-muted">{formatRangeLabel(fromDate, toDate)}</p>
-            </div>
-            <div className="ml-auto flex flex-wrap gap-2">
-              {REPORT_SECTIONS.map((s) => (
-                <span
-                  key={s.id}
-                  className="rounded-full border border-white/40 bg-white/30 px-3 py-1 text-[10px] font-bold text-fleet-ink-muted backdrop-blur-sm"
-                >
-                  {s.title}
-                </span>
-              ))}
-            </div>
-          </div>
-
           {!data.hasData && (
             <div className="glass-card px-4 py-3 text-sm text-fleet-ink-muted">
               No data for this {period} range. Add schedules and fuel logs, or change the report period.
@@ -757,7 +707,7 @@ function Reports() {
                   ) : (
                     routeRows.map((row) => (
                       <tr
-                        key={row.depotUnit}
+                        key={row.routeId || row.depotUnit}
                         className="border-b border-white/30 transition-colors last:border-0 hover:bg-white/25"
                       >
                         <td className="px-6 py-4 font-semibold text-fleet-ink">{row.depotUnit}</td>
@@ -811,7 +761,7 @@ function Reports() {
                 value={String(data.recordCounts?.fuelLogs ?? 0)}
               />
             </div>
-            <div className="grid gap-6 border-t border-white/40 p-6 lg:grid-cols-2">
+            <div className="grid gap-6 border-t border-white/40 p-6 lg:grid-cols-2 xl:grid-cols-3">
               <div>
                 <p className={`${labelClass} mb-3`}>
                   {period === 'weekly' ? 'Daily consumption' : 'Weekly consumption'}
@@ -858,7 +808,7 @@ function Reports() {
                     ) : (
                       data.fuel.byRoute.map((r, i) => (
                         <div
-                          key={r.routeName}
+                          key={r.routeId || `${r.routeName}-${i}`}
                           className="glass-subtle flex items-center justify-between rounded-lg px-3 py-2"
                         >
                           <div className="flex items-center gap-2">
@@ -875,6 +825,46 @@ function Reports() {
                       ))
                     )}
                   </div>
+                </div>
+              </div>
+              <div>
+                <p className={`${labelClass} mb-3`}>By vehicle</p>
+                {(data.fuel?.fleetAvgLitersPerTrip != null || (data.fuel?.highUsageCount ?? 0) > 0) && (
+                  <p className="mb-3 text-xs text-fleet-ink-muted">
+                    Fleet avg: {data.fuel.fleetAvgLitersPerTrip ?? '—'} L/trip
+                    {(data.fuel?.highUsageCount ?? 0) > 0 &&
+                      ` · ${data.fuel.highUsageCount} high-usage vehicle(s)`}
+                  </p>
+                )}
+                <div className="flex flex-col gap-2">
+                  {(data.fuel?.byVehicle || []).length === 0 ? (
+                    <p className="text-sm text-fleet-ink-muted">No fuel logs in this period.</p>
+                  ) : (
+                    data.fuel.byVehicle.map((v) => (
+                      <div
+                        key={v.regNumber}
+                        className={`glass-subtle flex items-center justify-between rounded-lg px-3 py-2 ${
+                          v.highUsage ? 'ring-1 ring-amber-300/80' : ''
+                        }`}
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-fleet-ink">{v.regNumber}</p>
+                          <p className="text-xs text-fleet-ink-muted">
+                            {v.litersPerTrip != null ? `${v.litersPerTrip} L/trip` : '—'}
+                            {v.tripCount > 0 ? ` · ${v.tripCount} trips` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold tabular-nums">{v.liters} L</p>
+                          {v.highUsage && (
+                            <p className="text-[10px] font-semibold uppercase text-amber-700">
+                              High usage
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

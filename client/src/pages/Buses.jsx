@@ -10,7 +10,7 @@ import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import ConfirmDialog from '../components/ConfirmDialog'
 import FieldError from '../components/FieldError'
 import ThemeTimeInput from '../components/ThemeTimeInput'
-import { ModuleHeader, ModulePrimaryButton } from '../components/layout/ModuleLayout'
+import { ModuleHeader, ModulePrimaryButton, ModuleStats } from '../components/layout/ModuleLayout'
 import {
   depotLabel,
   depotIdValue,
@@ -52,6 +52,159 @@ const STATUS_STYLES = {
 }
 
 const ITEMS_PER_PAGE = 8
+const MILEAGE_SERVICE_THRESHOLD = 150_000
+
+function getBusesNeedingMaintenanceSoon(buses) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const oneWeekFromNow = new Date(today)
+  oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
+  return buses.filter((b) => {
+    if (!b.nextMaintenanceDate || b.status === 'maintenance') return false
+    const nextDate = new Date(b.nextMaintenanceDate)
+    return nextDate <= oneWeekFromNow
+  })
+}
+
+function buildFleetMaintenanceAlerts(buses) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const alerts = []
+
+  for (const bus of buses) {
+    if (bus.status === 'maintenance') {
+      alerts.push({
+        id: `in-maint-${bus._id}`,
+        severity: 'info',
+        title: 'In maintenance',
+        busReg: bus.regNumber,
+        description: 'Vehicle is currently undergoing maintenance.',
+      })
+      continue
+    }
+
+    if ((bus.mileage || 0) >= MILEAGE_SERVICE_THRESHOLD) {
+      alerts.push({
+        id: `high-mileage-${bus._id}`,
+        severity: 'urgent',
+        title: 'Maintenance needed',
+        busReg: bus.regNumber,
+        description: `High mileage (${(bus.mileage || 0).toLocaleString()} km) — service required`,
+      })
+    }
+
+    if (bus.nextMaintenanceDate) {
+      const nextDate = new Date(bus.nextMaintenanceDate)
+      const oneWeekFromNow = new Date(today)
+      oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
+      if (nextDate <= oneWeekFromNow) {
+        const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24))
+        const isOverdue = daysUntil < 0
+        alerts.push({
+          id: `due-soon-${bus._id}`,
+          severity: isOverdue ? 'urgent' : 'warning',
+          title: isOverdue ? 'Service overdue' : 'Service due soon',
+          busReg: bus.regNumber,
+          description: isOverdue
+            ? `Overdue by ${Math.abs(daysUntil)} days · ${nextDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+            : `Due in ${daysUntil} days · ${nextDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+          busId: bus._id,
+        })
+      }
+    }
+  }
+
+  const severityRank = { urgent: 0, warning: 1, info: 2 }
+  return alerts.sort(
+    (a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9)
+  )
+}
+
+const ALERT_SEVERITY_STYLES = {
+  urgent: 'border-red-200 bg-red-50 text-red-900',
+  warning: 'border-amber-200 bg-amber-50 text-amber-900',
+  info: 'border-blue-200 bg-blue-50 text-blue-900',
+}
+
+function MaintenanceAlertsPanel({ open, onClose, buses, onGoToMaintenance }) {
+  if (!open) return null
+
+  const alerts = buildFleetMaintenanceAlerts(buses)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-outline-variant px-5 py-4">
+          <div className="flex items-center gap-2">
+            <Icon name="warning" size={22} className="text-amber-600" />
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900">Maintenance Alerts</h3>
+              <p className="text-xs text-on-surface-variant">
+                {alerts.length} alert{alerts.length !== 1 ? 's' : ''} across the fleet
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1 hover:bg-surface-container"
+            aria-label="Close maintenance alerts"
+          >
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {alerts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Icon name="check_circle" size={40} className="text-green-500" />
+              <p className="mt-3 text-sm font-medium text-neutral-900">No maintenance alerts</p>
+              <p className="mt-1 text-xs text-on-surface-variant">All vehicles are in good standing.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`rounded-xl border p-4 ${ALERT_SEVERITY_STYLES[alert.severity] || ALERT_SEVERITY_STYLES.info}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
+                        {alert.title}
+                      </p>
+                      <p className="mt-1 text-sm font-bold">{alert.busReg}</p>
+                      <p className="mt-0.5 text-xs opacity-90">{alert.description}</p>
+                    </div>
+                    {alert.busId && (
+                      <button
+                        type="button"
+                        onClick={() => onGoToMaintenance(alert.busId)}
+                        className="shrink-0 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
+                      >
+                        Log service
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-outline-variant px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-lg border border-outline-variant py-2 text-sm font-medium hover:bg-surface-container"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 function BusModal({ bus, onClose, onSave }) {
@@ -174,7 +327,6 @@ function BusModal({ bus, onClose, onSave }) {
 
 // ── Fleet Inventory Tab ───────────────────────────────────────────────────────
 function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
-  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -198,91 +350,55 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   }
 
   const activeBuses = buses.filter((b) => b.status === 'available' || b.status === 'in-service')
+  const inServiceBuses = buses.filter((b) => b.status === 'in-service')
+  const availableBuses = buses.filter((b) => b.status === 'available')
   const maintenanceBuses = buses.filter((b) => b.status === 'maintenance')
   const healthPct = buses.length ? Math.round((activeBuses.length / buses.length) * 100) : 0
 
-  // Calculate buses nearing maintenance (within 1 week of nextMaintenanceDate)
-  const today = new Date()
-  const oneWeekFromNow = new Date(today)
-  oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
-  const busesNeedingMaintenance = buses.filter((b) => {
-    if (!b.nextMaintenanceDate || b.status === 'maintenance') return false
-    const nextDate = new Date(b.nextMaintenanceDate)
-    return nextDate <= oneWeekFromNow && nextDate >= today
-  })
+  const busesNeedingMaintenance = getBusesNeedingMaintenanceSoon(buses)
+
+  const fleetStatItems = [
+    {
+      label: 'Total fleet',
+      value: buses.length,
+      hint: `${inServiceBuses.length} in service · ${availableBuses.length} available`,
+      icon: 'directions_bus',
+    },
+    {
+      label: 'Fleet health',
+      value: `${healthPct}%`,
+      hint: healthPct >= 75 ? 'Operational readiness' : 'Review offline vehicles',
+      icon: 'check_circle',
+    },
+    {
+      label: 'In maintenance',
+      value: maintenanceBuses.length,
+      hint: maintenanceBuses.length
+        ? maintenanceBuses.slice(0, 3).map((b) => b.regNumber).join(' · ')
+        : 'No vehicles offline',
+      icon: 'build',
+    },
+    {
+      label: 'Service due soon',
+      value: busesNeedingMaintenance.length,
+      hint: busesNeedingMaintenance.length ? 'Within the next 7 days' : 'No upcoming service',
+      icon: 'schedule',
+    },
+  ]
 
   return (
     <>
-      {/* Summary Cards */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Active Fleet Health</p>
-          <p className="mt-1 text-3xl font-bold text-neutral-900">{healthPct}%</p>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container">
-            <div className="h-1.5 rounded-full bg-blue-600 transition-all" style={{ width: `${healthPct}%` }} />
-          </div>
+      <ModuleStats items={fleetStatItems} />
+
+      <div className="mb-4 rounded-xl border border-outline-variant bg-white px-4 py-3 shadow-sm">
+        <div className="mb-1.5 flex items-center justify-between text-xs">
+          <span className="font-medium text-fleet-ink">Operational readiness</span>
+          <span className="font-semibold text-depot-navy">{healthPct}%</span>
         </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <p className="text-xs text-on-surface-variant">Maintenance Pending</p>
-          <p className="mt-1 text-3xl font-bold text-red-600">{maintenanceBuses.length}</p>
-          <p className="mt-1 text-xs text-on-surface-variant">Vehicles offline</p>
-          <div className="mt-2 flex gap-1">
-            {maintenanceBuses.slice(0, 4).map((b) => (
-              <span key={b._id} className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-600">
-                {b.regNumber?.split('-')[0]}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border border-blue-700 bg-blue-700 p-4 text-white">
-          <p className="text-xs text-blue-200">Total Fleet</p>
-          <p className="mt-1 text-3xl font-bold">{buses.length}</p>
-          <p className="mt-1 text-xs text-blue-200">{activeBuses.length} active · {maintenanceBuses.length} in maintenance</p>
+        <div className="h-2.5 w-full rounded-full bg-fleet-muted">
+          <div className="h-2.5 rounded-full bg-depot-navy transition-all" style={{ width: `${healthPct}%` }} />
         </div>
       </div>
-
-      {/* Maintenance Alerts */}
-      {busesNeedingMaintenance.length > 0 && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Icon name="warning" size={20} className="text-red-600" />
-              <h3 className="text-sm font-semibold text-red-900">Maintenance Due Soon</h3>
-              <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-semibold text-red-800">
-                {busesNeedingMaintenance.length}
-              </span>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {busesNeedingMaintenance.map((bus) => {
-              const nextDate = new Date(bus.nextMaintenanceDate)
-              const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24))
-              const isOverdue = daysUntil < 0
-              return (
-                <div key={bus._id} className="flex items-center justify-between rounded-lg bg-white p-3 border border-red-200">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600 font-bold text-sm">
-                      {bus.regNumber?.split('-')[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-neutral-900">{bus.regNumber}</p>
-                      <p className="text-xs text-neutral-600">
-                        {isOverdue ? `Overdue by ${Math.abs(daysUntil)} days` : `Due in ${daysUntil} days`} · {nextDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => navigate(`/maintenance?busId=${bus._id}`)}
-                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
-                  >
-                    Add to Maintenance
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -687,39 +803,43 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   // derive a short driver ID from mongo _id
   const driverId = (d) => `#DR-${d._id.slice(-4).toUpperCase()}`
 
+  const availableDrivers = drivers.filter((d) => d.status === 'available')
+  const onLeaveDrivers = drivers.filter((d) => d.status === 'on-leave')
+  const offDutyDrivers = drivers.filter((d) => d.status === 'off-duty')
+  const expiringLicenses = drivers.filter(
+    (d) => getLicenseStatus(d.licenseExpiry)?.label === 'Expiring Soon'
+  ).length
+
+  const driverStatItems = [
+    {
+      label: 'Total drivers',
+      value: drivers.length,
+      hint: 'Registered in depot roster',
+      icon: 'group',
+    },
+    {
+      label: 'Available',
+      value: availableDrivers.length,
+      hint: `${onLeaveDrivers.length} on leave · ${offDutyDrivers.length} off duty`,
+      icon: 'directions_run',
+    },
+    {
+      label: 'With shifts',
+      value: drivers.filter((d) => d.workingHours).length,
+      hint: 'Assigned working hours',
+      icon: 'schedule',
+    },
+    {
+      label: 'Licenses expiring',
+      value: expiringLicenses,
+      hint: expiringLicenses ? 'Renew within 30 days' : 'No licenses expiring soon',
+      icon: 'report_problem',
+    },
+  ]
+
   return (
     <>
-      {/* Summary Cards */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Total Drivers</p>
-            <Icon name="group" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">{drivers.length}</p>
-          <p className="mt-1 text-xs text-green-600">Registered in system</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Active Duty</p>
-            <Icon name="directions_run" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.filter((d) => d.workingHours).length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">With assigned working hours</p>
-        </div>
-        <div className="rounded-xl border border-outline-variant bg-white p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">Depot Assigned</p>
-            <Icon name="warehouse" size={20} className="text-outline" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-neutral-900">
-            {drivers.length}
-          </p>
-          <p className="mt-1 text-xs text-on-surface-variant">Total registered</p>
-        </div>
-      </div>
+      <ModuleStats items={driverStatItems} />
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -805,7 +925,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                   })() : <span className="text-xs text-neutral-400">—</span>}
                 </td>
                 <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
+                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
+                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setViewDriver(d)}
@@ -935,12 +1056,17 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Buses() {
+  const navigate = useNavigate()
   const stale = getStalePageData('/buses')
   const [buses, setBuses] = useState(() => stale?.buses || [])
   const [drivers, setDrivers] = useState(() => stale?.drivers || [])
   const [tab, setTab] = useState('fleet')
   const [showAddBus, setShowAddBus] = useState(false)
   const [showAddDriver, setShowAddDriver] = useState(false)
+  const [showMaintenanceAlerts, setShowMaintenanceAlerts] = useState(false)
+
+  const maintenanceAlerts = buildFleetMaintenanceAlerts(buses)
+  const maintenanceAlertCount = new Set(maintenanceAlerts.map((a) => a.busReg)).size
 
   const applyData = useCallback((payload) => {
     setBuses(payload?.buses || [])
@@ -955,15 +1081,30 @@ function Buses() {
         title="Fleet & Drivers"
         subtitle="Manage your district vehicles and active driver roster."
         action={
-          tab === 'drivers' ? (
-            <ModulePrimaryButton icon="person_add" onClick={() => setShowAddDriver(true)}>
-              Add New Driver
-            </ModulePrimaryButton>
-          ) : (
-            <ModulePrimaryButton icon="add" onClick={() => setShowAddBus(true)}>
-              Add New Vehicle
-            </ModulePrimaryButton>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMaintenanceAlerts(true)}
+              className="relative flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700"
+            >
+              <Icon name="warning" size={18} />
+              Maintenance
+              {maintenanceAlertCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1.5 text-xs font-bold leading-none text-red-600 ring-2 ring-red-600">
+                  {maintenanceAlertCount}
+                </span>
+              )}
+            </button>
+            {tab === 'drivers' ? (
+              <ModulePrimaryButton icon="person_add" onClick={() => setShowAddDriver(true)}>
+                Add New Driver
+              </ModulePrimaryButton>
+            ) : (
+              <ModulePrimaryButton icon="add" onClick={() => setShowAddBus(true)}>
+                Add New Vehicle
+              </ModulePrimaryButton>
+            )}
+          </div>
         }
       />
 
@@ -1006,6 +1147,15 @@ function Buses() {
         </div>
       </div>
 
+      <MaintenanceAlertsPanel
+        open={showMaintenanceAlerts}
+        onClose={() => setShowMaintenanceAlerts(false)}
+        buses={buses}
+        onGoToMaintenance={(busId) => {
+          setShowMaintenanceAlerts(false)
+          navigate(`/maintenance?busId=${busId}`)
+        }}
+      />
     </div>
   )
 }
