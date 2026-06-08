@@ -12,7 +12,6 @@ import FieldError from '../components/FieldError'
 import ThemeTimeInput from '../components/ThemeTimeInput'
 import { ModuleHeader, ModulePrimaryButton, ModuleStats } from '../components/layout/ModuleLayout'
 import {
-  depotLabel,
   depotIdValue,
   formatServiceType,
   formatWorkingHours,
@@ -484,15 +483,14 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Current Route</th>
               <th className="px-4 py-3 text-left">Current Schedule</th>
               <th className="px-4 py-3 text-left">Last Maintenance</th>
-              <th className="px-4 py-3 text-left">Depot</th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
             ) : paginated.map((bus, index) => (
               <tr key={bus._id} className="hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
@@ -514,7 +512,6 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                     : <span className="text-neutral-400">—</span>
                   }
                 </td>
-                <td className="px-4 py-3 text-neutral-500">{depotLabel(bus.depotId)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <button onClick={() => setModal(bus)}
