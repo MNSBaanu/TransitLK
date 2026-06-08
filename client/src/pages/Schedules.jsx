@@ -422,8 +422,7 @@ function SchedulesPage() {
     setShowConflictPanel(false)
     if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
     setAdjustForm(syncTripForm(trip))
-    const shouldOpen = openDrawer === true || (openDrawer !== false && adjustAwaitingTrip)
-    if (shouldOpen) {
+    if (openDrawer !== false) {
       setShowAdjustDrawer(true)
       setAdjustAwaitingTrip(false)
     }
@@ -1154,6 +1153,7 @@ function SchedulesPage() {
           setMaintenanceConfirm(true)
         }}
         onPickCoverDriver={handlePickCoverDriver}
+        canAdjustSchedules={canAdjustSchedules}
       />
 
       <ConfirmDialog
