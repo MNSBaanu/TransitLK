@@ -1,0 +1,18 @@
+import { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
+
+export default function ScrollToTop() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const main = document.querySelector('[data-app-scroll]')
+    if (main) {
+      main.scrollTop = 0
+      main.scrollLeft = 0
+    } else {
+      window.scrollTo(0, 0)
+    }
+  }, [pathname])
+
+  return null
+}

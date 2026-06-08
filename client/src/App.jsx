@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import ScrollToTop from './components/ScrollToTop'
 import Dashboard from './pages/Dashboard'
 import RoutesPage from './pages/Routes'
 import Schedules from './pages/Schedules'
@@ -28,6 +29,8 @@ function RootRedirect() {
 
 function App() {
   return (
+    <>
+    <ScrollToTop />
     <Routes>
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
 
@@ -53,6 +56,7 @@ function App() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<RootRedirect />} />
     </Routes>
+    </>
   )
 }
 
