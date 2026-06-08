@@ -354,12 +354,22 @@ async function fetchDriverTripsPageData() {
 }
 
 async function fetchScheduleApprovalsPageData() {
-  const { data } = await api.get('/schedules', { params: { status: 'pending' } })
-  return { pending: asArray(data) }
+  const [pendingRes, rejectedRes] = await Promise.all([
+    api.get('/schedules', { params: { status: 'pending' } }),
+    api.get('/schedules', { params: { status: 'rejected' } }),
+  ])
+  return {
+    pending: asArray(pendingRes.data),
+    rejected: asArray(rejectedRes.data),
+  }
 }
 
 export function isScheduleApproverRole(role) {
   return SCHEDULE_APPROVER_ROLES.has(role)
+}
+
+export function isSchedulePlannerRole(role) {
+  return role === ROLES.TRANSPORT_SCHEDULER || role === ROLES.ADMINISTRATOR
 }
 
 export function prefetchScheduleApprovals() {
@@ -515,7 +525,7 @@ function prefetchJobsForRole(role) {
     return prefetchPageData(path)
   })
 
-  if (isScheduleApproverRole(role)) {
+  if (isScheduleApproverRole(role) || role === ROLES.TRANSPORT_SCHEDULER) {
     jobs.push(prefetchPageData(SCHEDULE_APPROVALS_PATH))
   }
 
