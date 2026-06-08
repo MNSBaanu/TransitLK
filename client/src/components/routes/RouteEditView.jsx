@@ -14,6 +14,7 @@ const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surfac
 function RouteEditView({
   form,
   fieldErrors = {},
+  saveError = '',
   isEditing,
   routeCode,
   initialRouteStatus = 'draft',
@@ -224,21 +225,28 @@ function RouteEditView({
         </ModuleCard>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-w-[7.5rem] rounded-xl border border-outline-variant px-5 py-2.5 text-sm font-semibold hover:bg-surface-container"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="min-w-[9rem] rounded-xl bg-neutral-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-60"
-        >
-          {saving ? 'Saving...' : 'Save route'}
-        </button>
+      <div className="mt-5 space-y-2">
+        {saveError ? (
+          <p className="text-right text-sm text-red-600" role="alert">
+            {saveError}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-w-[7.5rem] rounded-xl border border-outline-variant px-5 py-2.5 text-sm font-semibold hover:bg-surface-container"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="min-w-[9rem] rounded-xl bg-neutral-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-60"
+          >
+            {saving ? 'Saving...' : 'Save route'}
+          </button>
+        </div>
       </div>
     </form>
   )

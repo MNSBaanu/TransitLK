@@ -23,7 +23,11 @@ import {
   driverUnassignableReason,
   isDriverAssignable,
 } from '../utils/fleetHelpers'
-import { buildRouteName, getRouteDeleteDisabledReason } from '../utils/routeHelpers'
+import {
+  buildRouteName,
+  getRouteDeleteDisabledReason,
+  getRouteStatusChangeBlockedReason,
+} from '../utils/routeHelpers'
 import { hasErrors, validateRouteForm } from '../utils/formValidation'
 import {
   ModuleAlert,
@@ -353,6 +357,7 @@ function RoutesPage() {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target
+    setError('')
     setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
     setForm((prev) => {
       const next = { ...prev, [name]: value }
@@ -478,6 +483,16 @@ function RoutesPage() {
     setFieldErrors(errors)
     if (hasErrors(errors)) return
     if (isEditingExisting && !validateFleetAssignment()) return
+    if (isEditingExisting) {
+      const statusBlock = getRouteStatusChangeBlockedReason(
+        { status: initialRouteStatus, scheduleCount: selectedRoute?.scheduleCount },
+        form.status
+      )
+      if (statusBlock) {
+        setError(statusBlock)
+        return
+      }
+    }
     setSaving(true)
     try {
       const payload = buildPayload()
@@ -708,10 +723,10 @@ function RoutesPage() {
               </p>
             </div>
           </div>
-          {error && <ModuleAlert variant="error" title={error} />}
           <RouteEditView
             form={form}
             fieldErrors={fieldErrors}
+            saveError={error}
             isEditing={isEditingExisting}
             routeCode={displayRouteCode}
             initialRouteStatus={initialRouteStatus}
