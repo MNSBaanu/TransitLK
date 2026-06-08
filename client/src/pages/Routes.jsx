@@ -20,9 +20,10 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import {
   defaultMinCapacityForService,
   isBusAssignable,
+  driverUnassignableReason,
   isDriverAssignable,
 } from '../utils/fleetHelpers'
-import { buildRouteName } from '../utils/routeHelpers'
+import { buildRouteName, getRouteDeleteDisabledReason } from '../utils/routeHelpers'
 import { hasErrors, validateRouteForm } from '../utils/formValidation'
 import {
   ModuleAlert,
@@ -116,6 +117,7 @@ function RoutesPage() {
   const [summary, setSummary] = useState(() => initialData?.summary || EMPTY_SUMMARY)
   const [assignRoute, setAssignRoute] = useState(null)
   const [deleteTargetId, setDeleteTargetId] = useState(null)
+  const [deleteBlockedMessage, setDeleteBlockedMessage] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [loading, setLoading] = useState(!initialData)
   const [saving, setSaving] = useState(false)
@@ -234,7 +236,13 @@ function RoutesPage() {
       }),
     {
       enabled:
-        pageView === 'list' && !assignRoute && !deleteTargetId && !saving && !isEditPage && !isViewing,
+        pageView === 'list' &&
+          !assignRoute &&
+          !deleteTargetId &&
+          !deleteBlockedMessage &&
+          !saving &&
+          !isEditPage &&
+          !isViewing,
     }
   )
 
@@ -384,7 +392,10 @@ function RoutesPage() {
       return false
     }
     if (!isDriverAssignable(selectedDriver)) {
-      setError('Selected driver is not available or is outside working hours.')
+      setError(
+        driverUnassignableReason(selectedDriver) ||
+          'Selected driver is not available or is outside working hours.'
+      )
       return false
     }
     return true
@@ -496,6 +507,13 @@ function RoutesPage() {
   const deleteTargetRoute = routes.find((r) => r._id === deleteTargetId)
 
   const handleDeleteRequest = (id) => {
+    const route = routes.find((r) => String(r._id) === String(id))
+    const blocked = getRouteDeleteDisabledReason(route)
+    if (blocked) {
+      setDeleteBlockedMessage(blocked)
+      return
+    }
+    setError('')
     setDeleteTargetId(id)
   }
 
@@ -595,6 +613,16 @@ function RoutesPage() {
               onDelete={handleDeleteRequest}
             />
           </ModuleCard>
+
+          <ConfirmDialog
+            open={Boolean(deleteBlockedMessage)}
+            title="Cannot delete route"
+            message={deleteBlockedMessage || ''}
+            cancelLabel="Close"
+            variant="danger"
+            alertOnly
+            onCancel={() => setDeleteBlockedMessage(null)}
+          />
 
           <ConfirmDialog
             open={Boolean(deleteTargetId)}

@@ -96,7 +96,6 @@ function SchedulesPage() {
   const [loadingTimetableRange, setLoadingTimetableRange] = useState(false)
   const [timetableRefreshing, setTimetableRefreshing] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
-  const [emergencyMode, setEmergencyMode] = useState(false)
   const [adjustForm, setAdjustForm] = useState({
     departureTime: '08:00',
     arrivalTime: '12:00',
@@ -403,7 +402,7 @@ function SchedulesPage() {
     busId: trip.busId?._id || trip.busId || '',
     driverId: trip.driverId?._id || trip.driverId || '',
     status: trip.status || 'scheduled',
-    reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
+    reason: trip.adjustmentReason || 'normal',
     notes: trip.adjustmentNotes || '',
   })
 
@@ -422,8 +421,7 @@ function SchedulesPage() {
     setShowConflictPanel(false)
     if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
     setAdjustForm(syncTripForm(trip))
-    const shouldOpen = openDrawer === true || (openDrawer !== false && adjustAwaitingTrip)
-    if (shouldOpen) {
+    if (openDrawer !== false) {
       setShowAdjustDrawer(true)
       setAdjustAwaitingTrip(false)
     }
@@ -482,11 +480,11 @@ function SchedulesPage() {
   }
 
   const handleEmergencyToggle = (on) => {
-    setEmergencyMode(on)
+    if (!selected) return
     setAdjustForm((prev) => ({
       ...prev,
       reason: on ? 'emergency' : 'normal',
-      status: on ? 'delayed' : prev.status === 'delayed' ? 'scheduled' : prev.status,
+      status: reasonToStatus(on ? 'emergency' : 'normal', on ? prev.status : selected.status || prev.status),
     }))
   }
 
@@ -636,7 +634,7 @@ function SchedulesPage() {
           departureTime: row.departureTime,
           arrivalTime: row.arrivalTime,
           status: 'pending',
-          adjustmentReason: emergencyMode ? 'emergency' : 'normal',
+          adjustmentReason: 'normal',
         }
         for (const day of dates) {
           try {
@@ -943,18 +941,6 @@ function SchedulesPage() {
               Resolve conflicts
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => handleEmergencyToggle(!emergencyMode)}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-              emergencyMode
-                ? 'border-depot-blue-light bg-depot-blue-light/10 text-depot-blue-light'
-                : 'border-outline-variant bg-surface-container text-neutral-800 hover:bg-white'
-            }`}
-          >
-            <Icon name="bolt" size={18} />
-            Emergency mode
-          </button>
         </div>
       </div>
 
@@ -1131,7 +1117,6 @@ function SchedulesPage() {
           setMaintenanceConfirm(false)
         }}
         selected={selected}
-        emergencyMode={emergencyMode}
         onEmergencyToggle={handleEmergencyToggle}
         adjustForm={adjustForm}
         onAdjustChange={handleAdjustChange}
@@ -1154,6 +1139,7 @@ function SchedulesPage() {
           setMaintenanceConfirm(true)
         }}
         onPickCoverDriver={handlePickCoverDriver}
+        canAdjustSchedules={canAdjustSchedules}
       />
 
       <ConfirmDialog

@@ -1,6 +1,10 @@
 import Icon from '../Icon'
 import { formatServiceType } from '../../utils/fleetHelpers'
-import { formatRouteStatus, routeStatusClass } from '../../utils/routeHelpers'
+import {
+  formatRouteStatus,
+  getRouteDeleteDisabledReason,
+  routeStatusClass,
+} from '../../utils/routeHelpers'
 import { ModuleSearchInput, ModuleSecondaryButton, ModuleTable } from '../layout/ModuleLayout'
 
 function routeCode(route) {
@@ -117,7 +121,9 @@ function RouteListTable({
               </td>
             </tr>
           ) : (
-            routes.map((route) => (
+            routes.map((route) => {
+              const deleteDisabledReason = getRouteDeleteDisabledReason(route)
+              return (
               <tr key={route._id} className="transition-colors hover:bg-surface-container-low">
                 <td className="px-4 py-3 font-mono text-xs font-semibold tabular-nums text-neutral-700">
                   {routeCode(route)}
@@ -193,15 +199,22 @@ function RouteListTable({
                     <button
                       type="button"
                       onClick={() => onDelete(route._id)}
-                      className="rounded-lg p-2 text-red-500 hover:bg-red-50"
-                      title="Delete"
+                      title={deleteDisabledReason || 'Delete route'}
+                      className={`rounded-lg p-2 ${
+                        deleteDisabledReason
+                          ? 'cursor-not-allowed text-red-300 opacity-50'
+                          : 'text-red-500 hover:bg-red-50'
+                      }`}
+                      aria-label={
+                        deleteDisabledReason ? 'Delete route (disabled)' : 'Delete route'
+                      }
                     >
                       <Icon name="delete" size={18} />
                     </button>
                   </div>
                 </td>
               </tr>
-            ))
+            )})
           )}
         </tbody>
       </ModuleTable>

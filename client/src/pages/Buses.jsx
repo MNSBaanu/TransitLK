@@ -51,6 +51,51 @@ const STATUS_STYLES = {
   maintenance:   'bg-red-100 text-red-700',
 }
 
+const SCHEDULE_PHASE_STYLES = {
+  'in-progress': 'bg-blue-100 text-blue-700',
+  upcoming: 'bg-amber-100 text-amber-800',
+  completed: 'bg-neutral-100 text-neutral-600',
+}
+
+function formatAssignedRouteCell(route) {
+  if (!route?.routeName) {
+    return <span className="text-xs text-neutral-400">—</span>
+  }
+  return (
+    <div>
+      <p className="font-medium text-neutral-800">{route.routeName}</p>
+      {route.routeNo && (
+        <p className="text-xs text-neutral-400">{route.routeNo}</p>
+      )}
+    </div>
+  )
+}
+
+function formatCurrentScheduleCell(schedule) {
+  if (!schedule) {
+    return <span className="text-xs text-neutral-400">—</span>
+  }
+  const phaseLabel =
+    schedule.phase === 'in-progress'
+      ? 'In progress'
+      : schedule.phase === 'upcoming'
+        ? 'Next today'
+        : 'Completed today'
+  return (
+    <div>
+      <p className="font-medium text-neutral-800">
+        {schedule.departureTime}–{schedule.arrivalTime}
+      </p>
+      <p className="text-xs text-neutral-500">{schedule.routeName || 'Trip'}</p>
+      <span
+        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed}`}
+      >
+        {phaseLabel}
+      </span>
+    </div>
+  )
+}
+
 const ITEMS_PER_PAGE = 8
 const MILEAGE_SERVICE_THRESHOLD = 150_000
 
@@ -432,6 +477,8 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Capacity</th>
               <th className="px-4 py-3 text-left">Mileage</th>
               <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Current Route</th>
+              <th className="px-4 py-3 text-left">Current Schedule</th>
               <th className="px-4 py-3 text-left">Last Maintenance</th>
               <th className="px-4 py-3 text-left">Depot</th>
               <th className="px-4 py-3 text-left">Actions</th>
@@ -439,9 +486,9 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
             ) : paginated.map((bus, index) => (
               <tr key={bus._id} className="hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
@@ -455,6 +502,8 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                     {bus.status}
                   </span>
                 </td>
+                <td className="px-4 py-3">{formatAssignedRouteCell(bus.assignedRoute)}</td>
+                <td className="px-4 py-3">{formatCurrentScheduleCell(bus.currentSchedule)}</td>
                 <td className="px-4 py-3 text-neutral-600">
                   {bus.lastMaintenanceDate
                     ? new Date(bus.lastMaintenanceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -879,6 +928,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">License No.</th>
               <th className="px-4 py-3 text-left">Expiry</th>
+              <th className="px-4 py-3 text-left">Current Route</th>
+              <th className="px-4 py-3 text-left">Current Schedule</th>
               <th className="px-4 py-3 text-left">Email</th>
               <th className="px-4 py-3 text-left">Contact</th>
               <th className="px-4 py-3 text-left">Working Hours</th>
@@ -887,9 +938,9 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && drivers.length === 0 ? (
-              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={12} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+              <tr><td colSpan={12} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
             ) : paginated.map((d, index) => (
               <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
@@ -924,6 +975,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                     )
                   })() : <span className="text-xs text-neutral-400">—</span>}
                 </td>
+                <td className="px-4 py-3">{formatAssignedRouteCell(d.assignedRoute)}</td>
+                <td className="px-4 py-3">{formatCurrentScheduleCell(d.currentSchedule)}</td>
                 <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
