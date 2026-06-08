@@ -368,7 +368,6 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
       label: 'Fleet health',
       value: `${healthPct}%`,
       hint: healthPct >= 75 ? 'Operational readiness' : 'Review offline vehicles',
-      hintClass: healthPct >= 75 ? 'text-depot-blue-light' : 'text-red-600',
       icon: 'check_circle',
     },
     {
@@ -377,14 +376,12 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
       hint: maintenanceBuses.length
         ? maintenanceBuses.slice(0, 3).map((b) => b.regNumber).join(' · ')
         : 'No vehicles offline',
-      hintClass: maintenanceBuses.length ? 'text-red-600' : undefined,
       icon: 'build',
     },
     {
       label: 'Service due soon',
       value: busesNeedingMaintenance.length,
       hint: busesNeedingMaintenance.length ? 'Within the next 7 days' : 'No upcoming service',
-      hintClass: busesNeedingMaintenance.length ? 'text-amber-700' : undefined,
       icon: 'schedule',
     },
   ]
@@ -824,7 +821,6 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
       label: 'Available',
       value: availableDrivers.length,
       hint: `${onLeaveDrivers.length} on leave · ${offDutyDrivers.length} off duty`,
-      hintClass: 'text-depot-blue-light',
       icon: 'directions_run',
     },
     {
@@ -837,7 +833,6 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
       label: 'Licenses expiring',
       value: expiringLicenses,
       hint: expiringLicenses ? 'Renew within 30 days' : 'No licenses expiring soon',
-      hintClass: expiringLicenses ? 'text-amber-700' : undefined,
       icon: 'report_problem',
     },
   ]
