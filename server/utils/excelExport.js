@@ -161,11 +161,25 @@ export function buildFuelMaintenanceReportSpreadsheet(data) {
     metaRow('From', period.from),
     metaRow('To', period.to),
     emptyRow(),
-    ...keyValueSection('Period overview', [
-      ['Total operational cost (LKR)', combined.totalOperationalCost],
+    ...keyValueSection('Fuel Summary', [
+      ['Total liters', fuel.totalLiters],
+      ['Total cost (LKR)', fuel.totalCost],
+      ['Avg liters per entry', fuel.avgLitersPerEntry],
+      ['Fleet avg liters per trip', fuel.fleetAvgLitersPerTrip ?? '—'],
+      ['Top route', fuel.topRoute ? `${fuel.topRoute.routeName} (${fuel.topRoute.liters} L)` : '—'],
+    ]),
+    ...keyValueSection('Maintenance Summary', [
+      ['Total cost (LKR)', maintenance.totalCost],
+      ['Service jobs', maintenance.totalEntries],
+      ['Vehicles serviced', maintenance.vehiclesServiced],
       ['Fuel share (%)', combined.fuelSharePct],
       ['Maintenance share (%)', combined.maintenanceSharePct],
-      ['High-fuel vehicles', combined.highFuelVehicleCount],
+      [
+        'Top service type',
+        maintenance.topServiceType
+          ? `${maintenance.topServiceType.type} (${maintenance.topServiceType.cost} LKR)`
+          : '—',
+      ],
     ]),
     ...sectionTitle('Findings & recommendations'),
     ...(insights || []).map((i) =>
@@ -185,6 +199,24 @@ export function buildFuelMaintenanceReportSpreadsheet(data) {
       ['Period bucket', 'Cost (LKR)'],
       (maintenance.trend || []).map((t) => [t.label, t.cost])
     ),
+    ...((data.routesOfConcern || []).length > 0
+      ? tableSection(
+          'High-usage routes',
+          ['Route', 'Liters', 'Fleet share (%)'],
+          data.routesOfConcern.map((r) => [r.routeName, r.liters, r.fuelShare])
+        )
+      : []),
+    ...((data.inefficientVehicles || []).length > 0
+      ? tableSection(
+          'Inefficient driving patterns',
+          ['Vehicle', 'Liters per trip', 'Fleet avg L/trip'],
+          data.inefficientVehicles.map((v) => [
+            v.regNumber,
+            v.litersPerTrip,
+            fuel.fleetAvgLitersPerTrip ?? '—',
+          ])
+        )
+      : []),
     ...(concernRows.length > 0
       ? tableSection(
           'Vehicles requiring attention',
