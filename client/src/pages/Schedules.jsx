@@ -23,9 +23,13 @@ import {
   detectTimetableConflicts,
   formatPeriodLabel,
   formatTripDate,
-  buildTimetableRows,
+  buildTimetableRowsForPeriod,
   duplicateTimetableRow,
+  filterSchedulesInDateRange,
+  getTimetableDateBounds,
   getTimetableDates,
+  mergeSchedulesById,
+  viewRangeCoversTimetable,
   groupTimetableConflictsByRoute,
   reasonToStatus,
   requiresAdjustmentNotes,
@@ -191,6 +195,13 @@ function SchedulesPage() {
     { enabled: !showTimetable && !showAdjustDrawer && !showTripDetailsDrawer && !saving && !maintenanceConfirm }
   )
 
+  const applyTimetableSource = useCallback(
+    (period, anchor, sourceSchedules) => {
+      setTimetableRows(buildTimetableRowsForPeriod(routes, sourceSchedules, period, anchor))
+    },
+    [routes]
+  )
+
   const handleTimetableRefresh = useCallback(async () => {
     setTimetableRefreshing(true)
     setError('')
@@ -200,19 +211,24 @@ function SchedulesPage() {
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
-      const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-      if (dates.length) {
+      const { from, to } = getTimetableDateBounds(timetablePeriod, timetableAnchor)
+      if (from && to) {
         const { data: rangeSchedules } = await api.get('/schedules', {
-          params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
+          params: { fromDate: from, toDate: to },
         })
-        setTimetableRangeSchedules(Array.isArray(rangeSchedules) ? rangeSchedules : [])
+        const merged = mergeSchedulesById(
+          filterSchedulesInDateRange(data.schedules, from, to),
+          Array.isArray(rangeSchedules) ? rangeSchedules : []
+        )
+        setTimetableRangeSchedules(merged)
+        applyTimetableSource(timetablePeriod, timetableAnchor, merged)
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to refresh timetable data')
     } finally {
       setTimetableRefreshing(false)
     }
-  }, [timetableAnchor, timetablePeriod, viewDate, viewMode])
+  }, [timetableAnchor, timetablePeriod, viewDate, viewMode, applyTimetableSource])
 
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
@@ -291,57 +307,71 @@ function SchedulesPage() {
   const timetableReady = useMemo(() => isTimetableReady(timetableRows), [timetableRows])
 
   useEffect(() => {
-    if (!showTimetable) {
-      setTimetableRangeSchedules([])
-      return undefined
-    }
+    if (!showTimetable) return undefined
 
-    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-    if (!dates.length) return undefined
+    const period = timetablePeriod
+    const anchor = timetableAnchor
+    const { from, to } = getTimetableDateBounds(period, anchor)
+    if (!from || !to) return undefined
 
     let cancelled = false
-    setLoadingTimetableRange(true)
-    api
-      .get('/schedules', {
-        params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
-      })
-      .then(({ data }) => {
-        if (!cancelled) {
-          setTimetableRangeSchedules(Array.isArray(data) ? data : [])
+    const covered = viewRangeCoversTimetable(viewMode, viewDate, period, anchor)
+    const instant = mergeSchedulesById(
+      timetableRangeSchedules,
+      filterSchedulesInDateRange(schedules, from, to)
+    )
+
+    setTimetableRangeSchedules(instant)
+    applyTimetableSource(period, anchor, instant)
+    setLoadingTimetableRange(!covered && instant.length === 0 && routes.length === 0)
+
+    ;(async () => {
+      const syncRange = async () => {
+        const { data } = await api.get('/schedules', {
+          params: { fromDate: from, toDate: to },
+        })
+        if (cancelled) return
+        const merged = mergeSchedulesById(instant, Array.isArray(data) ? data : [])
+        setTimetableRangeSchedules(merged)
+        applyTimetableSource(period, anchor, merged)
+      }
+
+      if (covered) {
+        try {
+          await syncRange()
+        } catch {
+          /* keep instant rows */
+        } finally {
+          if (!cancelled) setLoadingTimetableRange(false)
         }
-      })
-      .catch(() => {
-        if (!cancelled) setTimetableRangeSchedules([])
-      })
-      .finally(() => {
+        return
+      }
+
+      setLoadingTimetableRange(true)
+      try {
+        await syncRange()
+      } catch {
+        if (!cancelled && !instant.length) {
+          setTimetableRangeSchedules([])
+          applyTimetableSource(period, anchor, [])
+        }
+      } finally {
         if (!cancelled) setLoadingTimetableRange(false)
-      })
+      }
+    })()
 
     return () => {
       cancelled = true
     }
-  }, [showTimetable, timetablePeriod, timetableAnchor])
-
-  const rebuildTimetableRows = useCallback(
-    (anchor, sourceSchedules = timetableRangeSchedules) => {
-      const daySchedules =
-        timetablePeriod === 'daily'
-          ? sourceSchedules.filter((s) => isTripOnDate(s, anchor))
-          : sourceSchedules
-      setTimetableRows(buildTimetableRows(routes, daySchedules, anchor))
-    },
-    [routes, timetablePeriod, timetableRangeSchedules]
-  )
-
-  useEffect(() => {
-    if (!showTimetable || loadingTimetableRange) return
-    rebuildTimetableRows(timetableAnchor, timetableRangeSchedules)
   }, [
     showTimetable,
-    loadingTimetableRange,
+    timetablePeriod,
     timetableAnchor,
-    timetableRangeSchedules,
-    rebuildTimetableRows,
+    viewMode,
+    viewDate,
+    schedules,
+    routes,
+    applyTimetableSource,
   ])
 
   const timetableConflicts = useMemo(() => {
@@ -473,8 +503,17 @@ function SchedulesPage() {
   }
 
   const openTimetableDrawer = () => {
-    setTimetablePeriod(viewMode === 'monthly' ? 'daily' : viewMode)
-    setTimetableAnchor(viewDate)
+    const period = viewMode === 'monthly' ? 'daily' : viewMode
+    const anchor = viewDate
+    const { from, to } = getTimetableDateBounds(period, anchor)
+    const instant = mergeSchedulesById(
+      timetableRangeSchedules,
+      filterSchedulesInDateRange(schedules, from, to)
+    )
+    setTimetablePeriod(period)
+    setTimetableAnchor(anchor)
+    setTimetableRangeSchedules(instant)
+    setTimetableRows(buildTimetableRowsForPeriod(routes, instant, period, anchor))
     setError('')
     setShowTimetable(true)
   }
@@ -1220,11 +1259,7 @@ function SchedulesPage() {
         tripCount={timetableTripCount}
         conflictPreview={timetableConflicts}
         rowConflictHints={timetableRowConflicts}
-        canCreateTimetable={
-          timetableReady &&
-          !loadingTimetableRange &&
-          !timetableConflicts?.hasConflict
-        }
+        canCreateTimetable={timetableReady && !timetableConflicts?.hasConflict}
         onRefresh={handleTimetableRefresh}
         refreshing={timetableRefreshing}
         checkingConflicts={loadingTimetableRange}
