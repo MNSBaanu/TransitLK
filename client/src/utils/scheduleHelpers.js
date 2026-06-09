@@ -874,6 +874,27 @@ export function requiresAdjustmentNotes(reason) {
   return ['emergency', 'maintenance', 'absence', 'obstruction'].includes(reason)
 }
 
+/** Hide internal dev/seed markers from trip notes shown in the UI. */
+export function isInternalTripNote(note) {
+  const text = String(note || '').trim()
+  if (!text) return true
+  const normalized = text.toLowerCase().replace(/\s+/g, '-')
+  return (
+    normalized.includes('seed-sample') ||
+    normalized.includes('seed_sample') ||
+    /^seed([-_]|$)/.test(normalized) ||
+    normalized === 'sample-data' ||
+    normalized === 'sample' ||
+    /^demo([-_]|$)/.test(normalized)
+  )
+}
+
+export function displayTripNote(note) {
+  const text = String(note || '').trim()
+  if (!text || isInternalTripNote(text)) return ''
+  return text
+}
+
 export function reasonToStatus(reason, currentStatus) {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'
