@@ -2,6 +2,7 @@ import api from './api'
 import { ROLE_ALLOWED_PATHS, ROLES } from '../config/roles'
 import {
   applyReportPeriodRange,
+  coerceFocusDate,
   getViewDateRange,
   parseLocalDateInput,
   sortApprovalTripsByRecent,
@@ -52,10 +53,15 @@ function normalizeOptions(path, options = {}) {
 
   if (path === '/schedules') {
     const defaults = getDefaultScheduleOptions()
-    return {
-      viewMode: options.viewMode || defaults.viewMode,
-      viewDate: options.viewDate || defaults.viewDate,
-    }
+    const viewMode = options.viewMode || defaults.viewMode
+    const rawDate =
+      typeof options.focusDate === 'string'
+        ? options.focusDate
+        : typeof options.viewDate === 'string'
+          ? options.viewDate
+          : defaults.viewDate
+    const focusDate = coerceFocusDate(rawDate)
+    return { viewMode, focusDate }
   }
 
   if (path === '/reports') {
@@ -78,7 +84,7 @@ function getCacheKey(path, options = {}) {
   }
 
   if (path === '/schedules') {
-    return `${path}?viewMode=${normalized.viewMode}&viewDate=${normalized.viewDate}`
+    return `${path}?viewMode=${normalized.viewMode}&focusDate=${normalized.focusDate}`
   }
 
   if (path === '/reports') {
@@ -150,8 +156,9 @@ async function fetchRoutesPageData(options = {}) {
     summary: routeData.summary || {
       total: 0,
       active: 0,
-      assigned: 0,
+      draft: 0,
       avgDistance: null,
+      distanceRouteCount: 0,
     },
     page,
     limit,
@@ -197,9 +204,9 @@ async function fetchScheduleSupportData({ force = false } = {}) {
 }
 
 async function fetchSchedulesTrips(options = {}) {
-  const { viewMode, viewDate } = normalizeOptions('/schedules', options)
-  const { from, to } = getViewDateRange(viewMode, viewDate)
-  const tripsKey = `schedules:trips:${viewMode}:${viewDate}`
+  const { viewMode, focusDate } = normalizeOptions('/schedules', options)
+  const { from, to } = getViewDateRange(viewMode, focusDate)
+  const tripsKey = `schedules:trips:${viewMode}:${from}:${to}`
 
   if (inflightRequests.has(tripsKey)) {
     return inflightRequests.get(tripsKey)
@@ -223,7 +230,7 @@ async function fetchSchedulesTrips(options = {}) {
 }
 
 async function fetchSchedulesPageData(options = {}, { force = false } = {}) {
-  const { viewMode, viewDate } = normalizeOptions('/schedules', options)
+  const { viewMode, focusDate } = normalizeOptions('/schedules', options)
   const [schedules, support] = await Promise.all([
     fetchSchedulesTrips(options),
     fetchScheduleSupportData({ force }),
@@ -235,13 +242,13 @@ async function fetchSchedulesPageData(options = {}, { force = false } = {}) {
     buses: support.buses,
     drivers: support.drivers,
     viewMode,
-    viewDate,
+    focusDate,
   }
 }
 
 /** Warm previous/next period in the background for faster date navigation. */
-export function prefetchAdjacentScheduleViews(viewMode, viewDate) {
-  const d = parseLocalDateInput(viewDate)
+export function prefetchAdjacentScheduleViews(viewMode, focusDate) {
+  const d = parseLocalDateInput(focusDate)
   if (Number.isNaN(d.getTime())) return
 
   if (viewMode === 'daily') {
@@ -249,8 +256,8 @@ export function prefetchAdjacentScheduleViews(viewMode, viewDate) {
     prev.setDate(prev.getDate() - 1)
     const next = new Date(d)
     next.setDate(next.getDate() + 1)
-    prefetchPageData('/schedules', { viewMode: 'daily', viewDate: toDateInputValue(prev) })
-    prefetchPageData('/schedules', { viewMode: 'daily', viewDate: toDateInputValue(next) })
+    prefetchPageData('/schedules', { viewMode: 'daily', focusDate: toDateInputValue(prev) })
+    prefetchPageData('/schedules', { viewMode: 'daily', focusDate: toDateInputValue(next) })
     return
   }
 
@@ -259,8 +266,8 @@ export function prefetchAdjacentScheduleViews(viewMode, viewDate) {
     prev.setDate(prev.getDate() - 7)
     const next = new Date(d)
     next.setDate(next.getDate() + 7)
-    prefetchPageData('/schedules', { viewMode: 'weekly', viewDate: toDateInputValue(prev) })
-    prefetchPageData('/schedules', { viewMode: 'weekly', viewDate: toDateInputValue(next) })
+    prefetchPageData('/schedules', { viewMode: 'weekly', focusDate: toDateInputValue(prev) })
+    prefetchPageData('/schedules', { viewMode: 'weekly', focusDate: toDateInputValue(next) })
     return
   }
 
@@ -269,8 +276,8 @@ export function prefetchAdjacentScheduleViews(viewMode, viewDate) {
     prev.setMonth(prev.getMonth() - 1)
     const next = new Date(d)
     next.setMonth(next.getMonth() + 1)
-    prefetchPageData('/schedules', { viewMode: 'monthly', viewDate: toDateInputValue(prev) })
-    prefetchPageData('/schedules', { viewMode: 'monthly', viewDate: toDateInputValue(next) })
+    prefetchPageData('/schedules', { viewMode: 'monthly', focusDate: toDateInputValue(prev) })
+    prefetchPageData('/schedules', { viewMode: 'monthly', focusDate: toDateInputValue(next) })
   }
 }
 

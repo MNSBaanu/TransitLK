@@ -61,6 +61,21 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const ROUTE_STATUS_FILTERS = new Set(['active', 'inactive', 'draft'])
 const ROUTE_SERVICE_FILTERS = new Set(['express', 'ordinary', 'semi-luxury'])
 
+async function summarizeRouteDistance(filter) {
+  const routes = await Route.find({ ...filter, distance: { $gt: 0 } })
+    .select('distance')
+    .lean()
+
+  if (!routes.length) {
+    return { avgDistance: null, distanceRouteCount: 0 }
+  }
+
+  const totalDistance = routes.reduce((sum, route) => sum + Number(route.distance), 0)
+  const count = routes.length
+  const avgDistance = Math.round((totalDistance / count) * 10) / 10
+  return { avgDistance, distanceRouteCount: count }
+}
+
 const buildRouteFilter = (req, { search = '', status = '', serviceType = '' } = {}) => {
   const filter = {}
   if (!isSuperadministrator(req.user)) {
@@ -233,18 +248,11 @@ export const getRoutes = async (req, res) => {
     const page = Math.min(Math.max(requestedPage || 1, 1), totalPages)
     const skip = (page - 1) * limit
 
-    const [routes, active, assigned, avgDistanceResult] = await Promise.all([
+    const [routes, active, draft, distanceStats] = await Promise.all([
       populateRoute(sortRoutes(Route.find(filter).skip(skip).limit(limit))),
       Route.countDocuments({ ...filter, status: 'active' }),
-      Route.countDocuments({
-        ...filter,
-        busId: { $exists: true, $ne: null },
-        driverId: { $exists: true, $ne: null },
-      }),
-      Route.aggregate([
-        { $match: filter },
-        { $group: { _id: null, avgDistance: { $avg: '$distance' } } },
-      ]),
+      Route.countDocuments({ ...filter, status: 'draft' }),
+      summarizeRouteDistance(filter),
     ])
 
     const items = await attachScheduleCounts(routes)
@@ -262,8 +270,9 @@ export const getRoutes = async (req, res) => {
       summary: {
         total: totalItems,
         active,
-        assigned,
-        avgDistance: avgDistanceResult[0]?.avgDistance ?? null,
+        draft,
+        avgDistance: distanceStats.avgDistance,
+        distanceRouteCount: distanceStats.distanceRouteCount,
       },
     })
   } catch (error) {

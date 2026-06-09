@@ -30,12 +30,15 @@ import {
   formatPeriodLabel,
   formatTripDate,
   applySharedTripTimes,
+  buildRouteTimetableRows,
   buildTimetableRowsForPeriod,
   defaultTripTimes,
   filterSchedulesInDateRange,
   getTimetableDateBounds,
   getTimetableDates,
   normalizeTimetableAnchor,
+  coerceFocusDate,
+  parseLocalDateInput,
   newTimetableId,
   mergeSchedulesById,
   viewRangeCoversTimetable,
@@ -70,7 +73,12 @@ function readPersistedScheduleView() {
     const raw = sessionStorage.getItem(SCHEDULES_VIEW_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    if (parsed?.viewMode && parsed?.viewDate) return parsed
+    if (parsed?.viewMode && (parsed?.focusDate || parsed?.viewDate)) {
+      return {
+        viewMode: parsed.viewMode,
+        focusDate: coerceFocusDate(parsed.focusDate || parsed.viewDate),
+      }
+    }
   } catch {
     /* ignore */
   }
@@ -79,16 +87,16 @@ function readPersistedScheduleView() {
 
 function SchedulesPage() {
   const persistedView = readPersistedScheduleView()
-  const initialViewDate = persistedView?.viewDate || toDateInputValue(new Date())
+  const initialFocusDate = coerceFocusDate(persistedView?.focusDate || new Date())
   const initialViewMode = persistedView?.viewMode || 'daily'
   const initialData =
     getCachedPageData('/schedules', {
       viewMode: initialViewMode,
-      viewDate: initialViewDate,
+      focusDate: initialFocusDate,
     }) ||
     getStalePageData('/schedules', {
       viewMode: initialViewMode,
-      viewDate: initialViewDate,
+      focusDate: initialFocusDate,
     })
   const { user } = useAuth()
   const location = useLocation()
@@ -100,7 +108,7 @@ function SchedulesPage() {
   const [loading, setLoading] = useState(!initialData)
   const [refreshing, setRefreshing] = useState(false)
   const { scheduleSearch } = useLayout()
-  const [viewDate, setViewDate] = useState(initialViewDate)
+  const [focusDate, setFocusDate] = useState(initialFocusDate)
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
@@ -130,6 +138,7 @@ function SchedulesPage() {
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
   const viewDatePickerRef = useRef(null)
+  const prevViewModeRef = useRef(initialViewMode)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -142,12 +151,15 @@ function SchedulesPage() {
     invalidatePageData('/buses')
   }, [])
 
-  const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, viewDate: viewDateOverride } = {}) => {
+  const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, focusDate: focusDateOverride } = {}) => {
     const activeViewMode = viewModeOverride ?? viewMode
-    const activeViewDate = viewDateOverride ?? viewDate
+    const activeFocusDate = coerceFocusDate(focusDateOverride ?? focusDate)
 
     if (!force) {
-      const cached = getCachedPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate })
+      const cached = getCachedPageData('/schedules', {
+        viewMode: activeViewMode,
+        focusDate: activeFocusDate,
+      })
       if (cached) {
         setSchedules(cached.schedules)
         setRoutes(cached.routes)
@@ -165,7 +177,7 @@ function SchedulesPage() {
     try {
       const data = await loadPageData(
         '/schedules',
-        { viewMode: activeViewMode, viewDate: activeViewDate },
+        { viewMode: activeViewMode, focusDate: activeFocusDate },
         { force }
       )
       if (!data) {
@@ -176,14 +188,14 @@ function SchedulesPage() {
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
-      prefetchAdjacentScheduleViews(activeViewMode, activeViewDate)
+      prefetchAdjacentScheduleViews(activeViewMode, activeFocusDate)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load schedules')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [viewDate, viewMode])
+  }, [focusDate, viewMode])
 
   const activeRoutes = useMemo(
     () => routes.filter(isSchedulableRoute),
@@ -192,42 +204,47 @@ function SchedulesPage() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(SCHEDULES_VIEW_KEY, JSON.stringify({ viewMode, viewDate }))
+      sessionStorage.setItem(SCHEDULES_VIEW_KEY, JSON.stringify({ viewMode, focusDate }))
     } catch {
       /* ignore */
     }
-  }, [viewMode, viewDate])
+  }, [viewMode, focusDate])
 
   useEffect(() => {
     let cancelled = false
-    const options = { viewMode, viewDate }
-    const cached = getCachedPageData('/schedules', options)
-    if (cached) {
-      setSchedules(cached.schedules)
-      setRoutes(cached.routes)
-      setBuses(cached.buses)
-      setDrivers(cached.drivers)
-      setLoading(false)
-      prefetchAdjacentScheduleViews(viewMode, viewDate)
-      return undefined
-    }
+    const modeChanged = prevViewModeRef.current !== viewMode
+    prevViewModeRef.current = viewMode
+    const options = { viewMode, focusDate }
 
-    const stale = getStalePageData('/schedules', options)
-    if (stale) {
-      setSchedules(stale.schedules)
-      setRoutes(stale.routes)
-      setBuses(stale.buses)
-      setDrivers(stale.drivers)
-      setLoading(false)
+    if (!modeChanged) {
+      const cached = getCachedPageData('/schedules', options)
+      if (cached) {
+        setSchedules(cached.schedules)
+        setRoutes(cached.routes)
+        setBuses(cached.buses)
+        setDrivers(cached.drivers)
+        setLoading(false)
+        prefetchAdjacentScheduleViews(viewMode, focusDate)
+        return undefined
+      }
+
+      const stale = getStalePageData('/schedules', options)
+      if (stale) {
+        setSchedules(stale.schedules)
+        setRoutes(stale.routes)
+        setBuses(stale.buses)
+        setDrivers(stale.drivers)
+        setLoading(false)
+      }
     }
 
     Promise.resolve().then(() => {
-      if (!cancelled) loadData({ keepContent: true })
+      if (!cancelled) loadData({ keepContent: true, force: modeChanged })
     })
     return () => {
       cancelled = true
     }
-  }, [loadData, viewMode, viewDate])
+  }, [loadData, viewMode, focusDate])
 
   useAutoRefresh(
     () => loadData({ force: true, keepContent: true }),
@@ -246,7 +263,7 @@ function SchedulesPage() {
     setTimetableRefreshing(true)
     setError('')
     try {
-      const data = await loadPageData('/schedules', { viewMode, viewDate }, { force: true })
+      const data = await loadPageData('/schedules', { viewMode, focusDate }, { force: true })
       setSchedules(data.schedules)
       setRoutes(data.routes)
       setBuses(data.buses)
@@ -268,12 +285,12 @@ function SchedulesPage() {
     } finally {
       setTimetableRefreshing(false)
     }
-  }, [timetableAnchor, timetablePeriod, viewDate, viewMode, applyTimetableSource])
+  }, [timetableAnchor, timetablePeriod, focusDate, viewMode, applyTimetableSource])
 
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
     return schedules.filter((s) => {
-      if (!isTripInViewRange(s, viewMode, viewDate)) return false
+      if (!isTripInViewRange(s, viewMode, focusDate)) return false
       if (routeFilter && String(s.routeId?._id || s.routeId) !== routeFilter) return false
       if (driverFilter && String(s.driverId?._id || s.driverId) !== driverFilter) return false
       if (!q) return true
@@ -289,7 +306,7 @@ function SchedulesPage() {
         .toLowerCase()
       return hay.includes(q)
     })
-  }, [schedules, scheduleSearch, routeFilter, driverFilter, viewMode, viewDate])
+  }, [schedules, scheduleSearch, routeFilter, driverFilter, viewMode, focusDate])
 
   const displaySchedules = useMemo(
     () => filteredSchedules.filter((s) => s.status !== 'cancelled'),
@@ -308,22 +325,14 @@ function SchedulesPage() {
   }, [displaySchedules, conflicts])
 
   const ganttRows = useMemo(() => {
-    const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, viewDate))
-    const byBus = new Map()
-    for (const trip of dayTrips) {
-      const busId = String(trip.busId?._id || trip.busId || 'unknown')
-      if (!byBus.has(busId)) {
-        byBus.set(busId, {
-          busId,
-          regNumber: trip.busId?.regNumber || 'Unknown bus',
-          driverName: trip.driverId?.name,
-          trips: [],
-        })
-      }
-      byBus.get(busId).trips.push(trip)
-    }
-    return [...byBus.values()].sort((a, b) => a.regNumber.localeCompare(b.regNumber))
-  }, [displaySchedules, viewDate])
+    const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, focusDate))
+    return buildRouteTimetableRows(activeRoutes, dayTrips).map((route) => ({
+      ...route,
+      trips: dayTrips.filter(
+        (trip) => String(trip.routeId?._id || trip.routeId) === String(route._id)
+      ),
+    }))
+  }, [displaySchedules, focusDate, activeRoutes])
 
   const timetableTripCount = useMemo(() => {
     const included = timetableRows.filter((r) => r.included).length
@@ -343,7 +352,7 @@ function SchedulesPage() {
     let cancelled = false
     const localRange = filterSchedulesInDateRange(schedules, from, to)
     const instant = mergeSchedulesById(timetableRangeSchedules, localRange)
-    const covered = viewRangeCoversTimetable(viewMode, viewDate, period, anchor)
+    const covered = viewRangeCoversTimetable(viewMode, focusDate, period, anchor)
 
     setTimetableRangeSchedules(instant)
     applyTimetableSource(period, anchor, instant)
@@ -384,7 +393,7 @@ function SchedulesPage() {
     timetablePeriod,
     timetableAnchor,
     viewMode,
-    viewDate,
+    focusDate,
     schedules,
     applyTimetableSource,
   ])
@@ -458,11 +467,11 @@ function SchedulesPage() {
   }, [selected, adjustForm])
 
   const shiftDate = (delta) => {
-    const d = new Date(viewDate)
+    const d = parseLocalDateInput(focusDate)
     if (viewMode === 'weekly') d.setDate(d.getDate() + delta * 7)
     else if (viewMode === 'monthly') d.setMonth(d.getMonth() + delta)
     else d.setDate(d.getDate() + delta)
-    setViewDate(toDateInputValue(d))
+    setFocusDate(coerceFocusDate(toDateInputValue(d)))
     setSelected(null)
   }
 
@@ -481,9 +490,9 @@ function SchedulesPage() {
     if (!value) return
     const next =
       viewMode === 'monthly'
-        ? normalizeTimetableAnchor('monthly', `${value}-01`)
-        : normalizeTimetableAnchor(viewMode, value)
-    setViewDate(next)
+        ? coerceFocusDate(`${value}-01`)
+        : coerceFocusDate(value)
+    setFocusDate(next)
     setSelected(null)
   }
 
@@ -526,7 +535,7 @@ function SchedulesPage() {
   const selectTrip = (trip, { openDetails = true, openAdjust = false } = {}) => {
     setSelected(trip)
     setShowConflictPanel(false)
-    if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
+    setFocusDate(coerceFocusDate(tripDateKey(trip)))
     setAdjustForm(syncTripForm(trip))
     if (openAdjust || adjustAwaitingTrip) {
       setShowTripDetailsDrawer(false)
@@ -546,7 +555,7 @@ function SchedulesPage() {
 
     if (focusDate) {
       setViewMode('daily')
-      setViewDate(focusDate)
+      setFocusDate(focusDate)
     }
 
     const trip = schedules.find((item) => item._id === focusId)
@@ -559,7 +568,7 @@ function SchedulesPage() {
 
   const openTimetableDrawer = () => {
     const period = viewMode
-    const anchor = normalizeTimetableAnchor(period, viewDate)
+    const anchor = normalizeTimetableAnchor(period, focusDate)
     const { from, to } = getTimetableDateBounds(period, anchor)
     const instant = mergeSchedulesById(
       timetableRangeSchedules,
@@ -797,13 +806,12 @@ function SchedulesPage() {
         try {
           sessionStorage.setItem(
             SCHEDULES_VIEW_KEY,
-            JSON.stringify({ viewMode: savedViewMode, viewDate: savedViewDate })
+            JSON.stringify({ viewMode: savedViewMode, focusDate })
           )
         } catch {
           /* ignore */
         }
         setViewMode(savedViewMode)
-        setViewDate(savedViewDate)
         invalidateRelatedPages()
         showToast(
           `${created} trip(s) sent for depot manager approval${
@@ -814,7 +822,7 @@ function SchedulesPage() {
           force: true,
           keepContent: false,
           viewMode: savedViewMode,
-          viewDate: savedViewDate,
+          focusDate,
         })
       }
       if (skipped.length) {
@@ -954,15 +962,15 @@ function SchedulesPage() {
   }
 
   const handlePickDay = (dayKey) => {
-    setViewDate(dayKey)
+    setFocusDate(coerceFocusDate(dayKey))
     setViewMode('daily')
     setSelected(null)
   }
 
   const dateLabel =
     viewMode === 'daily'
-      ? formatTripDate(viewDate)
-      : formatPeriodLabel(viewMode, viewDate)
+      ? formatTripDate(focusDate)
+      : formatPeriodLabel(viewMode, focusDate)
 
   const isScheduler = user?.role === ROLES.TRANSPORT_SCHEDULER
   const isAdministrator = user?.role === ROLES.ADMINISTRATOR
@@ -1175,7 +1183,6 @@ function SchedulesPage() {
                   onClick={() => {
                     if (mode === viewMode) return
                     setViewMode(mode)
-                    setViewDate((prev) => normalizeTimetableAnchor(mode, prev))
                     setSelected(null)
                     closeScheduleModals()
                   }}
@@ -1254,7 +1261,11 @@ function SchedulesPage() {
                 <input
                   ref={viewDatePickerRef}
                   type={viewMode === 'monthly' ? 'month' : 'date'}
-                  value={viewMode === 'monthly' ? viewDate.slice(0, 7) : viewDate}
+                  value={
+                    viewMode === 'monthly'
+                      ? focusDate.slice(0, 7)
+                      : focusDate
+                  }
                   onChange={handleViewDatePick}
                   className="pointer-events-none absolute h-0 w-0 opacity-0"
                   tabIndex={-1}
@@ -1272,33 +1283,34 @@ function SchedulesPage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white/20 p-4 backdrop-blur-sm"
+          >
             {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
               </div>
-            ) : displaySchedules.length === 0 ? (
+            ) : activeRoutes.length === 0 ? (
               <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 text-center text-on-surface-variant">
                 <Icon name="event_busy" size={40} className="text-outline" />
-                <p className="text-sm font-medium text-neutral-800">No trips in this period</p>
+                <p className="text-sm font-medium text-neutral-800">No active routes</p>
                 <p className="max-w-sm text-xs">
-                  {canPlanSchedules
-                    ? 'Create a timetable to add trips, or change the date range to view existing schedules.'
-                    : 'Change the date range or wait for schedulers to submit trips for approval.'}
+                  Timetables are organised by route. Add or activate routes in Route Management first.
                 </p>
               </div>
             ) : viewMode === 'weekly' ? (
               <ScheduleWeekTimetable
                 schedules={displaySchedules}
-                routes={routes}
-                anchorDate={viewDate}
+                routes={activeRoutes}
+                focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
               />
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
                 schedules={displaySchedules}
-                anchorDate={viewDate}
+                routes={activeRoutes}
+                focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
                 onPickDay={handlePickDay}

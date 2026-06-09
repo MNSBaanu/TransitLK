@@ -1,9 +1,18 @@
 import { buildRouteName, isSchedulableRoute } from './routeHelpers'
 
-const GANTT_START_MIN = 6 * 60
+const GANTT_START_MIN = 0
 const GANTT_END_MIN = 24 * 60
 const GANTT_SPAN = GANTT_END_MIN - GANTT_START_MIN
-export const GANTT_CARD_START_INSET_PX = 6
+export const GANTT_HOUR_COLUMN_MIN_PX = 56
+const GANTT_HOURS_LIST = []
+for (let h = 0; h < 24; h++) {
+  GANTT_HOURS_LIST.push(`${String(h).padStart(2, '0')}:00`)
+}
+export const GANTT_HOURS = GANTT_HOURS_LIST
+export const GANTT_TIMELINE_WIDTH_PX = GANTT_HOURS.length * GANTT_HOUR_COLUMN_MIN_PX
+/** @deprecated use GANTT_TIMELINE_WIDTH_PX */
+export const GANTT_MIN_WIDTH_PX = GANTT_TIMELINE_WIDTH_PX
+const GANTT_TRIP_MIN_WIDTH_PX = 40
 
 /** Default departure/arrival for all routes in a new timetable */
 export const DEFAULT_TRIP_DEPARTURE_TIME = '08:00'
@@ -148,17 +157,18 @@ export function toConflictTrip(trip = {}) {
 
 function ganttPositionFromMinutes(startMin, endMin) {
   if (startMin == null || endMin == null || endMin <= startMin) return null
-  const left = ((startMin - GANTT_START_MIN) / GANTT_SPAN) * 100
-  const width = ((endMin - startMin) / GANTT_SPAN) * 100
-  if (left + width <= 0 || left >= 100) return null
-  const clampedLeft = Math.max(0, left)
-  const clampedWidth = Math.min(100 - clampedLeft, width)
+  const leftPx = ((startMin - GANTT_START_MIN) / GANTT_SPAN) * GANTT_TIMELINE_WIDTH_PX
+  const widthPx = ((endMin - startMin) / GANTT_SPAN) * GANTT_TIMELINE_WIDTH_PX
+  if (leftPx + widthPx <= 0 || leftPx >= GANTT_TIMELINE_WIDTH_PX) return null
+  const clampedLeft = Math.max(0, leftPx)
+  const clampedWidth = Math.min(GANTT_TIMELINE_WIDTH_PX - clampedLeft, widthPx)
+  const barWidth = Math.max(GANTT_TRIP_MIN_WIDTH_PX, clampedWidth)
   return {
     left: clampedLeft,
-    width: clampedWidth,
+    width: barWidth,
     style: {
-      left: `calc(${clampedLeft}% + ${GANTT_CARD_START_INSET_PX}px)`,
-      width: `max(2.5rem, calc(${clampedWidth}% - ${GANTT_CARD_START_INSET_PX}px))`,
+      left: `${clampedLeft}px`,
+      width: `${barWidth}px`,
     },
   }
 }
@@ -419,10 +429,53 @@ export function duplicateTimetableRow(route, siblingRows = []) {
   }
 }
 
+function compareRoutesScheduledFirst(a, b, scheduledRouteIds) {
+  const aScheduled = scheduledRouteIds.has(String(a._id))
+  const bScheduled = scheduledRouteIds.has(String(b._id))
+  if (aScheduled !== bScheduled) return aScheduled ? -1 : 1
+  return formatRouteEndpointsLabel(a).localeCompare(formatRouteEndpointsLabel(b))
+}
+
+/** Sorted route list for daily / weekly / monthly timetable grids. */
+export function buildRouteTimetableRows(routes, schedules = []) {
+  const byId = new Map()
+  const scheduledRouteIds = new Set()
+  const addRoute = (route) => {
+    const id = route?._id || route
+    if (!id) return
+    const key = String(id)
+    if (byId.has(key)) return
+    byId.set(key, {
+      _id: key,
+      routeName: route?.routeName || 'Route',
+      startPoint: route?.startPoint,
+      endPoint: route?.endPoint,
+      stops: route?.stops,
+      viaDescription: route?.viaDescription,
+      serviceType: route?.serviceType,
+    })
+  }
+  schedules.forEach((trip) => {
+    const routeId = trip.routeId?._id || trip.routeId
+    if (routeId) scheduledRouteIds.add(String(routeId))
+    addRoute(trip.routeId)
+  })
+  routes.filter(isSchedulableRoute).forEach((route) => addRoute(route))
+  return [...byId.values()].sort((a, b) => compareRoutesScheduledFirst(a, b, scheduledRouteIds))
+}
+
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
-  const active = routes.filter(isSchedulableRoute)
-  const rows = []
   const dayKey = toDateInputValue(anchorDate)
+  const scheduledRouteIds = new Set()
+  for (const trip of schedules) {
+    if (tripDateKey(trip) !== dayKey) continue
+    const routeId = trip.routeId?._id || trip.routeId
+    if (routeId) scheduledRouteIds.add(String(routeId))
+  }
+  const active = [...routes.filter(isSchedulableRoute)].sort((a, b) =>
+    compareRoutesScheduledFirst(a, b, scheduledRouteIds)
+  )
+  const rows = []
 
   for (const route of active) {
     const routeId = String(route._id)
@@ -715,14 +768,38 @@ export function formatReportRangeLabel(from, to) {
   return `${parseLocalDateInput(from).toLocaleDateString('en-GB', opts)} – ${parseLocalDateInput(to).toLocaleDateString('en-GB', opts)}`
 }
 
-export function formatPeriodLabel(viewMode, anchorDate) {
-  const { from, to } = getViewDateRange(viewMode, anchorDate)
-  if (viewMode === 'daily') return formatTripDate(anchorDate)
+export function formatPeriodLabel(viewMode, focusDate) {
+  const day = coerceFocusDate(focusDate)
+  if (viewMode === 'daily') return formatTripDate(day)
   if (viewMode === 'weekly') {
+    const from = startOfWeekDate(day)
+    const to = endOfWeekDate(day)
     return `${formatTripDate(from)} – ${formatTripDate(to)}`
   }
-  const d = new Date(anchorDate)
+  const d = parseLocalDateInput(day)
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
+/** Always store a single calendar day as YYYY-MM-DD. */
+export function coerceFocusDate(value) {
+  if (!value) return toDateInputValue(new Date())
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+    if (/^\d{4}-\d{2}$/.test(trimmed)) return `${trimmed}-01`
+  }
+  const coerced = toDateInputValue(value)
+  return coerced || toDateInputValue(new Date())
+}
+
+/** Canonical anchor for schedule page navigation (day, week start, or 1st of month). */
+export function normalizeViewDate(viewMode, focusDate) {
+  return normalizeTimetableAnchor(viewMode, focusDate)
+}
+
+/** Period range anchor derived from the user's selected calendar day. */
+export function getViewAnchor(viewMode, focusDate) {
+  return normalizeViewDate(viewMode, focusDate)
 }
 
 export function tripDateKey(trip) {
@@ -743,8 +820,8 @@ export function isTripInDateRange(trip, fromDate, toDate) {
   return key >= from && key <= to
 }
 
-export function isTripInViewRange(trip, viewMode, anchorDate) {
-  const { from, to } = getViewDateRange(viewMode, anchorDate)
+export function isTripInViewRange(trip, viewMode, focusDate) {
+  const { from, to } = getViewDateRange(viewMode, coerceFocusDate(focusDate))
   return isTripInDateRange(trip, from, to)
 }
 
@@ -822,13 +899,6 @@ export function scheduleCode(schedule) {
   const short = schedule._id?.slice(-4).toUpperCase() || ''
   return short ? `${route.split(' ')[0]}-${short}` : route
 }
-
-const HOURS = []
-for (let h = 6; h <= 23; h++) {
-  HOURS.push(`${String(h).padStart(2, '0')}:00`)
-}
-
-export const GANTT_HOURS = HOURS
 
 export function detectDayConflicts(schedules) {
   const conflicts = []
