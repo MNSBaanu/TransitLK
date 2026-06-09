@@ -18,11 +18,11 @@ import RouteView from '../components/routes/RouteView'
 import RouteFleetAssignModal from '../components/routes/RouteFleetAssignModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
-  defaultMinCapacityForService,
-  isBusAssignable,
-  isDriverAssignable,
-} from '../utils/fleetHelpers'
-import { buildRouteName } from '../utils/routeHelpers'
+  buildRouteName,
+  getRouteDeleteDisabledReason,
+  getRouteStatusChangeBlockedReason,
+} from '../utils/routeHelpers'
+import { hasErrors, validateRouteForm } from '../utils/formValidation'
 import {
   ModuleAlert,
   ModuleCard,
@@ -53,6 +53,8 @@ const DEFAULT_ROUTE_OPTIONS = {
   page: 1,
   limit: DEFAULT_PAGE_SIZE,
   search: '',
+  status: '',
+  serviceType: '',
 }
 const EMPTY_PAGINATION = {
   page: 1,
@@ -65,8 +67,9 @@ const EMPTY_PAGINATION = {
 const EMPTY_SUMMARY = {
   total: 0,
   active: 0,
-  assigned: 0,
+  draft: 0,
   avgDistance: null,
+  distanceRouteCount: 0,
 }
 
 function routeCode(route) {
@@ -102,6 +105,8 @@ function RoutesPage() {
   const [pageView, setPageView] = useState('list')
   const [searchInput, setSearchInput] = useState(() => initialData?.search || '')
   const [search, setSearch] = useState(() => initialData?.search || '')
+  const [statusFilter, setStatusFilter] = useState(() => initialData?.status || '')
+  const [serviceTypeFilter, setServiceTypeFilter] = useState(() => initialData?.serviceType || '')
   const [currentPage, setCurrentPage] = useState(() => initialData?.pagination?.page || 1)
   const [pageSize, setPageSize] = useState(() => initialData?.pagination?.limit || DEFAULT_PAGE_SIZE)
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
@@ -111,6 +116,7 @@ function RoutesPage() {
   const [summary, setSummary] = useState(() => initialData?.summary || EMPTY_SUMMARY)
   const [assignRoute, setAssignRoute] = useState(null)
   const [deleteTargetId, setDeleteTargetId] = useState(null)
+  const [deleteBlockedMessage, setDeleteBlockedMessage] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [loading, setLoading] = useState(!initialData)
   const [saving, setSaving] = useState(false)
@@ -118,6 +124,7 @@ function RoutesPage() {
   const [toast, setToast] = useState('')
   const [selectedId, setSelectedId] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [stopInput, setStopInput] = useState('')
   const [initialRouteStatus, setInitialRouteStatus] = useState('draft')
 
@@ -134,6 +141,7 @@ function RoutesPage() {
     invalidatePageData('/routes')
     invalidatePageData('/schedules')
     invalidatePageData('/reports')
+    invalidatePageData('/buses')
   }, [])
 
   const loadRoutes = useCallback(
@@ -141,6 +149,8 @@ function RoutesPage() {
       page = currentPage,
       limit = pageSize,
       search: searchTerm = search,
+      status: statusTerm = statusFilter,
+      serviceType: serviceTypeTerm = serviceTypeFilter,
       force = false,
       keepContent = false,
     } = {}) => {
@@ -149,6 +159,8 @@ function RoutesPage() {
           page,
           limit,
           search: searchTerm,
+          status: statusTerm,
+          serviceType: serviceTypeTerm,
         })
       if (cached) {
         setRoutes(cached.routes)
@@ -171,6 +183,8 @@ function RoutesPage() {
             page,
             limit,
             search: searchTerm,
+            status: statusTerm,
+            serviceType: serviceTypeTerm,
           },
           { force }
         )
@@ -188,7 +202,7 @@ function RoutesPage() {
       setLoading(false)
     }
     },
-    [currentPage, pageSize, search]
+    [currentPage, pageSize, search, statusFilter, serviceTypeFilter]
   )
 
   useEffect(() => {
@@ -199,13 +213,15 @@ function RoutesPage() {
           page: currentPage,
           limit: pageSize,
           search,
+          status: statusFilter,
+          serviceType: serviceTypeFilter,
         })
       }
     })
     return () => {
       cancelled = true
     }
-  }, [currentPage, pageSize, search, loadRoutes])
+  }, [currentPage, pageSize, search, statusFilter, serviceTypeFilter, loadRoutes])
 
   useAutoRefresh(
     () =>
@@ -213,12 +229,20 @@ function RoutesPage() {
         page: currentPage,
         limit: pageSize,
         search,
+        status: statusFilter,
+        serviceType: serviceTypeFilter,
         force: true,
         keepContent: true,
       }),
     {
       enabled:
-        pageView === 'list' && !assignRoute && !deleteTargetId && !saving && !isEditPage && !isViewing,
+        pageView === 'list' &&
+          !assignRoute &&
+          !deleteTargetId &&
+          !deleteBlockedMessage &&
+          !saving &&
+          !isEditPage &&
+          !isViewing,
     }
   )
 
@@ -236,22 +260,43 @@ function RoutesPage() {
       page: pagination.page + 1,
       limit: pagination.limit,
       search,
+      status: statusFilter,
+      serviceType: serviceTypeFilter,
     })
-  }, [pagination, search])
+  }, [pagination, search, statusFilter, serviceTypeFilter])
 
   const routeStats = useMemo(() => {
-    const distanceValues = routes
+    const summaryAvg = Number(summary.avgDistance)
+    const summaryCount = summary.distanceRouteCount || 0
+    const pageDistances = routes
       .map((route) => Number(route?.distance))
       .filter((distance) => Number.isFinite(distance) && distance > 0)
-    const avgDist =
-      distanceValues.length > 0
-        ? (distanceValues.reduce((sum, distance) => sum + distance, 0) / distanceValues.length).toFixed(1)
-        : null
+
+    let avgDist = null
+    let distanceRouteCount = 0
+
+    if (summaryCount > 0 && Number.isFinite(summaryAvg) && summaryAvg > 0) {
+      avgDist = summaryAvg.toFixed(1)
+      distanceRouteCount = summaryCount
+    } else if (pageDistances.length > 0) {
+      const total = pageDistances.reduce((sum, distance) => sum + distance, 0)
+      avgDist = (total / pageDistances.length).toFixed(1)
+      distanceRouteCount = pageDistances.length
+    }
+
+    const avgDistHint =
+      distanceRouteCount > 0
+        ? summaryCount > 0
+          ? `Mean of ${distanceRouteCount} route${distanceRouteCount !== 1 ? 's' : ''} with distance`
+          : `Based on ${distanceRouteCount} route${distanceRouteCount !== 1 ? 's' : ''} on this page`
+        : 'No routes with distance set'
+
     return {
       total: summary.total || 0,
       active: summary.active || 0,
-      assigned: summary.assigned || 0,
+      draft: summary.draft || 0,
       avgDist,
+      avgDistHint,
     }
   }, [routes, summary])
 
@@ -326,6 +371,8 @@ function RoutesPage() {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target
+    setError('')
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
     setForm((prev) => {
       const next = { ...prev, [name]: value }
       if (name === 'startPoint' || name === 'endPoint') {
@@ -334,41 +381,8 @@ function RoutesPage() {
           name === 'endPoint' ? value : prev.endPoint
         )
       }
-      if (name === 'serviceType' && prev.busId) {
-        const bus = buses.find((b) => b._id === prev.busId)
-        const minCap = defaultMinCapacityForService(value)
-        if (bus && !isBusAssignable(bus, value, minCap)) next.busId = ''
-      }
       return next
     })
-  }
-
-  const handleBusChange = (id) => {
-    setForm((prev) => ({ ...prev, busId: id }))
-  }
-
-  const handleDriverChange = (id) => {
-    setForm((prev) => ({ ...prev, driverId: id }))
-  }
-
-  const validateFleetAssignment = () => {
-    const hasBus = Boolean(form.busId?.trim())
-    const hasDriver = Boolean(form.driverId?.trim())
-    if (!hasBus && !hasDriver) return true
-    if (hasBus !== hasDriver) {
-      setError('Select both a bus and a driver, or clear both.')
-      return false
-    }
-    const minCap = defaultMinCapacityForService(form.serviceType)
-    if (!isBusAssignable(selectedBus, form.serviceType, minCap)) {
-      setError('Selected bus does not meet availability, capacity, or service type requirements.')
-      return false
-    }
-    if (!isDriverAssignable(selectedDriver)) {
-      setError('Selected driver is not available or is outside working hours.')
-      return false
-    }
-    return true
   }
 
   const handleStartPlaceSelect = useCallback((place) => {
@@ -433,17 +447,25 @@ function RoutesPage() {
     if (form.stopLocations?.length) payload.stopLocations = form.stopLocations
     if (form.serviceType) payload.serviceType = form.serviceType
     if (form.status) payload.status = form.status
-    if (isEditingExisting) {
-      payload.busId = form.busId?.trim() || null
-      payload.driverId = form.driverId?.trim() || null
-    }
     return payload
   }
 
   const handleSave = async (e) => {
     e.preventDefault()
     setError('')
-    if (isEditingExisting && !validateFleetAssignment()) return
+    const errors = validateRouteForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+    if (isEditingExisting) {
+      const statusBlock = getRouteStatusChangeBlockedReason(
+        { status: initialRouteStatus, scheduleCount: selectedRoute?.scheduleCount },
+        form.status
+      )
+      if (statusBlock) {
+        setError(statusBlock)
+        return
+      }
+    }
     setSaving(true)
     try {
       const payload = buildPayload()
@@ -474,6 +496,13 @@ function RoutesPage() {
   const deleteTargetRoute = routes.find((r) => r._id === deleteTargetId)
 
   const handleDeleteRequest = (id) => {
+    const route = routes.find((r) => String(r._id) === String(id))
+    const blocked = getRouteDeleteDisabledReason(route)
+    if (blocked) {
+      setDeleteBlockedMessage(blocked)
+      return
+    }
+    setError('')
     setDeleteTargetId(id)
   }
 
@@ -528,14 +557,15 @@ function RoutesPage() {
                 icon: 'check_circle',
               },
               {
-                label: 'Fleet assigned',
-                value: routeStats.assigned,
-                hint: 'Bus and driver on route',
-                icon: 'directions_bus',
+                label: 'Draft routes',
+                value: routeStats.draft,
+                hint: 'Awaiting activation',
+                icon: 'edit_note',
               },
               {
                 label: 'Avg distance',
                 value: routeStats.avgDist == null ? '—' : `${routeStats.avgDist} km`,
+                hint: routeStats.avgDistHint,
                 icon: 'straighten',
               },
             ]}
@@ -549,6 +579,16 @@ function RoutesPage() {
               loading={loading}
               search={searchInput}
               onSearchChange={setSearchInput}
+              statusFilter={statusFilter}
+              onStatusFilterChange={(value) => {
+                setCurrentPage(1)
+                setStatusFilter(value)
+              }}
+              serviceTypeFilter={serviceTypeFilter}
+              onServiceTypeFilterChange={(value) => {
+                setCurrentPage(1)
+                setServiceTypeFilter(value)
+              }}
               pagination={pagination}
               pageSize={pageSize}
               pageSizeOptions={PAGE_SIZE_OPTIONS}
@@ -559,10 +599,19 @@ function RoutesPage() {
               }}
               onView={openViewer}
               onEdit={openEditor}
-              onAssignFleet={setAssignRoute}
               onDelete={handleDeleteRequest}
             />
           </ModuleCard>
+
+          <ConfirmDialog
+            open={Boolean(deleteBlockedMessage)}
+            title="Cannot delete route"
+            message={deleteBlockedMessage || ''}
+            cancelLabel="Close"
+            variant="danger"
+            alertOnly
+            onCancel={() => setDeleteBlockedMessage(null)}
+          />
 
           <ConfirmDialog
             open={Boolean(deleteTargetId)}
@@ -622,8 +671,6 @@ function RoutesPage() {
             routeCode={displayRouteCode}
             selectedBus={selectedBus}
             selectedDriver={selectedDriver}
-            buses={buses}
-            drivers={drivers}
             onEdit={() => openEditor(selectedRoute)}
             onBack={openList}
           />
@@ -642,26 +689,18 @@ function RoutesPage() {
               <h2 className="pro-page-title">
                 {isEditingExisting ? `Edit route · ${routeCode(selectedRoute)}` : 'New route'}
               </h2>
-              <p className="pro-page-subtitle">
-                Configure route ID, status, stops, fleet assignment, and map preview
-              </p>
             </div>
           </div>
-          {error && <ModuleAlert variant="error" title={error} />}
           <RouteEditView
             form={form}
+            fieldErrors={fieldErrors}
+            saveError={error}
             isEditing={isEditingExisting}
             routeCode={displayRouteCode}
             initialRouteStatus={initialRouteStatus}
             stopInput={stopInput}
             onStopInputChange={setStopInput}
             onFormChange={handleFormChange}
-            onBusChange={handleBusChange}
-            onDriverChange={handleDriverChange}
-            buses={buses}
-            drivers={drivers}
-            selectedBus={selectedBus}
-            selectedDriver={selectedDriver}
             onStartPlaceSelect={handleStartPlaceSelect}
             onEndPlaceSelect={handleEndPlaceSelect}
             onStopPlaceSelect={handleStopPlaceSelect}

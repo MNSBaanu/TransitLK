@@ -39,7 +39,7 @@ const driverSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['available', 'on-leave', 'off-duty'],
+      enum: ['available', 'on-duty', 'on-leave', 'off-duty'],
       default: 'available',
     },
     depotId: {

@@ -31,6 +31,20 @@ const scheduleSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Trip date is required'],
     },
+    /** Shared id for trips created in one timetable save */
+    timetableId: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    timetablePeriod: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly'],
+    },
+    /** Week start (Mon) or 1st of month — canonical anchor for the timetable batch */
+    timetableAnchor: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: [
@@ -38,6 +52,7 @@ const scheduleSchema = new mongoose.Schema(
         'pending',
         'approved',
         'scheduled',
+        'on-duty',
         'on-time',
         'delayed',
         'completed',
@@ -46,6 +61,9 @@ const scheduleSchema = new mongoose.Schema(
       default: 'draft',
     },
     submittedAt: { type: Date },
+    receivedAt: { type: Date },
+    approvedAt: { type: Date },
+    rejectedAt: { type: Date },
     approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     rejectionReason: { type: String, trim: true },
     adjustmentReason: {
@@ -86,6 +104,7 @@ const scheduleSchema = new mongoose.Schema(
 
 scheduleSchema.index({ tripDate: 1, busId: 1 })
 scheduleSchema.index({ tripDate: 1, driverId: 1 })
+scheduleSchema.index({ timetablePeriod: 1, timetableAnchor: 1 })
 
 const Schedule = mongoose.model('Schedule', scheduleSchema)
 export default Schedule

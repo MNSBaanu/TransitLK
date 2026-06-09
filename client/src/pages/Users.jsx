@@ -16,6 +16,8 @@ import {
   accessModulesForRole,
 } from '../config/roles'
 import { useAuth } from '../context/AuthContext'
+import FieldError from '../components/FieldError'
+import { fieldBorderClass, hasErrors, validateUserForm } from '../utils/formValidation'
 
 const EMPTY_FORM = {
   name: '',
@@ -81,9 +83,11 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
   const depotRequired = form.role !== ROLES.SUPERADMINISTRATOR
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const handle = (e) => {
     const { name, value, type, checked } = e.target
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
     setForm((prev) => {
       const next = {
         ...prev,
@@ -99,6 +103,10 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
 
   const submit = async (e) => {
     e.preventDefault()
+    const errors = validateUserForm(form, { isEdit, depotRequired })
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
     try {
@@ -111,12 +119,6 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
       if (!isAdminRole) payload.isActive = form.isActive
       if (form.password) payload.password = form.password
 
-      if (depotRequired && !payload.depotId) {
-        setError('Depot assignment is required for this role')
-        setSaving(false)
-        return
-      }
-
       if (isEdit) {
         if (isManagedAdmin) {
           await api.put(`/admins/${user._id}`, payload)
@@ -124,11 +126,6 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
           await api.put(`/users/${user._id}`, payload)
         }
       } else {
-        if (!form.password) {
-          setError('Password is required for new accounts')
-          setSaving(false)
-          return
-        }
         if (isAdminRole) {
           await api.post('/admins', { ...payload, password: form.password })
         } else {
@@ -171,9 +168,11 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
               value={form.name}
               onChange={handle}
               required
+              minLength={2}
               disabled={isManagedAdmin && !isSuperadmin}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 disabled:bg-neutral-50"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:bg-neutral-50 ${fieldBorderClass(fieldErrors.name)}`}
             />
+            <FieldError message={fieldErrors.name} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Email (login)</label>
@@ -184,8 +183,9 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
               onChange={handle}
               required
               disabled={isManagedAdmin && !isSuperadmin}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 disabled:bg-neutral-50"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:bg-neutral-50 ${fieldBorderClass(fieldErrors.email)}`}
             />
+            <FieldError message={fieldErrors.email} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">
@@ -199,8 +199,9 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
               required={!isEdit}
               disabled={isManagedAdmin && !isSuperadmin}
               minLength={6}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 disabled:bg-neutral-50"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:bg-neutral-50 ${fieldBorderClass(fieldErrors.password)}`}
             />
+            <FieldError message={fieldErrors.password} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Role</label>
@@ -231,7 +232,7 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
                 value={form.depotId}
                 onChange={handle}
                 disabled={!depotRequired}
-                className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900 disabled:bg-neutral-50"
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:bg-neutral-50 ${fieldBorderClass(fieldErrors.depotId)}`}
               >
                 <option value="">{depotRequired ? 'Select depot' : 'System-wide access'}</option>
                 {availableDepots.map((d) => (
@@ -245,6 +246,7 @@ function UserModal({ user, depots, currentUser, onClose, onSave }) {
                 {creatorDepotName}
               </div>
             )}
+            <FieldError message={fieldErrors.depotId} />
           </div>
           {isEdit && !isAdminRole && (
             <label className="flex items-center gap-2 text-sm">
@@ -408,6 +410,7 @@ function Users() {
         <table className="w-full min-w-[800px] text-sm">
           <thead>
             <tr className="border-b border-outline-variant bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              <th className="w-12 px-4 py-3">#</th>
               <th className="px-4 py-3">User</th>
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Depot</th>
@@ -419,19 +422,20 @@ function Users() {
           <tbody>
             {loading && accounts.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">
                   Loading accounts...
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-on-surface-variant">
+                <td colSpan={7} className="px-4 py-10 text-center text-on-surface-variant">
                   No accounts match your search.
                 </td>
               </tr>
             ) : (
-              filtered.map((account) => (
+              filtered.map((account, index) => (
                 <tr key={account._id} className="border-b border-outline-variant/60 last:border-0">
+                  <td className="px-4 py-3 text-neutral-500 tabular-nums">{index + 1}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-neutral-900">{account.name}</p>
                     <p className="text-xs text-on-surface-variant">{account.email}</p>

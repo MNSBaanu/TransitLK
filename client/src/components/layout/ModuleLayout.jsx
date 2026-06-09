@@ -3,12 +3,12 @@ import Icon from '../Icon'
 /** Shared page chrome — TransitLK professional module layout */
 export function ModuleHeader({ title, subtitle, action }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-      <div>
+    <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div className="min-w-0 flex-1">
         <h2 className="pro-page-title">{title}</h2>
-        {subtitle && <p className="pro-page-subtitle">{subtitle}</p>}
+        {subtitle && <p className="pro-page-subtitle max-w-3xl">{subtitle}</p>}
       </div>
-      {action}
+      {action ? <div className="shrink-0 overflow-visible pt-2 pr-2">{action}</div> : null}
     </div>
   )
 }
@@ -19,7 +19,7 @@ export function ModulePrimaryButton({ children, onClick, icon, type = 'button', 
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="btn-primary flex items-center gap-2 disabled:cursor-not-allowed"
+      className="btn-primary flex shrink-0 items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed"
     >
       {icon && <Icon name={icon} size={18} />}
       {children}
@@ -27,17 +27,59 @@ export function ModulePrimaryButton({ children, onClick, icon, type = 'button', 
   )
 }
 
-export function ModuleSecondaryButton({ children, onClick, icon, type = 'button', disabled }) {
+const BADGE_TONES = {
+  amber: 'bg-amber-500 text-white ring-amber-500',
+  red: 'bg-red-600 text-white ring-red-600',
+}
+
+function formatBadgeCount(value) {
+  const count = Number(value) || 0
+  return count > 99 ? '99+' : count
+}
+
+export function ModuleSecondaryButton({
+  children,
+  onClick,
+  icon,
+  type = 'button',
+  disabled,
+  badge,
+  badges,
+  badgeLabel,
+}) {
+  const badgeItems =
+    badges ??
+    (Number(badge) > 0 ? [{ value: badge, tone: 'amber' }] : [])
+  const showCombinedBadge = Boolean(badgeLabel)
+
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className="btn-outlined flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {icon && <Icon name={icon} size={18} />}
-      {children}
-    </button>
+    <div className="relative shrink-0 overflow-visible">
+      <button
+        type={type}
+        onClick={onClick}
+        disabled={disabled}
+        className="btn-outlined flex shrink-0 items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {icon && <Icon name={icon} size={18} />}
+        {children}
+      </button>
+      {showCombinedBadge ? (
+        <span className="absolute -right-2 -top-2 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold leading-none text-white ring-2 ring-amber-500">
+          {badgeLabel}
+        </span>
+      ) : badgeItems.length > 0 ? (
+        <span className="absolute -right-2 -top-2 flex items-center gap-1">
+          {badgeItems.map((item) => (
+            <span
+              key={item.tone}
+              className={`flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-bold leading-none ring-2 ${BADGE_TONES[item.tone] || BADGE_TONES.amber}`}
+            >
+              {formatBadgeCount(item.value)}
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </div>
   )
 }
 
@@ -54,7 +96,7 @@ export function ModuleStats({ items }) {
           </div>
           <p className="text-2xl font-bold text-neutral-900">{item.value}</p>
           {item.hint && (
-            <p className={`mt-1 text-xs ${item.hintClass || 'text-on-surface-variant'}`}>{item.hint}</p>
+            <p className={`mt-1 text-xs ${item.hintClass || 'text-neutral-900'}`}>{item.hint}</p>
           )}
         </div>
       ))}

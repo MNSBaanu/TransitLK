@@ -4,6 +4,8 @@ import Bus from '../models/Bus.js'
 import Driver from '../models/Driver.js'
 import {
   timesOverlap,
+  resourceWindowsOverlap,
+  getResourceBusyEndTime,
   startOfDay,
   endOfDay,
   startOfWeek,
@@ -11,14 +13,22 @@ import {
   startOfMonth,
   endOfMonth,
   normalizeTripDate,
+  normalizeTimetableAnchor,
+  parseTimetableMeta,
   validateTimeRange,
   validateTimetableRows,
   requiresAdjustmentNotes,
   reasonToStatus,
   DRIVER_VISIBLE_STATUSES,
   isDriverVisibleStatus,
+  sameAssignedResource,
+  toConflictTrip,
 } from '../utils/scheduleHelpers.js'
-import { isWithinWorkingHoursAtTime } from '../utils/fleetHelpers.js'
+import {
+  getDriverLicenseInvalidReason,
+  isTripWithinWorkingHours,
+} from '../utils/fleetHelpers.js'
+import { syncBusStatusForBusId, syncDriverStatusForDriverId } from '../utils/fleetAssignmentHelpers.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -31,7 +41,10 @@ const routePopulate = {
   select: 'routeName startPoint endPoint distance serviceType stops viaDescription',
 }
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
-const driverPopulate = { path: 'driverId', select: 'name licenseNo contactNo workingHours status' }
+const driverPopulate = {
+  path: 'driverId',
+  select: 'name licenseNo licenseExpiry contactNo workingHours status',
+}
 
 const historyPopulate = {
   path: 'adjustmentHistory.by',
@@ -149,32 +162,40 @@ async function findConflicts({
   const conflicts = []
 
   for (const existing of sameDay) {
-    const overlap = timesOverlap(
+    const busOverlap = resourceWindowsOverlap(
       departureTime,
       arrivalTime,
       existing.departureTime,
       existing.arrivalTime
     )
-    if (!overlap) continue
+    const routeOverlap = timesOverlap(
+      departureTime,
+      arrivalTime,
+      existing.departureTime,
+      existing.arrivalTime
+    )
 
-    if (String(existing.busId) === String(busId)) {
+    if (busOverlap && sameAssignedResource(busId, existing.busId)) {
+      const busyEnd = getResourceBusyEndTime(existing.departureTime, existing.arrivalTime)
       conflicts.push({
         type: 'bus',
-        message: `Bus already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
+        message: busyEnd
+          ? `Bus busy until ${busyEnd} after ${existing.departureTime}–${existing.arrivalTime} trip on this date`
+          : `Bus already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
         scheduleId: existing._id,
       })
     }
-    if (String(existing.driverId) === String(driverId)) {
+    if (busOverlap && sameAssignedResource(driverId, existing.driverId)) {
+      const busyEnd = getResourceBusyEndTime(existing.departureTime, existing.arrivalTime)
       conflicts.push({
         type: 'driver',
-        message: `Driver already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
+        message: busyEnd
+          ? `Driver busy until ${busyEnd} after ${existing.departureTime}–${existing.arrivalTime} trip on this date`
+          : `Driver already scheduled ${existing.departureTime}–${existing.arrivalTime} on this date`,
         scheduleId: existing._id,
       })
     }
-    if (
-      routeId &&
-      String(existing.routeId) === String(routeId)
-    ) {
+    if (routeOverlap && routeId && sameAssignedResource(routeId, existing.routeId)) {
       conflicts.push({
         type: 'route',
         message: `Route already has a trip ${existing.departureTime}–${existing.arrivalTime} on this date`,
@@ -211,24 +232,22 @@ function pushStructuredOverlap(conflicts, type, proposed, other, { tripDate, oth
 }
 
 function compareTripOverlap(proposed, other, conflicts, { tripDate, otherLabel, otherRouteId } = {}) {
-  if (
-    !timesOverlap(
-      proposed.departureTime,
-      proposed.arrivalTime,
-      other.departureTime,
-      other.arrivalTime
-    )
-  ) {
-    return
+  const a = toConflictTrip(proposed)
+  const b = toConflictTrip(other)
+
+  if (resourceWindowsOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    if (sameAssignedResource(a.busId, b.busId)) {
+      pushStructuredOverlap(conflicts, 'bus', a, b, { tripDate, otherLabel, otherRouteId })
+    }
+    if (sameAssignedResource(a.driverId, b.driverId)) {
+      pushStructuredOverlap(conflicts, 'driver', a, b, { tripDate, otherLabel, otherRouteId })
+    }
   }
-  if (String(proposed.busId) === String(other.busId)) {
-    pushStructuredOverlap(conflicts, 'bus', proposed, other, { tripDate, otherLabel, otherRouteId })
-  }
-  if (String(proposed.driverId) === String(other.driverId)) {
-    pushStructuredOverlap(conflicts, 'driver', proposed, other, { tripDate, otherLabel, otherRouteId })
-  }
-  if (proposed.routeId && String(proposed.routeId) === String(other.routeId)) {
-    pushStructuredOverlap(conflicts, 'route', proposed, other, { tripDate, otherLabel, otherRouteId })
+
+  if (timesOverlap(a.departureTime, a.arrivalTime, b.departureTime, b.arrivalTime)) {
+    if (a.routeId && sameAssignedResource(a.routeId, b.routeId)) {
+      pushStructuredOverlap(conflicts, 'route', a, b, { tripDate, otherLabel, otherRouteId })
+    }
   }
 }
 
@@ -295,17 +314,14 @@ async function analyzeTimetableConflicts({ dates, rows }) {
     status: { $ne: 'cancelled' },
   })
 
+  const busIds = [...new Set(included.map((r) => String(r.busId)))]
+  const buses = await Bus.find({ _id: { $in: busIds } }).select('status regNumber').lean()
+  const busById = new Map(buses.map((b) => [String(b._id), b]))
+
   const issues = []
 
   for (const dateStr of dates) {
-    const proposedForDay = included.map((r) => ({
-      routeId: String(r.routeId),
-      routeName: r.routeName || 'Route',
-      busId: String(r.busId),
-      driverId: String(r.driverId),
-      departureTime: r.departureTime,
-      arrivalTime: r.arrivalTime,
-    }))
+    const proposedForDay = included.map((r) => toConflictTrip(r))
 
     const existingForDay = existing.filter((e) => isSameCalendarDay(e.tripDate, dateStr))
 
@@ -324,6 +340,18 @@ async function analyzeTimetableConflicts({ dates, rows }) {
     }
 
     for (const trip of proposedForDay) {
+      const bus = busById.get(String(trip.busId))
+      if (bus?.status === 'maintenance') {
+        mergeTimetableIssue(issues, trip, dateStr, [
+          {
+            type: 'availability',
+            message: `Bus ${bus.regNumber} is under maintenance`,
+            _dedupeKey: `maintenance-${trip.busId}-${dateStr}`,
+          },
+        ])
+        continue
+      }
+
       const conflicts = []
       for (const ex of existingForDay) {
         compareTripOverlap(trip, ex, conflicts, {
@@ -340,7 +368,15 @@ async function analyzeTimetableConflicts({ dates, rows }) {
   return { hasConflict: issues.length > 0, issues, conflictCount }
 }
 
-async function validateAssignment({ busId, driverId, departureTime, routeId, routeDepotId }) {
+async function validateAssignment({
+  busId,
+  driverId,
+  departureTime,
+  arrivalTime,
+  routeId,
+  routeDepotId,
+  tripDate,
+}) {
   const bus = await Bus.findById(busId)
   if (!bus) {
     const error = new Error('Bus not found')
@@ -374,10 +410,16 @@ async function validateAssignment({ busId, driverId, departureTime, routeId, rou
     error.statusCode = 400
     throw error
   }
-  if (!isWithinWorkingHoursAtTime(driver.workingHours, departureTime)) {
+  if (!isTripWithinWorkingHours(driver.workingHours, departureTime, arrivalTime)) {
     const error = new Error(
-      `Driver is outside working hours for ${departureTime} (${driver.workingHours || 'not set'})`
+      `Driver is outside working hours for ${departureTime}–${arrivalTime} (${driver.workingHours || 'not set'})`
     )
+    error.statusCode = 400
+    throw error
+  }
+  const licenseIssue = getDriverLicenseInvalidReason(driver, tripDate || new Date())
+  if (licenseIssue) {
+    const error = new Error(licenseIssue)
     error.statusCode = 400
     throw error
   }
@@ -392,7 +434,19 @@ async function validateAssignment({ busId, driverId, departureTime, routeId, rou
 
 export const getSchedules = async (req, res) => {
   try {
-    const { tripDate, fromDate, toDate, view, routeId, busId, driverId, status } = req.query
+    const {
+      tripDate,
+      fromDate,
+      toDate,
+      view,
+      routeId,
+      busId,
+      driverId,
+      status,
+      timetableId,
+      timetablePeriod,
+      timetableAnchor,
+    } = req.query
     const filter = {}
 
     if (isDriver(req.user) && req.user?.driverId) {
@@ -411,7 +465,19 @@ export const getSchedules = async (req, res) => {
       if (busId) filter.busId = busId
       if (driverId) filter.driverId = driverId
     }
-    if (status) filter.status = status
+    if (status === 'rejected') {
+      filter.status = 'draft'
+      filter.rejectionReason = { $exists: true, $ne: '' }
+    } else if (status) {
+      filter.status = status
+    }
+
+    if (timetableId) filter.timetableId = String(timetableId).trim()
+    if (timetablePeriod) filter.timetablePeriod = timetablePeriod
+    if (timetableAnchor) {
+      const period = timetablePeriod || 'daily'
+      filter.timetableAnchor = normalizeTimetableAnchor(period, timetableAnchor)
+    }
 
     if (fromDate && toDate) {
       filter.tripDate = { $gte: startOfDay(fromDate), $lte: endOfDay(toDate) }
@@ -423,9 +489,14 @@ export const getSchedules = async (req, res) => {
       filter.tripDate = { $gte: startOfDay(tripDate), $lte: endOfDay(tripDate) }
     }
 
-    const schedules = await populateSchedule(
-      Schedule.find(filter).sort({ tripDate: 1, departureTime: 1 })
-    )
+    let sort = { tripDate: 1, departureTime: 1 }
+    if (status === 'pending') {
+      sort = { receivedAt: -1, submittedAt: -1, createdAt: -1 }
+    } else if (status === 'rejected') {
+      sort = { rejectedAt: -1, updatedAt: -1, createdAt: -1 }
+    }
+
+    const schedules = await populateSchedule(Schedule.find(filter).sort(sort))
     res.json(schedules)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -475,15 +546,17 @@ export const createSchedule = async (req, res) => {
       })
     }
 
+    const normalizedTripDate = normalizeTripDate(tripDate)
+
     await validateAssignment({
       busId,
       driverId,
       departureTime,
+      arrivalTime,
       routeId,
       routeDepotId: route.depotId,
+      tripDate: normalizedTripDate,
     })
-
-    const normalizedTripDate = normalizeTripDate(tripDate)
 
     const conflicts = await findConflicts({
       tripDate: normalizedTripDate,
@@ -499,6 +572,8 @@ export const createSchedule = async (req, res) => {
 
     const allowedCreateStatuses = ['draft', 'pending']
     const nextStatus = allowedCreateStatuses.includes(status) ? status : 'draft'
+    const timetableMeta = parseTimetableMeta(req.body)
+    const submittedNow = nextStatus === 'pending' ? new Date() : undefined
 
     const schedule = await Schedule.create({
       routeId,
@@ -508,12 +583,15 @@ export const createSchedule = async (req, res) => {
       arrivalTime,
       tripDate: normalizedTripDate,
       status: nextStatus,
-      submittedAt: nextStatus === 'pending' ? new Date() : undefined,
+      submittedAt: submittedNow,
+      receivedAt: submittedNow,
       adjustmentReason: adjustmentReason || 'normal',
       createdBy: createdBy || req.user?.id,
+      ...(timetableMeta || {}),
     })
 
     await syncBusServiceType(busId, route.serviceType)
+    await syncBusStatusForBusId(busId)
 
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.status(201).json(populated)
@@ -576,8 +654,10 @@ export const updateSchedule = async (req, res) => {
         busId,
         driverId,
         departureTime,
+        arrivalTime,
         routeId,
         routeDepotId: assignmentRoute?.depotId,
+        tripDate: normalizedTripDate,
       })
 
       const conflicts = await findConflicts({
@@ -594,10 +674,16 @@ export const updateSchedule = async (req, res) => {
       }
     }
 
+    const previousBusId = existing.busId
+
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
     await existing.save()
     await syncBusServiceType(busId, assignmentRoute?.serviceType)
+    await syncBusStatusForBusId(busId)
+    if (previousBusId && String(previousBusId) !== String(busId)) {
+      await syncBusStatusForBusId(previousBusId)
+    }
     const populated = await populateSchedule(Schedule.findById(req.params.id))
     res.json(populated)
   } catch (error) {
@@ -611,7 +697,9 @@ export const deleteSchedule = async (req, res) => {
     const schedule = await Schedule.findById(req.params.id)
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
     await assertScheduleAccess(req.user, schedule)
+    const busId = schedule.busId
     await schedule.deleteOne()
+    await syncBusStatusForBusId(busId)
     res.json({ message: 'Schedule removed', id: schedule._id })
   } catch (error) {
     const status = error.statusCode || 500
@@ -641,9 +729,13 @@ export const submitSchedule = async (req, res) => {
       return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
     }
 
+    const submittedNow = new Date()
     schedule.status = 'pending'
-    schedule.submittedAt = new Date()
+    schedule.submittedAt = submittedNow
+    schedule.receivedAt = submittedNow
     schedule.rejectionReason = undefined
+    schedule.rejectedAt = undefined
+    schedule.approvedAt = undefined
     await schedule.save()
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
@@ -665,8 +757,10 @@ export const approveSchedule = async (req, res) => {
       busId: schedule.busId,
       driverId: schedule.driverId,
       departureTime: schedule.departureTime,
+      arrivalTime: schedule.arrivalTime,
       routeId: schedule.routeId,
       routeDepotId: route?.depotId,
+      tripDate: schedule.tripDate,
     })
 
     const conflicts = await findConflicts({
@@ -687,9 +781,12 @@ export const approveSchedule = async (req, res) => {
 
     schedule.status = 'scheduled'
     schedule.approvedBy = req.user?.id
+    schedule.approvedAt = new Date()
     schedule.rejectionReason = undefined
+    schedule.rejectedAt = undefined
     await schedule.save()
     await syncBusServiceType(schedule.busId, route?.serviceType)
+    await syncBusStatusForBusId(schedule.busId)
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
@@ -711,11 +808,80 @@ export const rejectSchedule = async (req, res) => {
     }
     schedule.status = 'draft'
     schedule.rejectionReason = reason.trim()
+    schedule.rejectedAt = new Date()
+    schedule.approvedAt = undefined
     await schedule.save()
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
     res.status(500).json({ message: error.message })
+  }
+}
+
+const DRIVER_TRIP_STATUS_TARGETS = new Set(['on-duty', 'on-time', 'delayed', 'completed'])
+const DRIVER_TRIP_STATUS_SOURCES = new Set(['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'])
+
+export const updateDriverTripStatus = async (req, res) => {
+  try {
+    if (!isDriver(req.user)) {
+      return res.status(403).json({ message: 'Only drivers can update trip status here' })
+    }
+
+    const { status } = req.body
+    if (!status || !DRIVER_TRIP_STATUS_TARGETS.has(status)) {
+      return res.status(400).json({ message: 'Status must be on-duty, on-time, delayed, or completed' })
+    }
+
+    const schedule = await Schedule.findById(req.params.id)
+    if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
+
+    if (!DRIVER_TRIP_STATUS_SOURCES.has(schedule.status)) {
+      return res.status(400).json({ message: 'This trip status cannot be changed' })
+    }
+    if (schedule.status === status) {
+      return res.status(400).json({ message: 'Trip is already in that status' })
+    }
+
+    const statusLabel = {
+      'on-duty': 'on duty',
+      'on-time': 'on time',
+      delayed: 'delayed',
+      completed: 'completed',
+    }[status]
+    let notes = req.body.notes?.trim()
+    let adjustmentReason = 'normal'
+
+    if (status === 'delayed') {
+      if (!notes) {
+        return res.status(400).json({ message: 'Please describe the issue before reporting' })
+      }
+      adjustmentReason = 'obstruction'
+    } else if (status === 'on-duty') {
+      notes = notes || 'Driver started trip — on duty'
+    } else if (status === 'on-time') {
+      notes = notes || 'Driver acknowledged trip'
+    } else {
+      notes = notes || `Driver marked trip as ${statusLabel}`
+    }
+
+    appendAdjustmentHistory(
+      schedule,
+      { status, adjustmentReason, adjustmentNotes: notes },
+      req.user?.id
+    )
+    schedule.status = status
+    schedule.adjustmentReason = adjustmentReason
+    schedule.adjustmentNotes = notes
+    await schedule.save()
+    await syncBusStatusForBusId(schedule.busId)
+    await syncDriverStatusForDriverId(schedule.driverId, schedule.tripDate)
+
+    const populated = await populateSchedule(Schedule.findById(schedule._id))
+    res.json(populated)
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).json({ message: error.message })
   }
 }
 
@@ -729,13 +895,24 @@ export const checkScheduleConflicts = async (req, res) => {
       })
     }
     const route = routeId ? await getAccessibleRoute(req.user, routeId) : null
-    await validateAssignment({
-      busId,
-      driverId,
-      departureTime,
-      routeId,
-      routeDepotId: route?.depotId,
-    })
+    const availabilityIssues = []
+    try {
+      await validateAssignment({
+        busId,
+        driverId,
+        departureTime,
+        arrivalTime,
+        routeId,
+        routeDepotId: route?.depotId,
+        tripDate: normalizeTripDate(tripDate),
+      })
+    } catch (err) {
+      if (err.statusCode === 400) {
+        availabilityIssues.push({ type: 'availability', message: err.message })
+      } else {
+        throw err
+      }
+    }
     const conflicts = await findConflicts({
       tripDate,
       routeId,
@@ -745,7 +922,8 @@ export const checkScheduleConflicts = async (req, res) => {
       arrivalTime,
       excludeId,
     })
-    res.json({ hasConflict: conflicts.length > 0, conflicts })
+    const combined = [...availabilityIssues, ...conflicts]
+    res.json({ hasConflict: combined.length > 0, conflicts: combined })
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

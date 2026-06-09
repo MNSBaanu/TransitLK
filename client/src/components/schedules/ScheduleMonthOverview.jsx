@@ -1,17 +1,19 @@
 import Icon from '../Icon'
 import {
+  formatPeriodLabel,
   formatScheduleStatusLabel,
   formatTimeRange,
   getMonthDayDates,
   scheduleCode,
+  parseLocalDateInput,
   scheduleStatusClass,
   toDateInputValue,
   tripDateKey,
 } from '../../utils/scheduleHelpers'
 
-function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip, onPickDay }) {
-  const monthDays = getMonthDayDates(anchorDate)
-  const firstDow = new Date(monthDays[0]).getDay()
+function ScheduleMonthOverview({ schedules, focusDate, selectedId, onSelectTrip, onPickDay }) {
+  const monthDays = getMonthDayDates(focusDate)
+  const firstDow = parseLocalDateInput(monthDays[0]).getDay()
   const padStart = firstDow === 0 ? 6 : firstDow - 1
 
   const byDay = new Map()
@@ -39,11 +41,16 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
             a.departureTime.localeCompare(b.departureTime)
           )
           const isToday = dayKey === toDateInputValue(new Date())
+          const isFocusDay = dayKey === focusDate
           return (
             <div
               key={dayKey}
               className={`flex min-h-[100px] flex-col rounded-lg border p-2 ${
-                isToday ? 'border-depot-navy bg-depot-navy/5' : 'border-outline-variant bg-white'
+                isFocusDay
+                  ? 'border-depot-blue-light bg-depot-blue-light/10'
+                  : isToday
+                    ? 'border-depot-navy bg-depot-navy/5'
+                    : 'border-outline-variant bg-white'
               }`}
             >
               <button
@@ -51,7 +58,7 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
                 onClick={() => onPickDay(dayKey)}
                 className="mb-1 flex items-center justify-between text-left text-xs font-bold text-neutral-900 hover:underline"
               >
-                {new Date(dayKey).getDate()}
+                {parseLocalDateInput(dayKey).getDate()}
                 {trips.length > 0 && (
                   <span className="rounded-full bg-depot-navy px-1.5 py-0.5 text-[10px] text-white">
                     {trips.length}
@@ -98,14 +105,10 @@ function ScheduleMonthOverview({ schedules, anchorDate, selectedId, onSelectTrip
       </div>
       <p className="mt-3 flex items-center gap-2 text-xs text-on-surface-variant">
         <Icon name="info" size={16} />
-        {formatPeriodLabelMonth(anchorDate)} — click a day to open the daily Gantt view.
+        {formatPeriodLabel('monthly', focusDate)} — click a day to open the daily Gantt view.
       </p>
     </div>
   )
-}
-
-function formatPeriodLabelMonth(anchorDate) {
-  return new Date(anchorDate).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
 }
 
 export default ScheduleMonthOverview

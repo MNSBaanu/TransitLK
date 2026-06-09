@@ -84,12 +84,12 @@ export function useNavHub() {
       setLoadingAlerts(true)
       
       try {
-        // First, generate notifications from backend
-        await api.post('/notifications/generate')
-        
-        // Then fetch the generated notifications
-        const response = await api.get('/notifications')
-        
+        const [busesRes, maintRes, schedRes] = await Promise.all([
+          api.get('/buses', { params: { light: 1 } }),
+          api.get('/maintenance').catch(() => ({ data: [] })),
+          api.get('/schedules', { params: { fromDate: today, toDate: today } }),
+        ])
+
         if (cancelled) return
 
         const backendNotifications = response.data || []

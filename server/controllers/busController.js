@@ -1,5 +1,14 @@
 import Bus from '../models/Bus.js'
-import Route from '../models/Route.js'
+import Maintenance from '../models/Maintenance.js'
+import {
+  attachFleetAssignmentContext,
+  cancelActiveSchedulesForBus,
+} from '../utils/fleetAssignmentHelpers.js'
+import {
+  computeNextMaintenanceDate,
+  ensureMaintenanceRecordForBus,
+  syncBusMaintenanceFields,
+} from '../utils/busMaintenanceSync.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
@@ -30,7 +39,8 @@ export const createBus = async (req, res) => {
 // @route   GET /api/buses
 export const getAllBuses = async (req, res) => {
   try {
-    const { status, depotId } = req.query
+    const { status, depotId, light } = req.query
+    const isLight = light === '1' || light === 'true'
     const filter = {}
     if (status) filter.status = status
     if (depotId) filter.depotId = depotId
@@ -38,39 +48,43 @@ export const getAllBuses = async (req, res) => {
     const buses = await Bus.find(filter)
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
-    const busIds = buses.map((bus) => bus._id)
-    const assignedRoutes = busIds.length
-      ? await Route.find({ busId: { $in: busIds } })
-          .select('busId routeName serviceType status updatedAt createdAt')
-          .sort({ updatedAt: -1, createdAt: -1 })
-      : []
 
-    const routeByBusId = new Map()
-    for (const route of assignedRoutes) {
-      const key = String(route.busId)
-      if (!routeByBusId.has(key)) routeByBusId.set(key, route)
+    if (isLight) {
+      return res.json(buses.map((bus) => (bus.toObject ? bus.toObject() : bus)))
     }
 
-    const result = buses.map((bus) => {
-      const assignedRoute = routeByBusId.get(String(bus._id))
-      const doc = bus.toObject()
-      if (assignedRoute?.serviceType) {
-        doc.serviceType = assignedRoute.serviceType
-        doc.assignedRoute = {
-          _id: assignedRoute._id,
-          routeName: assignedRoute.routeName,
-          serviceType: assignedRoute.serviceType,
-          status: assignedRoute.status,
-        }
-      }
-      // Calculate nextMaintenanceDate if not set (4 weeks from lastMaintenanceDate)
-      if (bus.lastMaintenanceDate && !bus.nextMaintenanceDate) {
-        const nextDate = new Date(bus.lastMaintenanceDate)
-        nextDate.setDate(nextDate.getDate() + 28) // 4 weeks = 28 days
+    const busIds = buses.map((b) => b._id)
+    const latestMaintenanceRows = busIds.length
+      ? await Maintenance.aggregate([
+          { $match: { bus_id: { $in: busIds } } },
+          { $sort: { service_date: -1 } },
+          {
+            $group: {
+              _id: '$bus_id',
+              lastMaintenanceDate: { $first: '$service_date' },
+            },
+          },
+        ])
+      : []
+    const maintenanceByBusId = new Map(
+      latestMaintenanceRows.map((row) => [String(row._id), row.lastMaintenanceDate])
+    )
+
+    const withAssignments = await attachFleetAssignmentContext(buses, {
+      resourceField: 'busId',
+    })
+
+    const result = withAssignments.map((doc, index) => {
+      const bus = buses[index]
+      const busKey = String(bus._id)
+      const resolvedLastMaintenance =
+        maintenanceByBusId.get(busKey) || bus.lastMaintenanceDate || null
+      if (resolvedLastMaintenance) {
+        const nextDate = computeNextMaintenanceDate(resolvedLastMaintenance)
+        doc.lastMaintenanceDate = resolvedLastMaintenance
         doc.nextMaintenanceDate = nextDate
-        // Update the bus document with the calculated date
-        Bus.findByIdAndUpdate(bus._id, { nextMaintenanceDate: nextDate }).catch(() => {})
       } else {
+        doc.lastMaintenanceDate = bus.lastMaintenanceDate
         doc.nextMaintenanceDate = bus.nextMaintenanceDate
       }
       return doc
@@ -108,10 +122,26 @@ export const updateBus = async (req, res) => {
     const updateData = { ...req.body }
     if (updateData.depotId === '') updateData.depotId = undefined
 
+    if (updateData.status === 'maintenance' && bus.status !== 'maintenance') {
+      await cancelActiveSchedulesForBus(
+        bus._id,
+        'Vehicle marked in maintenance — schedule cancelled'
+      )
+      await ensureMaintenanceRecordForBus(
+        bus._id,
+        'Vehicle marked in maintenance from fleet'
+      )
+    }
+
     const updated = await Bus.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     })
+
+    if (updateData.status === 'maintenance' || updateData.status === 'available') {
+      await syncBusMaintenanceFields(bus._id)
+    }
+
     res.json(updated)
   } catch (error) {
     res.status(500).json({ message: error.message })

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
 import { homePathForRole, isPathAllowed } from '../config/roles'
-import { primePagesForRole } from '../services/pagePrefetch'
+import { clearAllPageCache, primePagesForRole } from '../services/pagePrefetch'
 
 const AuthContext = createContext(null)
 
@@ -16,7 +16,15 @@ export function AuthProvider({ children }) {
       return null
     }
   })
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')))
+  const [loading, setLoading] = useState(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return false
+    try {
+      return !localStorage.getItem(STORAGE_USER)
+    } catch {
+      return true
+    }
+  })
 
   const persistUser = (profile) => {
     setUser(profile)
@@ -34,6 +42,7 @@ export function AuthProvider({ children }) {
       setLoading(false)
       return null
     }
+
     try {
       const { data } = await api.get('/auth/me')
       persistUser(data)
@@ -41,6 +50,7 @@ export function AuthProvider({ children }) {
       return data
     } catch {
       localStorage.removeItem('token')
+      clearAllPageCache()
       persistUser(null)
       return null
     } finally {
@@ -55,20 +65,24 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password })
     localStorage.setItem('token', data.token)
-    const profile = await refreshSession()
-    return profile || {
-      _id: data._id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      accountType: data.accountType,
-      driverId: data.driverId,
-      depotId: data.depotId,
+
+    const [meRes] = await Promise.all([
+      api.get('/auth/me'),
+      primePagesForRole(data.role),
+    ])
+    persistUser(meRes.data)
+
+    if (meRes.data.role !== data.role) {
+      await primePagesForRole(meRes.data.role)
     }
+
+    setLoading(false)
+    return meRes.data
   }
 
   const logout = () => {
     localStorage.removeItem('token')
+    clearAllPageCache()
     persistUser(null)
   }
 

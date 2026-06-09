@@ -1,28 +1,24 @@
 import Icon from '../Icon'
 import RouteMap from '../RouteMap'
 import PlacesAutocompleteInput from './PlacesAutocompleteInput'
+import FieldError from '../FieldError'
 import { ModuleCard } from '../layout/ModuleLayout'
 import { formatRouteStatus } from '../../utils/routeHelpers'
-import RouteFleetAssignment from './RouteFleetAssignment'
-
+import { fieldBorderClass } from '../../utils/formValidation'
 const inputClass =
-  'mt-1 w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
+  'mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none'
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surface-variant'
 
 function RouteEditView({
   form,
+  fieldErrors = {},
+  saveError = '',
   isEditing,
   routeCode,
   initialRouteStatus = 'draft',
   stopInput,
   onStopInputChange,
   onFormChange,
-  onBusChange,
-  onDriverChange,
-  buses,
-  drivers,
-  selectedBus,
-  selectedDriver,
   onStopPlaceSelect,
   onStartPlaceSelect,
   onEndPlaceSelect,
@@ -48,9 +44,10 @@ function RouteEditView({
                   value={form.routeNo}
                   onChange={onFormChange}
                   required
-                  className={`${inputClass} font-mono tabular-nums`}
+                  className={`${inputClass} font-mono tabular-nums ${fieldBorderClass(fieldErrors.routeNo)}`}
                   placeholder="8 / 593 / 636/1"
                 />
+                <FieldError message={fieldErrors.routeNo} />
               </label>
               <label className="block">
                 <span className={labelClass}>Route status</span>
@@ -70,9 +67,10 @@ function RouteEditView({
                   onChange={onFormChange}
                   onPlaceSelect={onStartPlaceSelect}
                   required
-                  className={inputClass}
+                  className={`${inputClass} ${fieldBorderClass(fieldErrors.startPoint)}`}
                   placeholder="Search start location…"
                 />
+                <FieldError message={fieldErrors.startPoint} />
               </label>
               <label className="block">
                 <span className={labelClass}>End point</span>
@@ -82,9 +80,10 @@ function RouteEditView({
                   onChange={onFormChange}
                   onPlaceSelect={onEndPlaceSelect}
                   required
-                  className={inputClass}
+                  className={`${inputClass} ${fieldBorderClass(fieldErrors.endPoint)}`}
                   placeholder="Search end location…"
                 />
+                <FieldError message={fieldErrors.endPoint} />
               </label>
             </div>
 
@@ -145,24 +144,11 @@ function RouteEditView({
                   value={form.distance}
                   onChange={onFormChange}
                   required
-                  className={`${inputClass} tabular-nums`}
+                  className={`${inputClass} tabular-nums ${fieldBorderClass(fieldErrors.distance)}`}
                 />
+                <FieldError message={fieldErrors.distance} />
               </label>
             </div>
-
-            {isEditing && (
-              <RouteFleetAssignment
-                serviceType={form.serviceType}
-                busId={form.busId}
-                driverId={form.driverId}
-                buses={buses}
-                drivers={drivers}
-                selectedBus={selectedBus}
-                selectedDriver={selectedDriver}
-                onBusChange={onBusChange}
-                onDriverChange={onDriverChange}
-              />
-            )}
           </div>
         </ModuleCard>
 
@@ -196,42 +182,33 @@ function RouteEditView({
                 <p className={labelClass}>Stops</p>
                 <p className="font-bold">{form.stops.length}</p>
               </div>
-              {isEditing && (
-                <>
-                  <div>
-                    <p className={labelClass}>Bus</p>
-                    <p className="font-bold text-sm">
-                      {selectedBus?.regNumber || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className={labelClass}>Driver</p>
-                    <p className="font-bold text-sm">
-                      {selectedDriver?.name || '—'}
-                    </p>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </ModuleCard>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-w-[7.5rem] rounded-xl border border-outline-variant px-5 py-2.5 text-sm font-semibold hover:bg-surface-container"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="min-w-[9rem] rounded-xl bg-neutral-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-60"
-        >
-          {saving ? 'Saving...' : 'Save route'}
-        </button>
+      <div className="mt-5 space-y-2">
+        {saveError ? (
+          <p className="text-right text-sm text-red-600" role="alert">
+            {saveError}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-w-[7.5rem] rounded-xl border border-outline-variant px-5 py-2.5 text-sm font-semibold hover:bg-surface-container"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="min-w-[9rem] rounded-xl bg-neutral-900 px-6 py-2.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:opacity-60"
+          >
+            {saving ? 'Saving...' : 'Save route'}
+          </button>
+        </div>
       </div>
     </form>
   )

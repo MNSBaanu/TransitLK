@@ -3,11 +3,16 @@ import { useAutoRefresh } from './useAutoRefresh'
 import { getCachedPageData, getStalePageData, loadPageData } from '../services/pagePrefetch'
 
 /** Instant stale cache + background refresh + optional auto-poll for prefetchable pages. */
-export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled = true, forceRefresh = false } = {}) {
+export function useFastPageLoad(path, { applyData, options = {}, enabled = true, refreshEnabled = true, forceRefresh = false } = {}) {
   const optionsRef = useRef(options)
   optionsRef.current = options
 
-  const [loading, setLoading] = useState(() => !getStalePageData(path, options))
+  const [loading, setLoading] = useState(
+    () =>
+      enabled &&
+      !getCachedPageData(path, options) &&
+      !getStalePageData(path, options)
+  )
   const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(
@@ -38,13 +43,27 @@ export function useFastPageLoad(path, { applyData, options = {}, refreshEnabled 
   )
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      return undefined
+    }
+
     const loadOptions = optionsRef.current
+    const cached = getCachedPageData(path, loadOptions)
     const stale = getStalePageData(path, loadOptions)
+    if (cached) {
+      applyData(cached)
+      setLoading(false)
+      return undefined
+    }
     if (stale) applyData(stale)
     load({ keepContent: Boolean(stale), force: forceRefresh })
-  }, [path, load, applyData, forceRefresh])
+    return undefined
+  }, [path, load, applyData, forceRefresh, enabled])
 
-  useAutoRefresh(() => load({ keepContent: true, force: true }), { enabled: refreshEnabled })
+  useAutoRefresh(() => load({ keepContent: true, force: true }), {
+    enabled: enabled && refreshEnabled,
+  })
 
   return { loading, refreshing, reload: load }
 }

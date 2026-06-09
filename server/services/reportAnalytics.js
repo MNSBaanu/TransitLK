@@ -16,10 +16,10 @@ import {
 } from '../utils/scheduleHelpers.js'
 
 export function parseReportRange({ from, to, period = 'monthly' }) {
-  const anchor = to ? new Date(to) : new Date()
   if (from && to) {
     return { start: startOfDay(from), end: endOfDay(to), mode: period }
   }
+  const anchor = to || from || new Date()
   if (period === 'weekly') {
     return { start: startOfWeek(anchor), end: endOfWeek(anchor), mode: 'weekly' }
   }
@@ -34,11 +34,11 @@ function tripDurationHours(departureTime, arrivalTime) {
 }
 
 function isCompletedStatus(status) {
-  return status === 'completed' || status === 'on-time'
+  return status === 'completed' || status === 'on-time' || status === 'on-duty'
 }
 
 function isScheduledStatus(status) {
-  return ['scheduled', 'approved', 'on-time', 'completed', 'delayed', 'pending'].includes(
+  return ['scheduled', 'approved', 'on-duty', 'on-time', 'completed', 'delayed', 'pending'].includes(
     status
   )
 }
@@ -122,6 +122,19 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
   const totalLiters = fuelLogs.reduce((sum, f) => sum + (f.liters || 0), 0)
   const totalFuelCost = fuelLogs.reduce((sum, f) => sum + (f.amount || 0), 0)
   const maintenanceCost = maintenanceRecords.reduce((sum, m) => sum + (m.cost || 0), 0)
+
+  const fuelByBusMap = new Map()
+  for (const log of fuelLogs) {
+    const bid = String(log.bus_id?._id || log.bus_id)
+    if (!bid) continue
+    if (!fuelByBusMap.has(bid)) {
+      fuelByBusMap.set(bid, { liters: 0, amount: 0, entries: 0 })
+    }
+    const row = fuelByBusMap.get(bid)
+    row.liters += log.liters || 0
+    row.amount += log.amount || 0
+    row.entries += 1
+  }
 
   const bucketCount = mode === 'weekly' ? 7 : 4
   const rangeMs = Math.max(end.getTime() - start.getTime(), 1)
@@ -240,9 +253,10 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
     }
   }
 
-  const fuelByRoute = [...routeFuelMap.values()]
-    .filter((r) => r.liters > 0)
-    .map((r) => ({
+  const fuelByRoute = [...routeFuelMap.entries()]
+    .filter(([, r]) => r.liters > 0)
+    .map(([routeId, r]) => ({
+      routeId,
       routeName: r.routeName,
       liters: Math.round(r.liters * 10) / 10,
       litersPerKm:
@@ -250,6 +264,50 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
     }))
     .sort((a, b) => b.liters - a.liters)
     .slice(0, 8)
+
+  const fuelByVehicleRaw = buses
+    .map((b) => {
+      const bid = String(b._id)
+      const fuel = fuelByBusMap.get(bid) || { liters: 0, amount: 0, entries: 0 }
+      const tripCount = nonCancelled.filter((s) => String(s.busId?._id || s.busId) === bid).length
+      const liters = Math.round(fuel.liters * 10) / 10
+      const litersPerTrip =
+        tripCount > 0 ? Math.round((fuel.liters / tripCount) * 10) / 10 : null
+      const fuelShare =
+        totalLiters > 0 ? Math.round((fuel.liters / totalLiters) * 1000) / 10 : 0
+      return {
+        busId: b._id,
+        regNumber: b.regNumber,
+        status: b.status,
+        liters,
+        amount: Math.round(fuel.amount),
+        entries: fuel.entries,
+        tripCount,
+        litersPerTrip,
+        fuelShare,
+      }
+    })
+    .filter((v) => v.liters > 0)
+    .sort((a, b) => b.liters - a.liters)
+
+  const vehiclesWithEfficiency = fuelByVehicleRaw.filter((v) => v.litersPerTrip != null)
+  const fleetAvgLitersPerTrip =
+    vehiclesWithEfficiency.length > 0
+      ? vehiclesWithEfficiency.reduce((s, v) => s + v.litersPerTrip, 0) /
+        vehiclesWithEfficiency.length
+      : null
+
+  const HIGH_USAGE_EFFICIENCY_FACTOR = 1.25
+  const HIGH_USAGE_FUEL_SHARE = 25
+
+  const fuelByVehicle = fuelByVehicleRaw.map((v) => ({
+    ...v,
+    highUsage:
+      (fleetAvgLitersPerTrip != null &&
+        v.litersPerTrip != null &&
+        v.litersPerTrip >= fleetAvgLitersPerTrip * HIGH_USAGE_EFFICIENCY_FACTOR) ||
+      v.fuelShare >= HIGH_USAGE_FUEL_SHARE,
+  }))
 
   const driverStats = new Map()
   for (const d of drivers) {
@@ -308,6 +366,17 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
       (sum, s) => sum + tripDurationHours(s.departureTime, s.arrivalTime),
       0
     )
+    const fuel = fuelByBusMap.get(bid) || { liters: 0, amount: 0, entries: 0 }
+    const fuelLiters = Math.round(fuel.liters * 10) / 10
+    const litersPerTrip =
+      trips.length > 0 ? Math.round((fuel.liters / trips.length) * 10) / 10 : null
+    const fuelShare =
+      totalLiters > 0 ? Math.round((fuel.liters / totalLiters) * 1000) / 10 : 0
+    const highUsage =
+      (fleetAvgLitersPerTrip != null &&
+        litersPerTrip != null &&
+        litersPerTrip >= fleetAvgLitersPerTrip * HIGH_USAGE_EFFICIENCY_FACTOR) ||
+      fuelShare >= HIGH_USAGE_FUEL_SHARE
     return {
       busId: b._id,
       regNumber: b.regNumber,
@@ -316,6 +385,12 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
       tripCount: trips.length,
       utilizationHours: Math.round(hours * 10) / 10,
       utilized: trips.length > 0,
+      fuelLiters,
+      fuelAmount: Math.round(fuel.amount),
+      fuelEntries: fuel.entries,
+      litersPerTrip,
+      fuelShare,
+      highUsage: fuelLiters > 0 && highUsage,
     }
   })
 
@@ -331,6 +406,7 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
       if (rate < 0.7 || row.delayed >= 4 || row.cancelled >= 3) status = 'AT RISK'
       const routeFuel = fuelByRouteMap.get(row.routeName)
       return {
+        routeId: row.routeId,
         depotUnit: row.routeName,
         operationalHours: `${Math.round(row.operationalHours).toLocaleString()} hrs`,
         incidents: row.delayed + row.cancelled,
@@ -399,10 +475,25 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
       }
     : null
 
+  const highestFuelVehicle = fuelByVehicle[0]
+    ? {
+        regNumber: fuelByVehicle[0].regNumber,
+        busId: fuelByVehicle[0].busId,
+        liters: fuelByVehicle[0].liters,
+        litersPerTrip: fuelByVehicle[0].litersPerTrip,
+        fuelShare: fuelByVehicle[0].fuelShare,
+        highUsage: fuelByVehicle[0].highUsage,
+        tripCount: fuelByVehicle[0].tripCount,
+      }
+    : null
+
+  const highUsageVehicles = fuelByVehicle.filter((v) => v.highUsage)
+
   const routeDelayAnalysis = [...routesWithTrips]
     .filter((r) => r.delayed > 0)
     .sort((a, b) => b.delayed - a.delayed || b.cancelled - a.cancelled)
     .map((r) => ({
+      routeId: r.routeId,
       routeName: r.routeName,
       delayed: r.delayed,
       cancelled: r.cancelled,
@@ -451,6 +542,22 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
         })
       }
     }
+    if (highUsageVehicles.length > 0) {
+      recommendations.push({
+        priority: 'medium',
+        icon: 'local_gas_station',
+        text:
+          highUsageVehicles.length === 1
+            ? `${highUsageVehicles[0].regNumber} exceeds fleet fuel averages (${highUsageVehicles[0].liters} L, ${highUsageVehicles[0].litersPerTrip ?? '—'} L/trip). Review maintenance and driving patterns.`
+            : `${highUsageVehicles.length} vehicles exceed fleet fuel averages: ${highUsageVehicles.map((v) => v.regNumber).join(', ')}.`,
+      })
+    } else if (highestFuelVehicle) {
+      recommendations.push({
+        priority: 'low',
+        icon: 'directions_bus',
+        text: `${highestFuelVehicle.regNumber} consumed the most fuel this period (${highestFuelVehicle.liters} L${highestFuelVehicle.litersPerTrip != null ? `, ${highestFuelVehicle.litersPerTrip} L/trip` : ''}).`,
+      })
+    }
     if (monthlySummary.filter((r) => r.status === 'AT RISK').length > 0) {
       recommendations.push({
         priority: 'high',
@@ -485,6 +592,10 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
     bestPerformingRoute,
     worstPerformingRoute,
     highestFuelConsumingRoute: highestFuelRoute,
+    highestFuelConsumingVehicle: highestFuelVehicle,
+    highUsageVehicles: highUsageVehicles.slice(0, 8),
+    fleetAvgLitersPerTrip:
+      fleetAvgLitersPerTrip != null ? Math.round(fleetAvgLitersPerTrip * 10) / 10 : null,
     fleetUtilization: {
       rate: vehicleUtilizationRate,
       busesUsed: busesUsed.size,
@@ -507,10 +618,13 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
           `Trip completion rate: ${tripCompletionRate}% across ${activeTrips} active trips (${completed.length} completed)`,
           `Vehicle utilization: ${vehicleUtilizationRate}% — ${busesUsed.size} of ${buses.length} buses used`,
           `Fuel logs: ${fuelLogs.length} entries, ${Math.round(totalLiters * 10) / 10} L (LKR ${totalFuelCost.toLocaleString()})`,
+          highestFuelVehicle
+            ? `Highest fuel vehicle: ${highestFuelVehicle.regNumber} — ${highestFuelVehicle.liters} L${highestFuelVehicle.litersPerTrip != null ? ` (${highestFuelVehicle.litersPerTrip} L/trip)` : ''}`
+            : null,
           topRoutes.length
             ? `Top route: ${topRoutes[0].routeName} — ${topRoutes[0].tripCount} trips, ${topRoutes[0].completionRate}% completion`
             : 'Routes exist but no trips in this period',
-        ]
+        ].filter(Boolean)
       : ['No schedule, fuel, or trip records in the selected date range.'],
     sections: [
       {
@@ -587,6 +701,12 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
               : '—',
           },
           {
+            label: 'Highest fuel consuming vehicle',
+            value: highestFuelVehicle
+              ? `${highestFuelVehicle.regNumber} · ${highestFuelVehicle.liters} L`
+              : '—',
+          },
+          {
             label: 'Fleet utilization',
             value:
               buses.length > 0
@@ -610,11 +730,14 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
         ],
         trend: fuelTrend,
         byRoute: fuelByRoute,
+        byVehicle: fuelByVehicle.slice(0, 8),
         narrative: !fuelLogs.length
           ? 'No fuel logs in Fuel & Maintenance for this period.'
-          : peakFuel
-            ? `${fuelLogs.length} fuel log(s) totalling ${Math.round(totalLiters * 10) / 10} L; peak bucket ${peakFuel.label} (${peakFuel.liters} L).`
-            : `${fuelLogs.length} fuel log(s) recorded totalling ${Math.round(totalLiters * 10) / 10} L.`,
+          : highUsageVehicles.length > 0
+            ? `${fuelLogs.length} fuel log(s) totalling ${Math.round(totalLiters * 10) / 10} L; ${highUsageVehicles.length} vehicle(s) flagged for high consumption.`
+            : peakFuel
+              ? `${fuelLogs.length} fuel log(s) totalling ${Math.round(totalLiters * 10) / 10} L; peak bucket ${peakFuel.label} (${peakFuel.liters} L).`
+              : `${fuelLogs.length} fuel log(s) recorded totalling ${Math.round(totalLiters * 10) / 10} L.`,
       },
     ],
   }
@@ -680,6 +803,10 @@ export async function buildDashboardAnalytics(query = {}, user = null) {
       totalLiters: Math.round(totalLiters * 10) / 10,
       totalCost: totalFuelCost,
       byRoute: fuelByRoute,
+      byVehicle: fuelByVehicle.slice(0, 8),
+      fleetAvgLitersPerTrip:
+        fleetAvgLitersPerTrip != null ? Math.round(fleetAvgLitersPerTrip * 10) / 10 : null,
+      highUsageCount: highUsageVehicles.length,
       trend: fuelTrend,
       recentLogs: fuelLogs.slice(0, 10).map((f) => ({
         date: new Date(f.fuel_date).toISOString().slice(0, 10),

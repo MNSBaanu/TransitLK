@@ -3,6 +3,7 @@ import api from '../services/api'
 import Icon from '../components/Icon'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import FieldError from '../components/FieldError'
 import {
   ModuleAlert,
   ModuleHeader,
@@ -10,6 +11,7 @@ import {
   ModuleStats,
   ModuleToast,
 } from '../components/layout/ModuleLayout'
+import { fieldBorderClass, hasErrors, validateDepotForm } from '../utils/formValidation'
 
 function DepotModal({ depot, regionOptions, onClose, onSave }) {
   const isEdit = Boolean(depot)
@@ -24,14 +26,20 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
   }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
 
   const handleChange = (e) => {
     const { name, value } = e.target
     setForm((prev) => ({ ...prev, [name]: value }))
+    setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const errors = validateDepotForm(form)
+    setFieldErrors(errors)
+    if (hasErrors(errors)) return
+
     setSaving(true)
     setError('')
 
@@ -79,9 +87,11 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
               value={form.depotCode}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm uppercase outline-none focus:border-neutral-900"
+              maxLength={6}
+              className={`w-full rounded-lg border px-3 py-2 text-sm uppercase outline-none ${fieldBorderClass(fieldErrors.depotCode)}`}
               placeholder="ML"
             />
+            <FieldError message={fieldErrors.depotCode} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Region</span>
@@ -91,9 +101,11 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
               onChange={handleChange}
               list="depot-region-options"
               required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              minLength={2}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.region)}`}
               placeholder="Enter region"
             />
+            <FieldError message={fieldErrors.region} />
             <datalist id="depot-region-options">
               {regionOptions.map((region) => (
                 <option key={region} value={region} />
@@ -107,8 +119,10 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
               value={form.depotName}
               onChange={handleChange}
               required
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              minLength={2}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.depotName)}`}
             />
+            <FieldError message={fieldErrors.depotName} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Location</span>
@@ -125,9 +139,10 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
               name="directContactNo"
               value={form.directContactNo}
               onChange={handleChange}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.directContactNo)}`}
               placeholder="081 - 2499148"
             />
+            <FieldError message={fieldErrors.directContactNo} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Mobile contact</span>
@@ -135,9 +150,10 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
               name="mobileContactNo"
               value={form.mobileContactNo}
               onChange={handleChange}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.mobileContactNo)}`}
               placeholder="077 - 1057040"
             />
+            <FieldError message={fieldErrors.mobileContactNo} />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-neutral-600">Legacy contact (optional)</span>
@@ -145,8 +161,9 @@ function DepotModal({ depot, regionOptions, onClose, onSave }) {
               name="contactNo"
               value={form.contactNo}
               onChange={handleChange}
-              className="w-full rounded-lg border border-outline-variant px-3 py-2 text-sm outline-none focus:border-neutral-900"
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.contactNo)}`}
             />
+            <FieldError message={fieldErrors.contactNo} />
           </label>
           <div className="flex justify-end gap-2 pt-2">
             <button

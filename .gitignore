@@ -16,9 +16,8 @@ node_modules/
 *.log
 npm-debug.log*
 
-# One-off maintenance scripts (local use only)
-server/scripts/backfill*.js
-server/scripts/check*.mjs
+# DB setup / seed / import / backfill scripts (local use; DB already populated)
+server/scripts
 
 # OS files
 .DS_Store

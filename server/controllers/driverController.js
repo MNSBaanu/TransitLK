@@ -1,4 +1,5 @@
 import Driver from '../models/Driver.js'
+import { attachFleetAssignmentContext } from '../utils/fleetAssignmentHelpers.js'
 
 // @desc    Create a new driver
 // @route   POST /api/drivers
@@ -40,12 +41,21 @@ export const createDriver = async (req, res) => {
 // @route   GET /api/drivers
 export const getAllDrivers = async (req, res) => {
   try {
-    const { depotId } = req.query
+    const { depotId, light } = req.query
+    const isLight = light === '1' || light === 'true'
     const filter = depotId ? { depotId } : {}
     const drivers = await Driver.find(filter)
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
-    res.json(drivers)
+
+    if (isLight) {
+      return res.json(drivers.map((driver) => (driver.toObject ? driver.toObject() : driver)))
+    }
+
+    const result = await attachFleetAssignmentContext(drivers, {
+      resourceField: 'driverId',
+    })
+    res.json(result)
   } catch (error) {
     res.status(500).json({ message: error.message })
   }

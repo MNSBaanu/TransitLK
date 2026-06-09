@@ -1,7 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import ScrollToTop from './components/ScrollToTop'
 import Dashboard from './pages/Dashboard'
 import RoutesPage from './pages/Routes'
 import Schedules from './pages/Schedules'
+import ScheduleApprovals from './pages/ScheduleApprovals'
 import Drivers from './pages/Drivers'
 import Buses from './pages/Buses'
 import Maintenance from './pages/Maintenance'
@@ -27,6 +29,8 @@ function RootRedirect() {
 
 function App() {
   return (
+    <>
+    <ScrollToTop />
     <Routes>
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
 
@@ -37,6 +41,7 @@ function App() {
             <Route path="/admins" element={<Admins />} />
             <Route path="/routes" element={<RoutesPage />} />
             <Route path="/schedules" element={<Schedules />} />
+            <Route path="/schedules/approvals" element={<ScheduleApprovals />} />
             <Route path="/buses" element={<Buses />} />
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/users" element={<Users />} />
@@ -51,6 +56,7 @@ function App() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<RootRedirect />} />
     </Routes>
+    </>
   )
 }
 

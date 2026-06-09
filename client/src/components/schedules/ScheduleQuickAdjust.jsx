@@ -5,11 +5,13 @@ import {
   formatServiceType,
   isBusAssignable,
   isDriverAssignable,
+  busUnassignableReason,
+  driverUnassignableReason,
 } from '../../utils/fleetHelpers'
 import {
   ADJUSTMENT_REASON_LABELS,
+  defaultTripTimes,
   formatAdjustmentChange,
-  formatRouteStopsLabel,
   formatTimeRange,
   formatTripDate,
   reasonToStatus,
@@ -26,8 +28,7 @@ const sectionClass = 'border border-outline-variant bg-surface-container/40'
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-none bg-white'
 
 const defaultAdjust = {
-  departureTime: '08:00',
-  arrivalTime: '12:00',
+  ...defaultTripTimes(),
   busId: '',
   driverId: '',
   status: 'scheduled',
@@ -37,7 +38,6 @@ const defaultAdjust = {
 
 function ScheduleQuickAdjust({
   selected,
-  emergencyMode,
   onEmergencyToggle,
   adjustForm,
   onAdjustChange,
@@ -54,6 +54,9 @@ function ScheduleQuickAdjust({
   onCancelTrip,
   onSubmitDraft,
   canSubmitDraft,
+  canApproveSchedules = false,
+  onApprove,
+  onReject,
   adjustConflict,
   onPickMaintenanceBus,
   onMaintenanceOffline,
@@ -64,58 +67,40 @@ function ScheduleQuickAdjust({
   const derivedStatus = reasonToStatus(form.reason, form.status)
   const [activePicker, setActivePicker] = useState(null)
   const tripDepartureTime = form.departureTime || selected?.departureTime
-
-  const assignableDrivers = useMemo(
-    () =>
-      drivers.filter(
-        (d) =>
-          isDriverAssignable(d, tripDepartureTime) ||
-          String(d._id) === String(form.driverId || selected?.driverId?._id || selected?.driverId)
-      ),
-    [drivers, form.driverId, selected, tripDepartureTime]
-  )
+  const tripLicenseDate = selected ? tripDateKey(selected) : undefined
+  const busPool = allBuses.length ? allBuses : buses
+  const currentDriverId = String(form.driverId || selected?.driverId?._id || selected?.driverId || '')
+  const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
 
   const eligibleDrivers = useMemo(
-    () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime)),
-    [drivers, tripDepartureTime]
+    () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime, tripLicenseDate)),
+    [drivers, tripDepartureTime, tripLicenseDate]
   )
-
-  const assignableBuses = useMemo(() => {
-    if (!selected) return []
-    const serviceType = selected.routeId?.serviceType
-    const minCap = defaultMinCapacityForService(serviceType)
-    const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
-    return buses.filter(
-      (b) => isBusAssignable(b, serviceType, minCap) || String(b._id) === currentBusId
-    )
-  }, [selected, buses, form.busId])
 
   const eligibleBuses = useMemo(() => {
     if (!selected) return []
     const serviceType = selected.routeId?.serviceType
     const minCap = defaultMinCapacityForService(serviceType)
-    return buses.filter((b) => isBusAssignable(b, serviceType, minCap))
-  }, [selected, buses])
+    return busPool.filter((b) => isBusAssignable(b, serviceType, minCap))
+  }, [selected, busPool])
 
   const maintenanceSwapOptions = useMemo(() => {
     if (!selected) return []
-    const currentBusId = String(selected.busId?._id || selected.busId || '')
     const serviceType = selected.routeId?.serviceType
     const minCap = defaultMinCapacityForService(serviceType)
-    const pool = allBuses.length ? allBuses : buses
-    return pool.filter(
+    return busPool.filter(
       (b) => String(b._id) !== currentBusId && isBusAssignable(b, serviceType, minCap)
     )
-  }, [selected, allBuses, buses])
+  }, [selected, busPool, currentBusId])
 
   const coverDriverOptions = useMemo(() => {
     if (!selected) return []
-    const currentDriverId = String(selected.driverId?._id || selected.driverId || '')
     return drivers.filter(
       (d) =>
-        String(d._id) !== currentDriverId && isDriverAssignable(d, tripDepartureTime)
+        String(d._id) !== currentDriverId &&
+        isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
     )
-  }, [selected, drivers, tripDepartureTime])
+  }, [selected, drivers, currentDriverId, tripDepartureTime, tripLicenseDate])
 
   const togglePicker = (picker) => {
     setActivePicker((prev) => (prev === picker ? null : picker))
@@ -182,14 +167,15 @@ function ScheduleQuickAdjust({
     <div className={panelClass}>
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
         <div>
-          <h3 className="text-headline text-xl">{selected ? 'Adjust trip' : 'Adjust schedule'}</h3>
+          <h3 className="text-headline text-xl">Adjust schedule</h3>
           {selected ? (
             <p className="mt-0.5 text-xs text-on-surface-variant">
-              {scheduleCode(selected)} · {formatTripDate(tripDateKey(selected))}
+              {scheduleCode(selected)} · {selected.routeId?.routeName || 'Route'} ·{' '}
+              {formatTripDate(tripDateKey(selected))}
             </p>
           ) : (
             <p className="mt-0.5 text-xs text-on-surface-variant">
-              Pick a trip on the timetable — the form opens when you select one
+              Pick a trip on the timetable, or open trip details and choose Adjust
             </p>
           )}
         </div>
@@ -204,22 +190,6 @@ function ScheduleQuickAdjust({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-white px-5 py-4">
-        <div className={`mb-4 flex items-center justify-between ${sectionClass} px-3 py-2.5`}>
-          <div className="flex items-center gap-2">
-            <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
-            <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
-          </div>
-          <label className="relative inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              checked={emergencyMode}
-              onChange={(e) => onEmergencyToggle(e.target.checked)}
-              className="peer sr-only"
-            />
-            <span className="h-6 w-11 rounded-full bg-[#d1d5db] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:bg-depot-blue-light peer-checked:after:translate-x-full" />
-          </label>
-        </div>
-
         {!selected ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex flex-1 flex-col items-center justify-center px-4 py-12 text-center">
@@ -245,68 +215,24 @@ function ScheduleQuickAdjust({
           </div>
         ) : (
           <>
-          <div className={`${sectionClass} mb-4 p-4`}>
-            <p className={`${labelClass} mb-2`}>Selected trip</p>
-            {selected.routeId && (
-              <div className="mb-3 border-b border-outline-variant/60 pb-3">
-                <p className="text-sm font-semibold text-neutral-900">
-                  {selected.routeId.routeName || 'Route'}
-                </p>
-                {selected.routeId.startPoint && selected.routeId.endPoint ? (
-                  <p className="mt-0.5 text-xs text-on-surface-variant">
-                    {selected.routeId.startPoint} → {selected.routeId.endPoint}
-                    {selected.routeId.distance != null ? ` · ${selected.routeId.distance} km` : ''}
-                  </p>
-                ) : null}
-                {formatRouteStopsLabel(selected.routeId) ? (
-                  <p className="mt-0.5 text-xs text-on-surface-variant">
-                    Stops: {formatRouteStopsLabel(selected.routeId)}
-                  </p>
-                ) : null}
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className={labelClass}>Trip date</span>
-                <p className="mt-1 font-semibold text-neutral-900">
-                  {formatTripDate(tripDateKey(selected))}
-                </p>
-              </div>
-              <div>
-                <span className={labelClass}>Current window</span>
-                <p className="mt-1 font-semibold tabular-nums text-neutral-900">
-                  {selected.departureTime}–{selected.arrivalTime}
-                </p>
-              </div>
-              <div>
-                <span className={labelClass}>Vehicle</span>
-                <p className="mt-1 font-semibold text-neutral-900">
-                  {selected.busId?.regNumber || '—'}
-                </p>
-              </div>
-              <div>
-                <span className={labelClass}>Driver</span>
-                <p className="mt-1 font-semibold text-neutral-900">
-                  {selected.driverId?.name || '—'}
-                </p>
-              </div>
-            </div>
-            <p className="mt-3 text-xs">
-              <span className="font-semibold text-on-surface-variant">Status: </span>
-              <span className="capitalize text-neutral-900">{selected.status}</span>
-              {selected.adjustmentReason && selected.adjustmentReason !== 'normal' && (
-                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900">
-                  {ADJUSTMENT_REASON_LABELS[selected.adjustmentReason] || selected.adjustmentReason}
+          <div className={`mb-4 flex items-center justify-between ${sectionClass} px-3 py-2.5`}>
+              <div className="flex items-center gap-2">
+                <Icon name="emergency_home" size={20} className="text-depot-blue-light" />
+                <span className={`${labelClass} text-depot-blue-light`}>Emergency priority</span>
+                <span className="text-[10px] font-normal normal-case text-on-surface-variant">
+                  (this trip only)
                 </span>
-              )}
-            </p>
-            {selected.adjustmentNotes && (
-              <p className="mt-1 text-xs text-on-surface-variant">
-                <span className="font-semibold">Last note: </span>
-                {selected.adjustmentNotes}
-              </p>
-            )}
-          </div>
+              </div>
+              <label className="relative inline-flex cursor-pointer items-center">
+                <input
+                  type="checkbox"
+                  checked={form.reason === 'emergency'}
+                  onChange={(e) => onEmergencyToggle(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <span className="h-6 w-11 rounded-full bg-[#d1d5db] after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-outline-variant after:bg-white after:transition-all peer-checked:bg-depot-blue-light peer-checked:after:translate-x-full" />
+              </label>
+            </div>
 
         {error && (
           <div className="mb-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -326,7 +252,7 @@ function ScheduleQuickAdjust({
                   value={form.departureTime}
                   onChange={onAdjustChange}
                   disabled={!selected}
-                  className={`${inputClass} mt-1`}
+                  className={`${inputClass} time-field mt-1`}
                 />
               </label>
               <label className="block">
@@ -337,7 +263,7 @@ function ScheduleQuickAdjust({
                   value={form.arrivalTime}
                   onChange={onAdjustChange}
                   disabled={!selected}
-                  className={`${inputClass} mt-1`}
+                  className={`${inputClass} time-field mt-1`}
                 />
               </label>
             </div>
@@ -368,11 +294,19 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="">Select driver</option>
-                {assignableDrivers.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.name}
-                  </option>
-                ))}
+                {drivers.map((d) => {
+                  const isSelected = String(d._id) === currentDriverId
+                  const assignable = isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
+                  const hint = assignable
+                    ? ''
+                    : driverUnassignableReason(d, tripDepartureTime, tripLicenseDate)
+                  return (
+                    <option key={d._id} value={d._id} disabled={!isSelected && !assignable}>
+                      {d.name}
+                      {hint ? ` · ${hint}` : ''}
+                    </option>
+                  )
+                })}
                 {selected && eligibleDrivers.length === 0 && !form.driverId && (
                   <option disabled value="__no_driver__">
                     No driver is available
@@ -394,12 +328,22 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="">Select vehicle</option>
-                {assignableBuses.map((b) => (
-                  <option key={b._id} value={b._id}>
-                    {b.regNumber}
-                    {b.serviceType ? ` · ${b.serviceType}` : ''}
-                  </option>
-                ))}
+                {busPool.map((b) => {
+                  const serviceType = selected.routeId?.serviceType
+                  const minCap = defaultMinCapacityForService(serviceType)
+                  const isSelected = String(b._id) === currentBusId
+                  const assignable = isBusAssignable(b, serviceType, minCap)
+                  const hint = assignable
+                    ? ''
+                    : busUnassignableReason(b, serviceType, minCap)
+                  return (
+                    <option key={b._id} value={b._id} disabled={!isSelected && !assignable}>
+                      {b.regNumber}
+                      {b.serviceType ? ` · ${b.serviceType}` : ''}
+                      {hint ? ` · ${hint}` : ''}
+                    </option>
+                  )
+                })}
                 {selected && eligibleBuses.length === 0 && !form.busId && (
                   <option disabled value="__no_bus__">
                     No bus is available
@@ -462,6 +406,7 @@ function ScheduleQuickAdjust({
                 className={inputClass}
               >
                 <option value="scheduled">Scheduled</option>
+                <option value="on-duty">On duty</option>
                 <option value="on-time">On time</option>
                 <option value="delayed">Delayed</option>
                 <option value="completed">Completed</option>
@@ -520,6 +465,26 @@ function ScheduleQuickAdjust({
         )}
 
         <div className="mt-6 space-y-2 pb-2">
+          {canApproveSchedules && selected?.status === 'pending' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onApprove?.(selected._id)}
+                disabled={saving}
+                className="rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Approve trip
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject?.(selected._id)}
+                disabled={saving}
+                className="rounded-lg border border-red-300 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reject trip
+              </button>
+            </div>
+          )}
           <button
             type="button"
             onClick={onApply}

@@ -1,6 +1,10 @@
 import Icon from '../Icon'
 import { formatServiceType } from '../../utils/fleetHelpers'
-import { formatRouteStatus, routeStatusClass } from '../../utils/routeHelpers'
+import {
+  formatRouteStatus,
+  getRouteDeleteDisabledReason,
+  routeStatusClass,
+} from '../../utils/routeHelpers'
 import { ModuleSearchInput, ModuleSecondaryButton, ModuleTable } from '../layout/ModuleLayout'
 
 function routeCode(route) {
@@ -9,11 +13,29 @@ function routeCode(route) {
   return route._id.slice(-6).toUpperCase()
 }
 
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'inactive', label: 'Inactive' },
+]
+
+const SERVICE_FILTER_OPTIONS = [
+  { value: '', label: 'All services' },
+  { value: 'ordinary', label: 'Ordinary' },
+  { value: 'express', label: 'Express' },
+  { value: 'semi-luxury', label: 'Semi Luxury' },
+]
+
 function RouteListTable({
   routes,
   loading,
   search,
   onSearchChange,
+  statusFilter,
+  onStatusFilterChange,
+  serviceTypeFilter,
+  onServiceTypeFilterChange,
   pagination,
   pageSize,
   pageSizeOptions,
@@ -21,7 +43,6 @@ function RouteListTable({
   onPageSizeChange,
   onView,
   onEdit,
-  onAssignFleet,
   onDelete,
 }) {
   const startItem = routes.length === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1
@@ -36,6 +57,30 @@ function RouteListTable({
           placeholder="Search route no, name, stops..."
           className="min-w-[240px]"
         />
+        <select
+          value={statusFilter}
+          onChange={(e) => onStatusFilterChange(e.target.value)}
+          aria-label="Filter by status"
+          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900"
+        >
+          {STATUS_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || 'all-status'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={serviceTypeFilter}
+          onChange={(e) => onServiceTypeFilterChange(e.target.value)}
+          aria-label="Filter by service type"
+          className="rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900"
+        >
+          {SERVICE_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || 'all-service'} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         <label className="ml-auto flex items-center gap-2 text-sm text-on-surface-variant">
           <span>Rows</span>
           <select
@@ -54,7 +99,8 @@ function RouteListTable({
       <ModuleTable>
         <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
           <tr>
-            {['Route No', 'Route', 'Stops', 'Service', 'Distance', 'Bus', 'Driver', 'Status', ''].map((h) => (
+            <th className="w-12 px-4 py-3 text-left">#</th>
+            {['Route No', 'Route', 'Start Point', 'End Point', 'Stops', 'Service', 'Distance', 'Status', ''].map((h) => (
               <th key={h || 'actions'} className="px-4 py-3 text-left">
                 {h}
               </th>
@@ -64,19 +110,24 @@ function RouteListTable({
         <tbody className="divide-y divide-outline-variant bg-white">
           {loading ? (
             <tr>
-              <td colSpan={9} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={10} className="py-10 text-center text-on-surface-variant">
                 Loading routes...
               </td>
             </tr>
           ) : routes.length === 0 ? (
             <tr>
-              <td colSpan={9} className="py-10 text-center text-on-surface-variant">
+              <td colSpan={10} className="py-10 text-center text-on-surface-variant">
                 No routes found. Add a route to get started.
               </td>
             </tr>
           ) : (
-            routes.map((route) => (
+            routes.map((route, index) => {
+              const deleteDisabledReason = getRouteDeleteDisabledReason(route)
+              return (
               <tr key={route._id} className="transition-colors hover:bg-surface-container-low">
+                <td className="px-4 py-3 text-neutral-500 tabular-nums">
+                  {(pagination.page - 1) * pagination.limit + index + 1}
+                </td>
                 <td className="px-4 py-3 font-mono text-xs font-semibold tabular-nums text-neutral-700">
                   {routeCode(route)}
                 </td>
@@ -84,16 +135,13 @@ function RouteListTable({
                   <button
                     type="button"
                     onClick={() => onView(route)}
-                    className="text-left hover:opacity-90"
+                    className="text-left font-semibold text-neutral-900 hover:underline"
                   >
-                    <p className="font-semibold text-neutral-900 hover:underline">
-                      {route.routeName}
-                    </p>
-                    <p className="text-xs text-on-surface-variant">
-                      {route.startPoint} → {route.endPoint}
-                    </p>
+                    {route.routeName}
                   </button>
                 </td>
+                <td className="px-4 py-3 text-on-surface-variant">{route.startPoint || '—'}</td>
+                <td className="px-4 py-3 text-on-surface-variant">{route.endPoint || '—'}</td>
                 <td className="px-4 py-3 text-on-surface-variant">
                   {route.stops?.length ? route.stops.join(', ') : route.viaDescription || '—'}
                 </td>
@@ -101,28 +149,6 @@ function RouteListTable({
                   {formatServiceType(route.serviceType)}
                 </td>
                 <td className="px-4 py-3 tabular-nums text-neutral-700">{route.distance} km</td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onAssignFleet(route)}
-                    className="cursor-pointer text-left text-sm font-medium text-blue-800 hover:underline"
-                  >
-                    {route.busId?.regNumber || (
-                      <span className="text-on-surface-variant">Set bus</span>
-                    )}
-                  </button>
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onAssignFleet(route)}
-                    className="cursor-pointer text-left text-sm font-medium text-blue-800 hover:underline"
-                  >
-                    {route.driverId?.name || (
-                      <span className="text-on-surface-variant">Set driver</span>
-                    )}
-                  </button>
-                </td>
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${routeStatusClass(route.status)}`}
@@ -151,15 +177,22 @@ function RouteListTable({
                     <button
                       type="button"
                       onClick={() => onDelete(route._id)}
-                      className="rounded-lg p-2 text-red-500 hover:bg-red-50"
-                      title="Delete"
+                      title={deleteDisabledReason || 'Delete route'}
+                      className={`rounded-lg p-2 ${
+                        deleteDisabledReason
+                          ? 'cursor-not-allowed text-red-300 opacity-50'
+                          : 'text-red-500 hover:bg-red-50'
+                      }`}
+                      aria-label={
+                        deleteDisabledReason ? 'Delete route (disabled)' : 'Delete route'
+                      }
                     >
                       <Icon name="delete" size={18} />
                     </button>
                   </div>
                 </td>
               </tr>
-            ))
+            )})
           )}
         </tbody>
       </ModuleTable>

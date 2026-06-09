@@ -8,6 +8,7 @@ function ConfirmDialog({
   cancelLabel = 'Cancel',
   variant = 'danger',
   loading = false,
+  alertOnly = false,
   onConfirm,
   onCancel,
 }) {
@@ -50,25 +51,37 @@ function ConfirmDialog({
         </div>
 
         <div className="mt-5 flex flex-wrap justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="min-w-[7rem] rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold hover:bg-surface-container disabled:opacity-60"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              if (loading) return
-              await onConfirm?.()
-            }}
-            disabled={loading}
-            className={`min-w-[7rem] rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${confirmClass}`}
-          >
-            {loading ? 'Please wait…' : confirmLabel}
-          </button>
+          {!alertOnly && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="min-w-[7rem] rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold hover:bg-surface-container disabled:opacity-60"
+            >
+              {cancelLabel}
+            </button>
+          )}
+          {alertOnly ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="min-w-[7rem] rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-700"
+            >
+              {cancelLabel}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={async () => {
+                if (loading) return
+                await onConfirm?.()
+              }}
+              disabled={loading}
+              className={`min-w-[7rem] rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${confirmClass}`}
+            >
+              {loading ? 'Please wait…' : confirmLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>

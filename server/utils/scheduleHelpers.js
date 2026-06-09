@@ -22,6 +22,67 @@ export function normalizeTripDate(value) {
   return d
 }
 
+const TIMETABLE_PERIODS = new Set(['daily', 'weekly', 'monthly'])
+
+function calendarDateAtNoonUtc(date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0, 0)
+  )
+}
+
+/** Canonical anchor for a timetable batch (week start or 1st of month). */
+export function normalizeTimetableAnchor(period, anchorDate) {
+  if (!TIMETABLE_PERIODS.has(period)) {
+    const error = new Error('Invalid timetable period')
+    error.statusCode = 400
+    throw error
+  }
+  if (period === 'weekly') {
+    return calendarDateAtNoonUtc(startOfWeek(anchorDate))
+  }
+  if (period === 'monthly') {
+    const d = parseDateInput(anchorDate)
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 12, 0, 0, 0))
+  }
+  return normalizeTripDate(anchorDate)
+}
+
+/** Validate optional timetable grouping fields sent together on create. */
+export function parseTimetableMeta(body = {}) {
+  const { timetableId, timetablePeriod, timetableAnchor } = body
+  const hasAny = Boolean(timetableId || timetablePeriod || timetableAnchor)
+  const hasAll = Boolean(timetableId && timetablePeriod && timetableAnchor)
+
+  if (!hasAny) return null
+
+  if (!hasAll) {
+    const error = new Error(
+      'timetableId, timetablePeriod, and timetableAnchor must be provided together'
+    )
+    error.statusCode = 400
+    throw error
+  }
+
+  if (!TIMETABLE_PERIODS.has(timetablePeriod)) {
+    const error = new Error('timetablePeriod must be daily, weekly, or monthly')
+    error.statusCode = 400
+    throw error
+  }
+
+  const id = String(timetableId).trim()
+  if (!id) {
+    const error = new Error('timetableId is required')
+    error.statusCode = 400
+    throw error
+  }
+
+  return {
+    timetableId: id,
+    timetablePeriod,
+    timetableAnchor: normalizeTimetableAnchor(timetablePeriod, timetableAnchor),
+  }
+}
+
 /** Parse "HH:mm" to minutes from midnight */
 export function timeToMinutes(time) {
   if (!time?.trim()) return null
@@ -37,7 +98,66 @@ export function timesOverlap(depA, arrA, depB, arrB) {
   const startB = timeToMinutes(depB)
   const endB = timeToMinutes(arrB)
   if ([startA, endA, startB, endB].some((v) => v == null)) return false
+  if (endA <= startA || endB <= startB) return false
   return startA < endB && startB < endA
+}
+
+export function minutesToTime(minutes) {
+  if (minutes == null || minutes < 0) return null
+  const capped = Math.min(minutes, 24 * 60 - 1)
+  const h = Math.floor(capped / 60)
+  const min = capped % 60
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+/** Mirror-outbound turnaround: busy until arrival + (arrival - departure) */
+export function getResourceBusyEndMinutes(departureTime, arrivalTime) {
+  const dep = timeToMinutes(departureTime)
+  const arr = timeToMinutes(arrivalTime)
+  if (dep == null || arr == null || arr <= dep) return null
+  return arr + (arr - dep)
+}
+
+export function getResourceBusyEndTime(departureTime, arrivalTime) {
+  const end = getResourceBusyEndMinutes(departureTime, arrivalTime)
+  return end == null ? null : minutesToTime(end)
+}
+
+/** Bus/driver busy windows including mirrored return journey */
+export function resourceWindowsOverlap(depA, arrA, depB, arrB) {
+  const startA = timeToMinutes(depA)
+  const busyEndA = getResourceBusyEndMinutes(depA, arrA)
+  const startB = timeToMinutes(depB)
+  const busyEndB = getResourceBusyEndMinutes(depB, arrB)
+  if ([startA, busyEndA, startB, busyEndB].some((v) => v == null)) return false
+  if (busyEndA <= startA || busyEndB <= startB) return false
+  return startA < busyEndB && startB < busyEndA
+}
+
+/** Normalize bus/driver/route ids from strings, ObjectIds, or populated docs */
+export function normalizeResourceId(value) {
+  if (value == null || value === '') return ''
+  if (typeof value === 'object' && value._id != null) return String(value._id)
+  return String(value)
+}
+
+export function sameAssignedResource(left, right) {
+  const a = normalizeResourceId(left)
+  const b = normalizeResourceId(right)
+  if (!a || !b) return false
+  return a === b
+}
+
+export function toConflictTrip(trip = {}) {
+  return {
+    tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
+    routeId: normalizeResourceId(trip.routeId),
+    routeName: trip.routeName || trip.routeId?.routeName,
+    busId: normalizeResourceId(trip.busId),
+    driverId: normalizeResourceId(trip.driverId),
+    departureTime: trip.departureTime,
+    arrivalTime: trip.arrivalTime,
+  }
 }
 
 export function startOfDay(date) {
@@ -87,6 +207,7 @@ export function requiresAdjustmentNotes(reason) {
 export const DRIVER_VISIBLE_STATUSES = [
   'approved',
   'scheduled',
+  'on-duty',
   'on-time',
   'delayed',
   'completed',

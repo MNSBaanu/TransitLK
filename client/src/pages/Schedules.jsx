@@ -2,18 +2,26 @@
 // Module: Schedule Management
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
-import { getCachedPageData, getStalePageData, invalidatePageData, loadPageData } from '../services/pagePrefetch'
+import {
+  getCachedPageData,
+  getStalePageData,
+  invalidatePageData,
+  loadPageData,
+  prefetchAdjacentScheduleViews,
+  prefetchScheduleApprovals,
+} from '../services/pagePrefetch'
 import { useAutoRefresh } from '../hooks/useAutoRefresh'
 import Icon from '../components/Icon'
 import ScheduleGantt from '../components/schedules/ScheduleGantt'
 import ScheduleWeekTimetable from '../components/schedules/ScheduleWeekTimetable'
 import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview'
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
+import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
-import ScheduleApprovalBar from '../components/schedules/ScheduleApprovalBar'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { defaultMinCapacityForService, isBusAssignable } from '../utils/fleetHelpers'
+import { isSchedulableRoute } from '../utils/routeHelpers'
 import { useAuth } from '../context/AuthContext'
 import { ROLES } from '../config/roles'
 import {
@@ -21,8 +29,18 @@ import {
   detectTimetableConflicts,
   formatPeriodLabel,
   formatTripDate,
-  buildTimetableRows,
+  applySharedTripTimes,
+  buildTimetableRowsForPeriod,
+  defaultTripTimes,
+  filterSchedulesInDateRange,
+  getTimetableDateBounds,
   getTimetableDates,
+  normalizeTimetableAnchor,
+  coerceFocusDate,
+  parseLocalDateInput,
+  newTimetableId,
+  mergeSchedulesById,
+  viewRangeCoversTimetable,
   groupTimetableConflictsByRoute,
   reasonToStatus,
   requiresAdjustmentNotes,
@@ -30,6 +48,8 @@ import {
   isTimetableReady,
   scheduleCode,
   toDateInputValue,
+  isTripInViewRange,
+  isTripOnDate,
   tripDateKey,
   validateTimeRange,
 } from '../utils/scheduleHelpers'
@@ -52,7 +72,12 @@ function readPersistedScheduleView() {
     const raw = sessionStorage.getItem(SCHEDULES_VIEW_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    if (parsed?.viewMode && parsed?.viewDate) return parsed
+    if (parsed?.viewMode && (parsed?.focusDate || parsed?.viewDate)) {
+      return {
+        viewMode: parsed.viewMode,
+        focusDate: coerceFocusDate(parsed.focusDate || parsed.viewDate),
+      }
+    }
   } catch {
     /* ignore */
   }
@@ -61,28 +86,33 @@ function readPersistedScheduleView() {
 
 function SchedulesPage() {
   const persistedView = readPersistedScheduleView()
-  const initialViewDate = persistedView?.viewDate || toDateInputValue(new Date())
+  const initialFocusDate = coerceFocusDate(persistedView?.focusDate || new Date())
   const initialViewMode = persistedView?.viewMode || 'daily'
   const initialData =
     getCachedPageData('/schedules', {
       viewMode: initialViewMode,
-      viewDate: initialViewDate,
+      focusDate: initialFocusDate,
     }) ||
     getStalePageData('/schedules', {
       viewMode: initialViewMode,
-      viewDate: initialViewDate,
+      focusDate: initialFocusDate,
     })
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [schedules, setSchedules] = useState(() => initialData?.schedules || [])
   const [routes, setRoutes] = useState(() => initialData?.routes || [])
   const [buses, setBuses] = useState(() => initialData?.buses || [])
   const [drivers, setDrivers] = useState(() => initialData?.drivers || [])
   const [loading, setLoading] = useState(!initialData)
+  const [refreshing, setRefreshing] = useState(false)
   const { scheduleSearch } = useLayout()
-  const [viewDate, setViewDate] = useState(initialViewDate)
+  const [focusDate, setFocusDate] = useState(initialFocusDate)
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
   const [showAdjustDrawer, setShowAdjustDrawer] = useState(false)
+  const [showTripDetailsDrawer, setShowTripDetailsDrawer] = useState(false)
+  const [adjustAwaitingTrip, setAdjustAwaitingTrip] = useState(false)
   const [viewMode, setViewMode] = useState(initialViewMode)
   const [selected, setSelected] = useState(null)
   const [showTimetable, setShowTimetable] = useState(false)
@@ -93,10 +123,8 @@ function SchedulesPage() {
   const [loadingTimetableRange, setLoadingTimetableRange] = useState(false)
   const [timetableRefreshing, setTimetableRefreshing] = useState(false)
   const [showConflictPanel, setShowConflictPanel] = useState(false)
-  const [emergencyMode, setEmergencyMode] = useState(false)
   const [adjustForm, setAdjustForm] = useState({
-    departureTime: '08:00',
-    arrivalTime: '12:00',
+    ...defaultTripTimes(),
     busId: '',
     driverId: '',
     status: 'scheduled',
@@ -108,6 +136,8 @@ function SchedulesPage() {
   const [toast, setToast] = useState('')
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
+  const viewDatePickerRef = useRef(null)
+  const prevViewModeRef = useRef(initialViewMode)
 
   const showToast = (msg) => {
     setToast(msg)
@@ -117,14 +147,18 @@ function SchedulesPage() {
   const invalidateRelatedPages = useCallback(() => {
     invalidatePageData('/schedules')
     invalidatePageData('/reports')
+    invalidatePageData('/buses')
   }, [])
 
-  const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, viewDate: viewDateOverride } = {}) => {
+  const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, focusDate: focusDateOverride } = {}) => {
     const activeViewMode = viewModeOverride ?? viewMode
-    const activeViewDate = viewDateOverride ?? viewDate
+    const activeFocusDate = coerceFocusDate(focusDateOverride ?? focusDate)
 
     if (!force) {
-      const cached = getCachedPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate })
+      const cached = getCachedPageData('/schedules', {
+        viewMode: activeViewMode,
+        focusDate: activeFocusDate,
+      })
       if (cached) {
         setSchedules(cached.schedules)
         setRoutes(cached.routes)
@@ -136,73 +170,126 @@ function SchedulesPage() {
       }
     }
 
-    if (!keepContent) setLoading(true)
+    if (keepContent) setRefreshing(true)
+    else setLoading(true)
     setError('')
     try {
-      const data = await loadPageData('/schedules', { viewMode: activeViewMode, viewDate: activeViewDate }, { force })
+      const data = await loadPageData(
+        '/schedules',
+        { viewMode: activeViewMode, focusDate: activeFocusDate },
+        { force }
+      )
+      if (!data) {
+        setError('Failed to load schedules')
+        return
+      }
       setSchedules(data.schedules)
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
+      prefetchAdjacentScheduleViews(activeViewMode, activeFocusDate)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load schedules')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
-  }, [viewDate, viewMode])
+  }, [focusDate, viewMode])
+
+  const activeRoutes = useMemo(
+    () => routes.filter(isSchedulableRoute),
+    [routes]
+  )
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(SCHEDULES_VIEW_KEY, JSON.stringify({ viewMode, viewDate }))
+      sessionStorage.setItem(SCHEDULES_VIEW_KEY, JSON.stringify({ viewMode, focusDate }))
     } catch {
       /* ignore */
     }
-  }, [viewMode, viewDate])
+  }, [viewMode, focusDate])
 
   useEffect(() => {
     let cancelled = false
+    const modeChanged = prevViewModeRef.current !== viewMode
+    prevViewModeRef.current = viewMode
+    const options = { viewMode, focusDate }
+
+    if (!modeChanged) {
+      const cached = getCachedPageData('/schedules', options)
+      if (cached) {
+        setSchedules(cached.schedules)
+        setRoutes(cached.routes)
+        setBuses(cached.buses)
+        setDrivers(cached.drivers)
+        setLoading(false)
+        prefetchAdjacentScheduleViews(viewMode, focusDate)
+        return undefined
+      }
+
+      const stale = getStalePageData('/schedules', options)
+      if (stale) {
+        setSchedules(stale.schedules)
+        setRoutes(stale.routes)
+        setBuses(stale.buses)
+        setDrivers(stale.drivers)
+        setLoading(false)
+      }
+    }
+
     Promise.resolve().then(() => {
-      if (!cancelled) loadData()
+      if (!cancelled) loadData({ keepContent: true, force: modeChanged })
     })
     return () => {
       cancelled = true
     }
-  }, [loadData])
+  }, [loadData, viewMode, focusDate])
 
   useAutoRefresh(
     () => loadData({ force: true, keepContent: true }),
-    { enabled: !showTimetable && !showAdjustDrawer && !saving && !maintenanceConfirm }
+    { enabled: !showTimetable && !showAdjustDrawer && !showTripDetailsDrawer && !saving && !maintenanceConfirm }
+  )
+
+  const applyTimetableSource = useCallback(
+    (period, anchor, sourceSchedules) => {
+      const built = buildTimetableRowsForPeriod(routes, sourceSchedules, period, anchor)
+      setTimetableRows(applySharedTripTimes(built, defaultTripTimes()))
+    },
+    [routes]
   )
 
   const handleTimetableRefresh = useCallback(async () => {
     setTimetableRefreshing(true)
     setError('')
     try {
-      const data = await loadPageData('/schedules', { viewMode, viewDate }, { force: true })
+      const data = await loadPageData('/schedules', { viewMode, focusDate }, { force: true })
       setSchedules(data.schedules)
       setRoutes(data.routes)
       setBuses(data.buses)
       setDrivers(data.drivers)
-      setTimetableRows(buildTimetableRows(data.routes, data.schedules, timetableAnchor))
-
-      const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-      if (dates.length) {
+      const { from, to } = getTimetableDateBounds(timetablePeriod, timetableAnchor)
+      if (from && to) {
         const { data: rangeSchedules } = await api.get('/schedules', {
-          params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
+          params: { fromDate: from, toDate: to },
         })
-        setTimetableRangeSchedules(Array.isArray(rangeSchedules) ? rangeSchedules : [])
+        const merged = mergeSchedulesById(
+          filterSchedulesInDateRange(data.schedules, from, to),
+          Array.isArray(rangeSchedules) ? rangeSchedules : []
+        )
+        setTimetableRangeSchedules(merged)
+        applyTimetableSource(timetablePeriod, timetableAnchor, merged)
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to refresh timetable data')
     } finally {
       setTimetableRefreshing(false)
     }
-  }, [timetableAnchor, timetablePeriod, viewDate, viewMode])
+  }, [timetableAnchor, timetablePeriod, focusDate, viewMode, applyTimetableSource])
 
   const filteredSchedules = useMemo(() => {
     const q = scheduleSearch.trim().toLowerCase()
     return schedules.filter((s) => {
-      if (viewMode === 'daily' && tripDateKey(s) !== viewDate) return false
+      if (!isTripInViewRange(s, viewMode, focusDate)) return false
       if (routeFilter && String(s.routeId?._id || s.routeId) !== routeFilter) return false
       if (driverFilter && String(s.driverId?._id || s.driverId) !== driverFilter) return false
       if (!q) return true
@@ -218,7 +305,7 @@ function SchedulesPage() {
         .toLowerCase()
       return hay.includes(q)
     })
-  }, [schedules, scheduleSearch, routeFilter, driverFilter, viewMode, viewDate])
+  }, [schedules, scheduleSearch, routeFilter, driverFilter, viewMode, focusDate])
 
   const displaySchedules = useMemo(
     () => filteredSchedules.filter((s) => s.status !== 'cancelled'),
@@ -236,22 +323,8 @@ function SchedulesPage() {
     return { trips: displaySchedules.length, active, delayed, conflicts: conflicts.length }
   }, [displaySchedules, conflicts])
 
-  const adjustBuses = useMemo(() => {
-    const serviceType = selected?.routeId?.serviceType
-    const minCap = defaultMinCapacityForService(serviceType)
-    const currentBusId = String(adjustForm.busId || selected?.busId?._id || selected?.busId || '')
-    return buses.filter((b) => {
-      const id = String(b._id)
-      if (id === currentBusId) return true
-      return (
-        (b.status === 'available' || b.status === 'in-service') &&
-        isBusAssignable(b, serviceType, minCap)
-      )
-    })
-  }, [buses, selected, adjustForm.busId])
-
   const ganttRows = useMemo(() => {
-    const dayTrips = displaySchedules.filter((s) => tripDateKey(s) === viewDate)
+    const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, focusDate))
     const byBus = new Map()
     for (const trip of dayTrips) {
       const busId = String(trip.busId?._id || trip.busId || 'unknown')
@@ -266,7 +339,7 @@ function SchedulesPage() {
       byBus.get(busId).trips.push(trip)
     }
     return [...byBus.values()].sort((a, b) => a.regNumber.localeCompare(b.regNumber))
-  }, [displaySchedules, viewDate])
+  }, [displaySchedules, focusDate])
 
   const timetableTripCount = useMemo(() => {
     const included = timetableRows.filter((r) => r.included).length
@@ -276,36 +349,61 @@ function SchedulesPage() {
   const timetableReady = useMemo(() => isTimetableReady(timetableRows), [timetableRows])
 
   useEffect(() => {
-    if (!showTimetable) {
-      setTimetableRangeSchedules([])
-      return undefined
-    }
+    if (!showTimetable) return undefined
 
-    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
-    if (!dates.length) return undefined
+    const period = timetablePeriod
+    const anchor = timetableAnchor
+    const { from, to } = getTimetableDateBounds(period, anchor)
+    if (!from || !to) return undefined
 
     let cancelled = false
+    const localRange = filterSchedulesInDateRange(schedules, from, to)
+    const instant = mergeSchedulesById(timetableRangeSchedules, localRange)
+    const covered = viewRangeCoversTimetable(viewMode, focusDate, period, anchor)
+
+    setTimetableRangeSchedules(instant)
+    applyTimetableSource(period, anchor, instant)
+
+    if (covered || localRange.length > 0) {
+      setLoadingTimetableRange(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
     setLoadingTimetableRange(true)
-    api
-      .get('/schedules', {
-        params: { fromDate: dates[0], toDate: dates[dates.length - 1] },
-      })
-      .then(({ data }) => {
-        if (!cancelled) {
-          setTimetableRangeSchedules(Array.isArray(data) ? data : [])
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data } = await api.get('/schedules', {
+          params: { fromDate: from, toDate: to },
+        })
+        if (cancelled) return
+        const merged = mergeSchedulesById(instant, Array.isArray(data) ? data : [])
+        setTimetableRangeSchedules(merged)
+        applyTimetableSource(period, anchor, merged)
+      } catch {
+        if (!cancelled && !instant.length) {
+          setTimetableRangeSchedules([])
+          applyTimetableSource(period, anchor, [])
         }
-      })
-      .catch(() => {
-        if (!cancelled) setTimetableRangeSchedules([])
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoadingTimetableRange(false)
-      })
+      }
+    }, 200)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [showTimetable, timetablePeriod, timetableAnchor])
+  }, [
+    showTimetable,
+    timetablePeriod,
+    timetableAnchor,
+    viewMode,
+    focusDate,
+    schedules,
+    applyTimetableSource,
+  ])
 
   const timetableConflicts = useMemo(() => {
     if (!showTimetable) return null
@@ -376,11 +474,32 @@ function SchedulesPage() {
   }, [selected, adjustForm])
 
   const shiftDate = (delta) => {
-    const d = new Date(viewDate)
+    const d = parseLocalDateInput(focusDate)
     if (viewMode === 'weekly') d.setDate(d.getDate() + delta * 7)
     else if (viewMode === 'monthly') d.setMonth(d.getMonth() + delta)
     else d.setDate(d.getDate() + delta)
-    setViewDate(toDateInputValue(d))
+    setFocusDate(coerceFocusDate(toDateInputValue(d)))
+    setSelected(null)
+  }
+
+  const openViewDatePicker = () => {
+    const input = viewDatePickerRef.current
+    if (!input) return
+    if (typeof input.showPicker === 'function') {
+      input.showPicker()
+    } else {
+      input.click()
+    }
+  }
+
+  const handleViewDatePick = (e) => {
+    const value = e.target.value
+    if (!value) return
+    const next =
+      viewMode === 'monthly'
+        ? coerceFocusDate(`${value}-01`)
+        : coerceFocusDate(value)
+    setFocusDate(next)
     setSelected(null)
   }
 
@@ -390,12 +509,14 @@ function SchedulesPage() {
     busId: trip.busId?._id || trip.busId || '',
     driverId: trip.driverId?._id || trip.driverId || '',
     status: trip.status || 'scheduled',
-    reason: trip.adjustmentReason || (emergencyMode ? 'emergency' : 'normal'),
+    reason: trip.adjustmentReason || 'normal',
     notes: trip.adjustmentNotes || '',
   })
 
   const closeScheduleModals = ({ clearSelection = false } = {}) => {
     setShowAdjustDrawer(false)
+    setShowTripDetailsDrawer(false)
+    setAdjustAwaitingTrip(false)
     setShowConflictPanel(false)
     setShowTimetable(false)
     setMaintenanceConfirm(false)
@@ -403,26 +524,88 @@ function SchedulesPage() {
     if (clearSelection) setSelected(null)
   }
 
-  const selectTrip = (trip, { openDrawer = true } = {}) => {
-    setSelected(trip)
+  const openAdjustDrawer = () => {
+    if (!selected) {
+      setAdjustAwaitingTrip(true)
+      setShowTripDetailsDrawer(false)
+      setShowAdjustDrawer(true)
+      setShowConflictPanel(false)
+      return
+    }
+    setAdjustForm(syncTripForm(selected))
+    setShowTripDetailsDrawer(false)
+    setShowAdjustDrawer(true)
+    setAdjustAwaitingTrip(false)
     setShowConflictPanel(false)
-    if (viewMode !== 'daily') setViewDate(tripDateKey(trip))
-    setAdjustForm(syncTripForm(trip))
-    if (openDrawer) setShowAdjustDrawer(true)
   }
 
+  const selectTrip = (trip, { openDetails = true, openAdjust = false } = {}) => {
+    setSelected(trip)
+    setShowConflictPanel(false)
+    setFocusDate(coerceFocusDate(tripDateKey(trip)))
+    setAdjustForm(syncTripForm(trip))
+    if (openAdjust || adjustAwaitingTrip) {
+      setShowTripDetailsDrawer(false)
+      setShowAdjustDrawer(true)
+      setAdjustAwaitingTrip(false)
+    } else if (openDetails) {
+      setShowAdjustDrawer(false)
+      setShowTripDetailsDrawer(true)
+    }
+  }
+
+  useEffect(() => {
+    const focusId = location.state?.focusScheduleId
+    const focusDate = location.state?.viewDate
+    const openAdjust = Boolean(location.state?.openAdjust)
+    if (!focusId) return undefined
+
+    if (focusDate) {
+      setViewMode('daily')
+      setFocusDate(focusDate)
+    }
+
+    const trip = schedules.find((item) => item._id === focusId)
+    if (!trip) return undefined
+
+    selectTrip(trip, { openDetails: !openAdjust, openAdjust })
+    navigate(location.pathname, { replace: true, state: {} })
+    return undefined
+  }, [location.pathname, location.state, navigate, schedules])
+
   const openTimetableDrawer = () => {
-    setTimetablePeriod(viewMode)
-    setTimetableAnchor(viewDate)
-    setTimetableRows(buildTimetableRows(routes, schedules, viewDate))
+    const period = viewMode
+    const anchor = normalizeTimetableAnchor(period, focusDate)
+    const { from, to } = getTimetableDateBounds(period, anchor)
+    const instant = mergeSchedulesById(
+      timetableRangeSchedules,
+      filterSchedulesInDateRange(schedules, from, to)
+    )
+    setTimetablePeriod(period)
+    setTimetableAnchor(anchor)
+    setTimetableRangeSchedules(instant)
+    const built = buildTimetableRowsForPeriod(routes, instant, period, anchor)
+    setTimetableRows(applySharedTripTimes(built, defaultTripTimes()))
     setError('')
     setShowTimetable(true)
   }
 
-  const handleTimetableRowChange = (routeId, field, value) => {
-    setTimetableRows((rows) =>
-      rows.map((r) => (String(r.routeId) === String(routeId) ? { ...r, [field]: value } : r))
-    )
+  const handleTimetableRowChange = (tripRowId, field, value) => {
+    setTimetableRows((rows) => {
+      const next = rows.map((r) =>
+        String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: value } : r
+      )
+      if (field === 'departureTime' || field === 'arrivalTime') {
+        const source = next.find((r) => String(r.tripRowId) === String(tripRowId))
+        if (source) {
+          return applySharedTripTimes(next, {
+            departureTime: source.departureTime,
+            arrivalTime: source.arrivalTime,
+          })
+        }
+      }
+      return next
+    })
   }
 
   const handleTimetableToggleAll = (checked) => {
@@ -431,12 +614,11 @@ function SchedulesPage() {
 
   const handleTimetablePeriodChange = (period) => {
     setTimetablePeriod(period)
-    setTimetableRows(buildTimetableRows(routes, schedules, timetableAnchor))
+    setTimetableAnchor((prev) => normalizeTimetableAnchor(period, prev))
   }
 
   const handleTimetableAnchorChange = (date) => {
-    setTimetableAnchor(date)
-    setTimetableRows(buildTimetableRows(routes, schedules, date))
+    setTimetableAnchor(normalizeTimetableAnchor(timetablePeriod, date))
   }
 
   const handleAdjustChange = (e) => {
@@ -451,11 +633,11 @@ function SchedulesPage() {
   }
 
   const handleEmergencyToggle = (on) => {
-    setEmergencyMode(on)
+    if (!selected) return
     setAdjustForm((prev) => ({
       ...prev,
       reason: on ? 'emergency' : 'normal',
-      status: on ? 'delayed' : prev.status === 'delayed' ? 'scheduled' : prev.status,
+      status: reasonToStatus(on ? 'emergency' : 'normal', on ? prev.status : selected.status || prev.status),
     }))
   }
 
@@ -492,8 +674,7 @@ function SchedulesPage() {
   const closeMaintenanceOfflineUi = useCallback(() => {
     closeScheduleModals({ clearSelection: true })
     setAdjustForm({
-      departureTime: '08:00',
-      arrivalTime: '12:00',
+      ...defaultTripTimes(),
       busId: '',
       driverId: '',
       status: 'scheduled',
@@ -553,8 +734,8 @@ function SchedulesPage() {
     }
   }
 
-  const createOneSchedule = async (tripDate, payload) => {
-    await api.post('/schedules', { ...payload, tripDate })
+  const createOneSchedule = async (tripDate, payload, timetableMeta) => {
+    await api.post('/schedules', { ...payload, tripDate, ...timetableMeta })
   }
 
   const handleCreateTimetable = async (e) => {
@@ -595,6 +776,12 @@ function SchedulesPage() {
     setError('')
     let created = 0
     const skipped = []
+    const savedViewDate = normalizeTimetableAnchor(timetablePeriod, timetableAnchor)
+    const timetableMeta = {
+      timetableId: newTimetableId(),
+      timetablePeriod,
+      timetableAnchor: savedViewDate,
+    }
 
     try {
       for (const row of included) {
@@ -605,11 +792,12 @@ function SchedulesPage() {
           departureTime: row.departureTime,
           arrivalTime: row.arrivalTime,
           status: 'pending',
-          adjustmentReason: emergencyMode ? 'emergency' : 'normal',
+          adjustmentReason: 'normal',
+          adjustmentNotes: row.remarks?.trim() || '',
         }
         for (const day of dates) {
           try {
-            await createOneSchedule(day, payload)
+            await createOneSchedule(day, payload, timetableMeta)
             created += 1
           } catch (err) {
             const msg = err.response?.data?.message || 'Conflict'
@@ -620,9 +808,17 @@ function SchedulesPage() {
       }
 
       if (created > 0) {
+        const savedViewMode = timetablePeriod
         closeScheduleModals()
-        setViewMode(timetablePeriod)
-        setViewDate(timetableAnchor)
+        try {
+          sessionStorage.setItem(
+            SCHEDULES_VIEW_KEY,
+            JSON.stringify({ viewMode: savedViewMode, focusDate })
+          )
+        } catch {
+          /* ignore */
+        }
+        setViewMode(savedViewMode)
         invalidateRelatedPages()
         showToast(
           `${created} trip(s) sent for depot manager approval${
@@ -631,9 +827,9 @@ function SchedulesPage() {
         )
         await loadData({
           force: true,
-          keepContent: true,
-          viewMode: timetablePeriod,
-          viewDate: timetableAnchor,
+          keepContent: false,
+          viewMode: savedViewMode,
+          focusDate,
         })
       }
       if (skipped.length) {
@@ -649,10 +845,16 @@ function SchedulesPage() {
     }
   }
 
-  const pendingSchedules = useMemo(
-    () => schedules.filter((s) => s.status === 'pending'),
-    [schedules]
-  )
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(() => {
+    const cached =
+      getCachedPageData('/schedules/approvals') || getStalePageData('/schedules/approvals')
+    return cached?.pending?.length ?? 0
+  })
+  const [rejectedApprovalCount, setRejectedApprovalCount] = useState(() => {
+    const cached =
+      getCachedPageData('/schedules/approvals') || getStalePageData('/schedules/approvals')
+    return cached?.rejected?.length ?? 0
+  })
 
   const handleSubmitDraft = async () => {
     if (!selected || selected.status !== 'draft') return
@@ -665,42 +867,6 @@ function SchedulesPage() {
       await loadData({ force: true, keepContent: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Submit failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleApprove = async (id) => {
-    setSaving(true)
-    try {
-      await api.post(`/schedules/${id}/approve`)
-      invalidateRelatedPages()
-      showToast('Schedule approved — driver can view the trip in My trips')
-      loadData({ force: true, keepContent: true })
-    } catch (err) {
-      const msg = err.response?.data?.message || 'Approve failed'
-      const conflictsData = err.response?.data?.conflicts
-      setError(
-        conflictsData?.length
-          ? `${msg}: ${conflictsData.map((c) => c.message).join('; ')}`
-          : msg
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleReject = async (id) => {
-    const reason = window.prompt('Rejection reason:', 'Incomplete allocation')
-    if (!reason?.trim()) return
-    setSaving(true)
-    try {
-      await api.post(`/schedules/${id}/reject`, { reason })
-      invalidateRelatedPages()
-      showToast('Returned to scheduler')
-      loadData({ force: true, keepContent: true })
-    } catch (err) {
-      setError(err.response?.data?.message || 'Reject failed')
     } finally {
       setSaving(false)
     }
@@ -782,8 +948,9 @@ function SchedulesPage() {
           data.status === 'completed' ? 'Trip marked completed' : 'Schedule updated'
         )
       } else {
-        selectTrip(data, { openDrawer: false })
-        closeScheduleModals()
+        selectTrip(data, { openDetails: true })
+        setShowAdjustDrawer(false)
+        setShowConflictPanel(false)
         showToast('Schedule updated')
       }
       invalidateRelatedPages()
@@ -802,50 +969,135 @@ function SchedulesPage() {
   }
 
   const handlePickDay = (dayKey) => {
-    setViewDate(dayKey)
+    setFocusDate(coerceFocusDate(dayKey))
     setViewMode('daily')
     setSelected(null)
   }
 
   const dateLabel =
     viewMode === 'daily'
-      ? formatTripDate(viewDate)
-      : formatPeriodLabel(viewMode, viewDate)
+      ? formatTripDate(focusDate)
+      : formatPeriodLabel(viewMode, focusDate)
 
   const isScheduler = user?.role === ROLES.TRANSPORT_SCHEDULER
   const isAdministrator = user?.role === ROLES.ADMINISTRATOR
   const isDepotManager = user?.role === ROLES.DEPOT_MANAGER
   const canPlanSchedules = isScheduler || isAdministrator
-  const canApproveSchedules = isDepotManager
+  const canApproveSchedules = isDepotManager || isAdministrator
   const canAdjustSchedules = canPlanSchedules || isDepotManager
+
+  const shouldPrefetchApprovals =
+    canApproveSchedules || (isScheduler && !isAdministrator)
+
+  useEffect(() => {
+    if (!shouldPrefetchApprovals) return undefined
+
+    let cancelled = false
+    void prefetchScheduleApprovals().then((data) => {
+      if (cancelled || !data) return
+      if (data.pending) setPendingApprovalCount(data.pending.length)
+      if (data.rejected) setRejectedApprovalCount(data.rejected.length)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldPrefetchApprovals, schedules])
+
+  const scheduleHeaderTitle =
+    canApproveSchedules && canPlanSchedules
+      ? 'Schedule Management & Approvals'
+      : canApproveSchedules
+        ? 'Schedule Approval & Operations'
+        : 'Schedule Management'
+
+  const scheduleHeaderSubtitle = canApproveSchedules
+    ? 'Review pending timetables from schedulers, approve trips for drivers, return incomplete plans, and adjust live trips when depot operations change.'
+    : 'Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval.'
+
+  const scheduleStatItems = [
+    ...(canApproveSchedules
+      ? [
+          {
+            label: 'Awaiting approval',
+            value: pendingApprovalCount,
+            hint: pendingApprovalCount ? 'Open pending approvals' : 'No pending trips',
+            icon: 'pending_actions',
+          },
+        ]
+      : []),
+    ...(isScheduler && !isAdministrator
+      ? [
+          {
+            label: 'Rejected',
+            value: rejectedApprovalCount,
+            hint: rejectedApprovalCount ? 'Review rejected trips' : 'No rejected trips',
+            icon: 'cancel',
+          },
+        ]
+      : []),
+    {
+      label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
+      value: scheduleStats.trips,
+      icon: 'event',
+    },
+    { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
+    {
+      label: 'Conflicts',
+      value: scheduleStats.conflicts,
+      hint: scheduleStats.conflicts ? 'Resolve in adjust panel' : 'No overlaps',
+      icon: 'warning',
+    },
+    ...(!canApproveSchedules
+      ? [{ label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' }]
+      : []),
+  ]
 
   return (
     <div className="w-full">
       <ModuleToast message={toast} />
 
       <ModuleHeader
-        title="Schedule Management"
-        subtitle="Daily, weekly, and monthly timetables with automatic overlap detection—conflicts are blocked before save and approval."
+        title={scheduleHeaderTitle}
+        subtitle={scheduleHeaderSubtitle}
         action={
           canPlanSchedules || canAdjustSchedules ? (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 overflow-visible">
               {canPlanSchedules && (
                 <ModulePrimaryButton icon="add" onClick={openTimetableDrawer}>
                   Create Timetable
                 </ModulePrimaryButton>
               )}
               {canAdjustSchedules && (
+                <ModuleSecondaryButton icon="tune" onClick={openAdjustDrawer}>
+                  {isDepotManager ? 'Adjust trip' : 'Adjust'}
+                </ModuleSecondaryButton>
+              )}
+              {isAdministrator && canApproveSchedules && (
                 <ModuleSecondaryButton
-                  icon="tune"
-                  onClick={() => {
-                    if (selected) {
-                      setShowAdjustDrawer(true)
-                    } else {
-                      showToast('Select a trip on the timetable to adjust it')
-                    }
-                  }}
+                  icon="pending_actions"
+                  badge={pendingApprovalCount + rejectedApprovalCount}
+                  onClick={() => navigate('/schedules/approvals')}
                 >
-                  Adjust
+                  Approvals
+                </ModuleSecondaryButton>
+              )}
+              {isDepotManager && (
+                <ModuleSecondaryButton
+                  icon="pending_actions"
+                  badge={pendingApprovalCount}
+                  onClick={() => navigate('/schedules/approvals')}
+                >
+                  Pending approvals
+                </ModuleSecondaryButton>
+              )}
+              {isScheduler && !isAdministrator && (
+                <ModuleSecondaryButton
+                  icon="cancel"
+                  badge={rejectedApprovalCount}
+                  onClick={() => navigate('/schedules/approvals?tab=rejected')}
+                >
+                  Rejected approvals
                 </ModuleSecondaryButton>
               )}
             </div>
@@ -853,23 +1105,7 @@ function SchedulesPage() {
         }
       />
 
-      <ModuleStats
-        items={[
-          {
-            label: viewMode === 'daily' ? 'Trips today' : 'Trips in view',
-            value: scheduleStats.trips,
-            icon: 'event',
-          },
-          { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
-          {
-            label: 'Conflicts',
-            value: scheduleStats.conflicts,
-            hint: scheduleStats.conflicts ? 'Resolve in panel' : 'No overlaps',
-            icon: 'warning',
-          },
-          { label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' },
-        ]}
-      />
+      <ModuleStats items={scheduleStatItems} />
 
       {/* Conflict & emergency bar */}
       <div
@@ -909,32 +1145,36 @@ function SchedulesPage() {
               Resolve conflicts
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => handleEmergencyToggle(!emergencyMode)}
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-              emergencyMode
-                ? 'border-depot-blue-light bg-depot-blue-light/10 text-depot-blue-light'
-                : 'border-outline-variant bg-surface-container text-neutral-800 hover:bg-white'
-            }`}
-          >
-            <Icon name="bolt" size={18} />
-            Emergency mode
-          </button>
         </div>
       </div>
-
-      <ScheduleApprovalBar
-        pending={pendingSchedules}
-        saving={saving}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        canApprove={canApproveSchedules}
-      />
 
       {error && !showTimetable && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {adjustAwaitingTrip && !selected && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-depot-blue-light/30 bg-depot-navy/5 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-depot-blue-light/15 text-depot-navy">
+              <Icon name="touch_app" size={22} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-fleet-ink">Select a trip to adjust</p>
+              <p className="mt-0.5 text-sm text-fleet-ink-muted">
+                Click any trip in the daily, weekly, or monthly timetable. You can then change times,
+                reassign the bus or driver, and save.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAdjustAwaitingTrip(false)}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium text-fleet-ink-muted hover:bg-white/60 hover:text-fleet-ink"
+          >
+            Cancel
+          </button>
         </div>
       )}
 
@@ -948,8 +1188,10 @@ function SchedulesPage() {
                   key={mode}
                   type="button"
                   onClick={() => {
+                    if (mode === viewMode) return
                     setViewMode(mode)
                     setSelected(null)
+                    closeScheduleModals()
                   }}
                   className={`rounded-md border px-4 py-2 text-sm capitalize transition-colors ${
                     viewMode === mode
@@ -973,7 +1215,7 @@ function SchedulesPage() {
                   className={`${inputClass} w-full min-w-[9.5rem] py-2`}
                 >
                   <option value="">All routes</option>
-                  {routes.map((r) => (
+                  {activeRoutes.map((r) => (
                     <option key={r._id} value={r._id}>
                       {r.routeName}
                     </option>
@@ -999,7 +1241,7 @@ function SchedulesPage() {
                 </select>
               </div>
               <div
-                className="flex items-center rounded-lg border border-outline-variant bg-white"
+                className="relative flex items-center rounded-lg border border-outline-variant bg-white"
                 role="group"
                 aria-label="Date navigation"
               >
@@ -1011,9 +1253,31 @@ function SchedulesPage() {
                 >
                   <Icon name="chevron_left" size={18} />
                 </button>
-                <span className="min-w-[11.5rem] border-x border-outline-variant px-3 py-2 text-center text-sm font-semibold text-fleet-ink sm:min-w-[13rem]">
-                  {dateLabel}
-                </span>
+                <button
+                  type="button"
+                  onClick={openViewDatePicker}
+                  className="flex min-w-[11.5rem] items-center justify-center gap-1.5 border-x border-outline-variant px-3 py-2 text-sm font-semibold text-fleet-ink transition-colors hover:bg-surface-container sm:min-w-[13rem]"
+                  aria-label={
+                    viewMode === 'monthly' ? 'Pick month' : 'Pick date'
+                  }
+                  title={viewMode === 'monthly' ? 'Pick month' : 'Pick date'}
+                >
+                  <Icon name="calendar_month" size={16} className="shrink-0 text-depot-blue-light" />
+                  <span className="truncate">{dateLabel}</span>
+                </button>
+                <input
+                  ref={viewDatePickerRef}
+                  type={viewMode === 'monthly' ? 'month' : 'date'}
+                  value={
+                    viewMode === 'monthly'
+                      ? focusDate.slice(0, 7)
+                      : focusDate
+                  }
+                  onChange={handleViewDatePick}
+                  className="pointer-events-none absolute h-0 w-0 opacity-0"
+                  tabIndex={-1}
+                  aria-hidden
+                />
                 <button
                   type="button"
                   onClick={() => shiftDate(1)}
@@ -1027,22 +1291,32 @@ function SchedulesPage() {
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
-            {loading ? (
+            {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
+              </div>
+            ) : displaySchedules.length === 0 ? (
+              <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 text-center text-on-surface-variant">
+                <Icon name="event_busy" size={40} className="text-outline" />
+                <p className="text-sm font-medium text-neutral-800">No trips in this period</p>
+                <p className="max-w-sm text-xs">
+                  {canPlanSchedules
+                    ? 'Create a timetable to add trips, or change the date range to view existing schedules.'
+                    : 'Change the date range or wait for schedulers to submit trips for approval.'}
+                </p>
               </div>
             ) : viewMode === 'weekly' ? (
               <ScheduleWeekTimetable
                 schedules={displaySchedules}
                 routes={routes}
-                anchorDate={viewDate}
+                focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
               />
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
                 schedules={displaySchedules}
-                anchorDate={viewDate}
+                focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
                 onPickDay={handlePickDay}
@@ -1059,21 +1333,31 @@ function SchedulesPage() {
         </div>
       </div>
 
+      <ScheduleTripDetailsDrawer
+        open={showTripDetailsDrawer}
+        onClose={() => {
+          setShowTripDetailsDrawer(false)
+        }}
+        selected={selected}
+        canAdjustSchedules={canAdjustSchedules}
+        onAdjust={openAdjustDrawer}
+      />
+
       <ScheduleAdjustDrawer
         open={showAdjustDrawer}
         onClose={() => {
           setShowAdjustDrawer(false)
+          setAdjustAwaitingTrip(false)
           setShowConflictPanel(false)
           maintenanceOfflineTripRef.current = null
           setMaintenanceConfirm(false)
         }}
         selected={selected}
-        emergencyMode={emergencyMode}
         onEmergencyToggle={handleEmergencyToggle}
         adjustForm={adjustForm}
         onAdjustChange={handleAdjustChange}
         drivers={drivers}
-        buses={adjustBuses}
+        buses={buses}
         allBuses={buses}
         conflicts={conflicts}
         showConflictPanel={showConflictPanel}
@@ -1120,6 +1404,7 @@ function SchedulesPage() {
         rows={timetableRows}
         onRowChange={handleTimetableRowChange}
         onToggleAll={handleTimetableToggleAll}
+        existingSchedules={timetableRangeSchedules}
         buses={buses}
         drivers={drivers}
         saving={saving}
@@ -1128,11 +1413,7 @@ function SchedulesPage() {
         tripCount={timetableTripCount}
         conflictPreview={timetableConflicts}
         rowConflictHints={timetableRowConflicts}
-        canCreateTimetable={
-          timetableReady &&
-          !loadingTimetableRange &&
-          !timetableConflicts?.hasConflict
-        }
+        canCreateTimetable={timetableReady && !timetableConflicts?.hasConflict}
         onRefresh={handleTimetableRefresh}
         refreshing={timetableRefreshing}
         checkingConflicts={loadingTimetableRange}

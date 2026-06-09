@@ -286,23 +286,48 @@ function buildInsightBullets(data) {
   const bullets = []
   const ins = data.operationalInsights || {}
   const fleet = ins.fleetUtilization || {}
+  const fuel = data.fuel || {}
 
   if ((fleet.busesTotal ?? 0) > 0) {
     const healthy = fleet.rate >= 65
     bullets.push(
       healthy
-        ? `Fleet utilization is healthy (${fleet.rate}%).`
+        ? `Fleet utilization is healthy (${fleet.rate}%) — ${fleet.busesUsed}/${fleet.busesTotal} buses on trips.`
         : `Fleet utilization is ${fleet.rate}% (${fleet.busesUsed}/${fleet.busesTotal} buses).`
     )
+    if (fleet.driversTotal > 0) {
+      bullets.push(
+        `Drivers on duty: ${fleet.driversOnDuty}/${fleet.driversTotal}${fleet.onDutyPct != null ? ` (${fleet.onDutyPct}%)` : ''}.`
+      )
+    }
   }
   if (ins.bestPerformingRoute) {
+    const best = ins.bestPerformingRoute
     bullets.push(
-      `${ins.bestPerformingRoute.routeName} is the best-performing route (${ins.bestPerformingRoute.completionRate}%).`
+      `${best.routeName} is the best-performing route (${best.completionRate}% completion, ${best.tripCount} trips).`
+    )
+  }
+  if (ins.worstPerformingRoute) {
+    const worst = ins.worstPerformingRoute
+    bullets.push(
+      `${worst.routeName} is the lowest-performing route (${worst.completionRate}% completion, ${worst.delayed} delayed, ${worst.cancelled} cancelled).`
     )
   }
   if (ins.highestFuelConsumingRoute?.liters > 0) {
+    const route = ins.highestFuelConsumingRoute
     bullets.push(
-      `Highest fuel: ${ins.highestFuelConsumingRoute.routeName} (${ins.highestFuelConsumingRoute.liters} L).`
+      `Highest fuel route: ${route.routeName} (${route.liters} L${route.litersPerKm ? `, ${route.litersPerKm} L/km` : ''}).`
+    )
+  }
+  if (ins.highestFuelConsumingVehicle?.liters > 0) {
+    const vehicle = ins.highestFuelConsumingVehicle
+    bullets.push(
+      `Highest fuel vehicle: ${vehicle.regNumber} (${vehicle.liters} L${vehicle.litersPerTrip != null ? `, ${vehicle.litersPerTrip} L/trip` : ''}, ${vehicle.fuelShare ?? 0}% of fleet fuel${vehicle.highUsage ? ', high usage flagged' : ''}).`
+    )
+  }
+  if ((fuel.highUsageCount ?? 0) > 0) {
+    bullets.push(
+      `${fuel.highUsageCount} vehicle(s) exceed fleet fuel averages${fuel.fleetAvgLitersPerTrip != null ? ` (fleet avg ${fuel.fleetAvgLitersPerTrip} L/trip)` : ''}.`
     )
   }
   const atRisk = (data.monthlySummary || []).filter((r) => r.status === 'AT RISK').length
@@ -315,10 +340,10 @@ function buildInsightBullets(data) {
     return ['No data in this period — add schedules and fuel logs first.']
   }
   if (!bullets.length) bullets.push('Operations are within normal thresholds for this period.')
-  return bullets.slice(0, 4)
+  return bullets.slice(0, 6)
 }
 
-function pickRecommendations(data, limit = 4) {
+function pickRecommendations(data, limit = 8) {
   const list = [...(data.operationalInsights?.recommendations || [])]
   list.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
   return list.slice(0, limit)
@@ -389,6 +414,7 @@ export function renderOperationsReportPdf(doc, data, meta = {}) {
   )
   drawMetricBox(doc, MARGIN + boxW + 10, execTop2, boxW, boxH, 'Fuel consumed', `${fuel.totalLiters ?? 0} L`, null)
   y = execTop2 + boxH + 10
+  const fleet = insights.fleetUtilization || {}
   y = drawMetricBox(
     doc,
     MARGIN,
@@ -396,7 +422,7 @@ export function renderOperationsReportPdf(doc, data, meta = {}) {
     CONTENT_W,
     40,
     'Fleet utilization',
-    `${summary.vehicleUtilizationRate ?? kpis.vehicleUtilizationRate ?? 0}%`,
+    `${summary.vehicleUtilizationRate ?? kpis.vehicleUtilizationRate ?? 0}% · ${fleet.busesUsed ?? 0}/${fleet.busesTotal ?? 0} buses · ${fleet.driversOnDuty ?? 0}/${fleet.driversTotal ?? 0} drivers`,
     pageNum
   )
 
@@ -427,76 +453,68 @@ export function renderOperationsReportPdf(doc, data, meta = {}) {
   // Route Performance
   y = fitBlock(doc, y + 10, 32, pageNum)
   y = drawSectionTitle(doc, y, 'Route Performance')
-  const best = insights.bestPerformingRoute
-  const worst = insights.worstPerformingRoute
-  const mostDelayed = (insights.routeDelayAnalysis || [])[0]
-  const atRiskCount = (data.monthlySummary || []).filter((r) => r.status === 'AT RISK').length
-  const halfW = (CONTENT_W - 8) / 2
-
-  if (best || worst) {
-    const pairY = fitBlock(doc, y, 44, pageNum)
-    if (best) {
-      drawHighlightRow(
-        doc,
-        MARGIN,
-        pairY,
-        halfW,
-        'Best route',
-        `${best.routeName} · ${best.completionRate}%`,
-        pageNum,
-        NAVY,
-        { skipFit: true }
-      )
-    }
-    if (worst) {
-      drawHighlightRow(
-        doc,
-        best ? MARGIN + halfW + 8 : MARGIN,
-        pairY,
-        best ? halfW : CONTENT_W,
-        'Lowest completion',
-        `${worst.routeName} · ${worst.completionRate}%`,
-        pageNum,
-        NAVY_LIGHT,
-        { skipFit: true }
-      )
-    }
-    y = pairY + 44
-  }
-
-  if (mostDelayed) {
-    y = drawHighlightRow(
-      doc,
-      MARGIN,
-      y,
-      CONTENT_W,
-      'Most delayed route',
-      `${mostDelayed.routeName} · ${mostDelayed.delayed} delayed`,
-      pageNum
-    )
-  }
-
-  y = drawHighlightRow(
+  const routeMetricW = (CONTENT_W - 20) / 4
+  const routeMetricTop = fitBlock(doc, y, 44, pageNum)
+  drawMetricBox(
     doc,
     MARGIN,
-    y,
-    CONTENT_W,
-    'Routes at risk',
-    atRiskCount === 0 ? 'None' : `${atRiskCount} route(s)`,
-    pageNum,
-    atRiskCount > 0 ? '#dc2626' : NAVY
+    routeMetricTop,
+    routeMetricW,
+    44,
+    'Routes tracked',
+    String(summary.routesTracked ?? summary.totalRoutes ?? 0),
+    null
   )
+  drawMetricBox(
+    doc,
+    MARGIN + routeMetricW + 10,
+    routeMetricTop,
+    routeMetricW,
+    44,
+    'Route completion',
+    `${summary.routeCompletionRate ?? 0}%`,
+    null
+  )
+  drawMetricBox(
+    doc,
+    MARGIN + (routeMetricW + 10) * 2,
+    routeMetricTop,
+    routeMetricW,
+    44,
+    'Delayed incidents',
+    String(summary.delayedIncidents ?? summary.delayedTrips ?? 0),
+    null
+  )
+  drawMetricBox(
+    doc,
+    MARGIN + (routeMetricW + 10) * 3,
+    routeMetricTop,
+    routeMetricW,
+    44,
+    'Fuel by route',
+    (summary.routeFuelLiters ?? 0) > 0 ? `${summary.routeFuelLiters} L` : '—',
+    null
+  )
+  y = routeMetricTop + 52
 
   const routeTableRows = (data.monthlySummary || [])
-    .slice(0, 5)
-    .map((r) => [r.depotUnit, `${r.completionRate}%`, r.incidentsLabel || '0'])
+    .slice(0, 8)
+    .map((r) => [
+      r.depotUnit?.length > 18 ? `${r.depotUnit.slice(0, 17)}…` : r.depotUnit,
+      String(r.tripCount ?? 0),
+      `${r.completionRate ?? 0}%`,
+      r.operationalHours || '—',
+      r.incidentsLabel || '0',
+      (r.fuelLiters ?? 0) > 0 ? `${r.fuelLiters} L` : '—',
+      r.status || '—',
+    ])
   if (routeTableRows.length > 0) {
     y = drawSimpleTable(
       doc,
       MARGIN,
       y + 4,
-      [CONTENT_W * 0.52, CONTENT_W * 0.2, CONTENT_W * 0.28],
-      ['Route', 'Completion', 'Incidents'],
+      [118, 36, 44, 68, 88, 48, 57],
+      ['Route', 'Trips', 'Comp.', 'Hours', 'Incidents', 'Fuel', 'Status'],
       routeTableRows,
       pageNum
     )
@@ -507,15 +525,15 @@ export function renderOperationsReportPdf(doc, data, meta = {}) {
   y = drawSectionTitle(doc, y, 'Fuel Consumption Analysis')
   const fuelBoxW = (CONTENT_W - 20) / 3
   const fuelTop = y
-  drawMetricBox(doc, MARGIN, fuelTop, fuelBoxW, 44, 'Total fuel', `${fuel.totalLiters ?? 0} L`, null)
+  drawMetricBox(doc, MARGIN, fuelTop, fuelBoxW, 44, 'Total liters', `${fuel.totalLiters ?? 0} L`, null)
   drawMetricBox(
     doc,
     MARGIN + fuelBoxW + 10,
     fuelTop,
     fuelBoxW,
     44,
-    'Avg / completed trip',
-    (kpis.litersPerCompletedTrip ?? 0) > 0 ? `${kpis.litersPerCompletedTrip} L` : '—',
+    'Total cost',
+    `LKR ${(fuel.totalCost ?? 0).toLocaleString('en-LK')}`,
     null
   )
   drawMetricBox(
@@ -524,37 +542,85 @@ export function renderOperationsReportPdf(doc, data, meta = {}) {
     fuelTop,
     fuelBoxW,
     44,
-    'Fuel cost',
-    `LKR ${(fuel.totalCost ?? 0).toLocaleString('en-LK')}`,
+    'Fuel entries',
+    String(data.recordCounts?.fuelLogs ?? 0),
     null
   )
   y = fuelTop + 52
 
-  const topFuel = insights.highestFuelConsumingRoute
-  if (topFuel) {
+  if (fuel.fleetAvgLitersPerTrip != null || (fuel.highUsageCount ?? 0) > 0) {
     y = drawHighlightRow(
       doc,
       MARGIN,
       y,
       CONTENT_W,
-      'Highest fuel route',
-      `${topFuel.routeName} · ${topFuel.liters} L`,
+      'Fleet fuel efficiency',
+      `Avg ${fuel.fleetAvgLitersPerTrip ?? '—'} L/trip · ${fuel.highUsageCount ?? 0} high-usage vehicle(s)`,
       pageNum
     )
   }
 
-  const fuelBars = (fuel.byRoute || []).slice(0, 4)
-  if (fuelBars.length > 0) {
+  const fuelTrend = (fuel.trend || []).slice(0, 7)
+  if (fuelTrend.length > 0) {
+    y = fitBlock(doc, y + 4, 24, pageNum)
+    fixedText(doc, period.mode === 'weekly' ? 'Daily consumption' : 'Weekly consumption', MARGIN, y, {
+      fontSize: 8,
+      color: MUTED,
+      bold: true,
+    })
+    y += 12
     y = drawHorizontalBars(
       doc,
       MARGIN,
       y,
       CONTENT_W,
-      fuelBars.map((r) => ({
-        label: r.routeName.length > 12 ? `${r.routeName.slice(0, 11)}…` : r.routeName,
-        value: r.liters,
-        color: NAVY,
+      fuelTrend.map((t) => ({
+        label: t.label.length > 8 ? `${t.label.slice(0, 7)}…` : t.label,
+        value: t.liters,
+        color: NAVY_LIGHT,
       })),
+      pageNum
+    )
+  }
+
+  const fuelRouteRows = (fuel.byRoute || []).slice(0, 6).map((r) => [
+    r.routeName?.length > 16 ? `${r.routeName.slice(0, 15)}…` : r.routeName,
+    `${r.liters} L`,
+    r.litersPerKm && r.litersPerKm !== '—' ? `${r.litersPerKm} L/km` : '—',
+  ])
+  if (fuelRouteRows.length > 0) {
+    y = fitBlock(doc, y + 4, 24, pageNum)
+    fixedText(doc, 'Fuel by route', MARGIN, y, { fontSize: 8, color: MUTED, bold: true })
+    y += 12
+    y = drawSimpleTable(
+      doc,
+      MARGIN,
+      y,
+      [CONTENT_W * 0.5, CONTENT_W * 0.22, CONTENT_W * 0.28],
+      ['Route', 'Liters', 'L/km'],
+      fuelRouteRows,
+      pageNum
+    )
+  }
+
+  const vehicleFuelRows = (fuel.byVehicle || []).slice(0, 6).map((v) => [
+    v.regNumber,
+    `${v.liters} L`,
+    v.litersPerTrip != null ? `${v.litersPerTrip} L/trip` : '—',
+    String(v.tripCount ?? 0),
+    v.highUsage ? 'High usage' : '—',
+  ])
+  if (vehicleFuelRows.length > 0) {
+    y = fitBlock(doc, y + 4, 24, pageNum)
+    fixedText(doc, 'Fuel by vehicle', MARGIN, y, { fontSize: 8, color: MUTED, bold: true })
+    y += 12
+    y = drawSimpleTable(
+      doc,
+      MARGIN,
+      y,
+      [88, 58, 88, 48, CONTENT_W - 282],
+      ['Vehicle', 'Liters', 'L/trip', 'Trips', 'Flag'],
+      vehicleFuelRows,
       pageNum
     )
   }
@@ -564,6 +630,101 @@ export function renderOperationsReportPdf(doc, data, meta = {}) {
   y = drawSectionTitle(doc, y, 'Operational Insights')
   fixedText(doc, 'Important · Data-driven summary', MARGIN, y, { fontSize: 8, color: MUTED })
   y += 14
+
+  const best = insights.bestPerformingRoute
+  const worst = insights.worstPerformingRoute
+  const topFuelRouteInsight = insights.highestFuelConsumingRoute
+  const topFuelVehicleInsight = insights.highestFuelConsumingVehicle
+  const fleetInsight = insights.fleetUtilization || {}
+
+  if (best) {
+    y = drawHighlightRow(
+      doc,
+      MARGIN,
+      y,
+      CONTENT_W,
+      'Best performing route',
+      `${best.routeName} · ${best.completionRate}% · ${best.tripCount} trips${best.operationalHours != null ? ` · ${best.operationalHours} hrs` : ''}`,
+      pageNum
+    )
+  }
+  if (worst) {
+    y = drawHighlightRow(
+      doc,
+      MARGIN,
+      y,
+      CONTENT_W,
+      'Worst performing route',
+      `${worst.routeName} · ${worst.completionRate}% · ${worst.delayed} delayed · ${worst.cancelled} cancelled`,
+      pageNum,
+      NAVY_LIGHT
+    )
+  }
+  if (topFuelRouteInsight) {
+    y = drawHighlightRow(
+      doc,
+      MARGIN,
+      y,
+      CONTENT_W,
+      'Highest fuel consuming route',
+      `${topFuelRouteInsight.routeName} · ${topFuelRouteInsight.liters} L${topFuelRouteInsight.litersPerKm ? ` · ${topFuelRouteInsight.litersPerKm} L/km` : ''}`,
+      pageNum
+    )
+  }
+  if (topFuelVehicleInsight) {
+    y = drawHighlightRow(
+      doc,
+      MARGIN,
+      y,
+      CONTENT_W,
+      'Highest fuel consuming vehicle',
+      `${topFuelVehicleInsight.regNumber} · ${topFuelVehicleInsight.liters} L${topFuelVehicleInsight.litersPerTrip != null ? ` · ${topFuelVehicleInsight.litersPerTrip} L/trip · ${topFuelVehicleInsight.fuelShare}% fleet fuel` : ''}${topFuelVehicleInsight.highUsage ? ' · HIGH USAGE' : ''}`,
+      pageNum,
+      topFuelVehicleInsight.highUsage ? '#d97706' : NAVY
+    )
+  }
+  y = drawHighlightRow(
+    doc,
+    MARGIN,
+    y,
+    CONTENT_W,
+    'Fleet utilization',
+    `${fleetInsight.rate ?? 0}% · ${fleetInsight.busesUsed ?? 0}/${fleetInsight.busesTotal ?? 0} buses · ${fleetInsight.driversOnDuty ?? 0}/${fleetInsight.driversTotal ?? 0} drivers${fleetInsight.onDutyPct != null ? ` (${fleetInsight.onDutyPct}%)` : ''}`,
+    pageNum
+  )
+
+  const delayRows = (insights.routeDelayAnalysis || []).slice(0, 8).map((row) => [
+    row.routeName?.length > 16 ? `${row.routeName.slice(0, 15)}…` : row.routeName,
+    String(row.delayed),
+    String(row.cancelled),
+    String(row.tripCount),
+    `${row.completionRate}%`,
+    `${row.shareOfDelays}%`,
+  ])
+  if (delayRows.length > 0) {
+    y = fitBlock(doc, y + 4, 24, pageNum)
+    fixedText(doc, 'Route delay analysis', MARGIN, y, { fontSize: 8, color: MUTED, bold: true })
+    y += 12
+    y = drawSimpleTable(
+      doc,
+      MARGIN,
+      y,
+      [108, 42, 52, 42, 58, CONTENT_W - 302],
+      ['Route', 'Delayed', 'Cancel.', 'Trips', 'Comp.', 'Delay share'],
+      delayRows,
+      pageNum
+    )
+  } else {
+    y = drawHighlightRow(
+      doc,
+      MARGIN,
+      y,
+      CONTENT_W,
+      'Route delay analysis',
+      'No delayed trips in this period',
+      pageNum
+    )
+  }
 
   for (const line of buildInsightBullets(data)) {
     const textW = CONTENT_W - 36
