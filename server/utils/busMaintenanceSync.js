@@ -49,7 +49,7 @@ export async function ensureMaintenanceRecordForBus(
   })
 }
 
-/** Align fleet status, maintenance logs, and bus maintenance dates (write paths / seed only) */
+/** Align fleet status, maintenance logs, and bus maintenance dates on write paths */
 export async function reconcileFleetMaintenanceData() {
   const maintenanceBuses = await Bus.find({ status: 'maintenance' }).select('_id').lean()
   await Promise.all(
