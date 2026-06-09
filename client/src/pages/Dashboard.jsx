@@ -3,8 +3,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
+import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
+import api from '../services/api'
 import { getStalePageData } from '../services/pagePrefetch'
 import {
   formatScheduleStatusLabel,
@@ -63,6 +65,8 @@ function ProgressBar({ label, value, total, color }) {
 function Dashboard() {
   const { user } = useAuth()
   const [data, setData] = useState(() => getStalePageData('/dashboard')?.data || null)
+  const [selectedTrip, setSelectedTrip] = useState(null)
+  const [showTripDetails, setShowTripDetails] = useState(false)
 
   const depotLabel = useMemo(() => {
     const depot = user?.depotId
@@ -113,6 +117,32 @@ function Dashboard() {
   }))
 
   const typeTotals = buses.byServiceTypeTotal || buses.byServiceType
+
+  const tripSummaryFromRow = (trip) => ({
+    _id: trip._id,
+    departureTime: trip.departureTime,
+    arrivalTime: trip.arrivalTime,
+    status: trip.status,
+    routeId: {
+      routeName: trip.routeName,
+    },
+    busId: trip.busReg ? { regNumber: trip.busReg } : null,
+    driverId: trip.driverName ? { name: trip.driverName } : null,
+  })
+
+  const openTripDetails = (trip) => {
+    setSelectedTrip(tripSummaryFromRow(trip))
+    setShowTripDetails(true)
+    api
+      .get(`/schedules/${trip._id}`)
+      .then(({ data: fullTrip }) => setSelectedTrip(fullTrip))
+      .catch(() => {})
+  }
+
+  const closeTripDetails = () => {
+    setShowTripDetails(false)
+    setSelectedTrip(null)
+  }
 
   return (
     <div className="w-full space-y-5">
@@ -178,9 +208,9 @@ function Dashboard() {
       <div className="rounded-xl border border-outline-variant bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-outline-variant px-5 py-4">
           <div>
-            <h3 className="text-base font-semibold text-neutral-900">Operations</h3>
+            <h3 className="text-base font-semibold text-neutral-900">Today&apos;s Schedule</h3>
             <p className="mt-0.5 text-xs text-on-surface-variant">
-              {operations.length} trip{operations.length !== 1 ? 's' : ''} scheduled for today
+              {operations.length} trip{operations.length !== 1 ? 's' : ''} · view only
             </p>
           </div>
           <Link
@@ -190,39 +220,52 @@ function Dashboard() {
             View schedules <Icon name="chevron_right" size={16} />
           </Link>
         </div>
-        <div className="max-h-[28rem] overflow-auto">
-          <table className="w-full min-w-[720px] text-sm">
+        <div className="min-h-[24rem] max-h-[44rem] overflow-auto">
+          <table className="w-full min-w-[960px] text-sm">
             <thead className="sticky top-0 z-10 bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
               <tr>
-                <th className="px-4 py-3 text-left">Active route</th>
-                <th className="px-4 py-3 text-left">Assigned driver</th>
-                <th className="px-4 py-3 text-left">Assigned bus</th>
-                <th className="px-4 py-3 text-left">Trip window</th>
-                <th className="px-4 py-3 text-left">Trip status</th>
+                <th className="min-w-[12rem] px-5 py-3.5 text-left">Active route</th>
+                <th className="min-w-[9rem] px-5 py-3.5 text-left">Assigned driver</th>
+                <th className="min-w-[8rem] px-5 py-3.5 text-left">Assigned bus</th>
+                <th className="min-w-[11rem] px-5 py-3.5 text-left">Trip window</th>
+                <th className="min-w-[8rem] px-5 py-3.5 text-left">Trip status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
               {operations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-on-surface-variant">
-                    No operations scheduled for today
+                  <td colSpan={5} className="py-10 text-center text-on-surface-variant">
+                    No trips scheduled for today
                   </td>
                 </tr>
               ) : (
                 operations.map((trip) => (
-                  <tr key={trip._id} className="transition-colors hover:bg-surface-container/40">
-                    <td className="px-4 py-3">
+                  <tr
+                    key={trip._id}
+                    tabIndex={0}
+                    onClick={() => openTripDetails(trip)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        openTripDetails(trip)
+                      }
+                    }}
+                    className="cursor-pointer transition-colors hover:bg-surface-container/40 focus:bg-surface-container/50 focus:outline-none"
+                  >
+                    <td className="px-5 py-4">
                       <p className="font-semibold text-neutral-900">{trip.routeLabel}</p>
                       {trip.routeName && trip.routeName !== trip.routeLabel ? (
                         <p className="mt-0.5 text-xs text-on-surface-variant">{trip.routeName}</p>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 font-medium text-neutral-800">{trip.driverName}</td>
-                    <td className="px-4 py-3 font-medium text-neutral-800">{trip.busReg}</td>
-                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-neutral-700">
-                      {formatTimeRange(trip.departureTime, trip.arrivalTime)}
+                    <td className="px-5 py-4 font-medium text-neutral-800">{trip.driverName}</td>
+                    <td className="px-5 py-4 font-medium text-neutral-800">{trip.busReg}</td>
+                    <td className="px-5 py-4">
+                      <span className="inline-block rounded-lg bg-depot-navy/5 px-3 py-2 font-mono text-sm font-semibold tabular-nums text-depot-navy">
+                        {formatTimeRange(trip.departureTime, trip.arrivalTime)}
+                      </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4">
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(trip.status)}`}
                       >
@@ -237,6 +280,13 @@ function Dashboard() {
           </table>
         </div>
       </div>
+
+      <ScheduleTripDetailsDrawer
+        open={showTripDetails}
+        onClose={closeTripDetails}
+        selected={selectedTrip}
+        canAdjustSchedules={false}
+      />
     </div>
   )
 }
