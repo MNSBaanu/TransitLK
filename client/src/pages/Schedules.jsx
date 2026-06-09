@@ -33,6 +33,7 @@ import {
   buildRouteTimetableRows,
   buildTimetableRowsForPeriod,
   defaultTripTimes,
+  displayTripNote,
   filterSchedulesInDateRange,
   getTimetableDateBounds,
   getTimetableDates,
@@ -503,7 +504,7 @@ function SchedulesPage() {
     driverId: trip.driverId?._id || trip.driverId || '',
     status: trip.status || 'scheduled',
     reason: trip.adjustmentReason || 'normal',
-    notes: trip.adjustmentNotes || '',
+    notes: displayTripNote(trip.adjustmentNotes) || '',
   })
 
   const closeScheduleModals = ({ clearSelection = false } = {}) => {
