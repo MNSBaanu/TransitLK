@@ -1,5 +1,6 @@
 import Driver from '../models/Driver.js'
 import { attachFleetAssignmentContext } from '../utils/fleetAssignmentHelpers.js'
+import { sanitizeWorkingHoursInput } from '../utils/timeFormat.js'
 
 // @desc    Create a new driver
 // @route   POST /api/drivers
@@ -25,7 +26,7 @@ export const createDriver = async (req, res) => {
       email: email || undefined,
       password: password || undefined,
       contactNo,
-      workingHours,
+      workingHours: sanitizeWorkingHoursInput(workingHours),
       licenseExpiry: licenseExpiry || undefined,
       status,
       depotId,
@@ -33,7 +34,7 @@ export const createDriver = async (req, res) => {
     await driver.save()
     res.status(201).json(driver)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(error.statusCode || 500).json({ message: error.message })
   }
 }
 
@@ -84,13 +85,18 @@ export const updateDriver = async (req, res) => {
       return res.status(404).json({ message: 'Driver not found' })
     }
 
-    const updated = await Driver.findByIdAndUpdate(req.params.id, req.body, {
+    const updates = { ...req.body }
+    if (Object.prototype.hasOwnProperty.call(updates, 'workingHours')) {
+      updates.workingHours = sanitizeWorkingHoursInput(updates.workingHours)
+    }
+
+    const updated = await Driver.findByIdAndUpdate(req.params.id, updates, {
       new: true,
       runValidators: true,
     })
     res.json(updated)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(error.statusCode || 500).json({ message: error.message })
   }
 }
 

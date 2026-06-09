@@ -9,7 +9,8 @@
     "dev": "nodemon server.js",
     "import:matale-routes": "node scripts/importMataleRoutes.js",
     "backfill:route-service-types": "node scripts/backfillRouteServiceTypes.js",
-    "backfill:driver-profiles": "node scripts/backfillDriverProfiles.js"
+    "backfill:driver-profiles": "node scripts/backfillDriverProfiles.js",
+    "backfill:time-formats": "node scripts/backfillTimeFormats.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
