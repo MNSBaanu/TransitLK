@@ -247,6 +247,22 @@ export function validateMaintenanceForm(form) {
   const costErr = positiveNumber(form.cost, 'Cost')
   if (costErr) errors.cost = costErr
 
+  if (!form.status) {
+    errors.status = 'Status is required'
+  }
+
+  if (form.status === 'completed' && !trim(form.completedAt)) {
+    errors.completedAt = 'Completion date is required for completed maintenance'
+  }
+
+  if (form.startedAt && form.completedAt) {
+    const start = new Date(form.startedAt)
+    const end = new Date(form.completedAt)
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
+      errors.completedAt = 'Completion date cannot be before start date'
+    }
+  }
+
   return errors
 }
 

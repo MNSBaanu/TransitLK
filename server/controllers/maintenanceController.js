@@ -2,6 +2,12 @@ import Maintenance from '../models/Maintenance.js'
 import Bus from '../models/Bus.js'
 import { cancelActiveSchedulesForBus } from '../utils/fleetAssignmentHelpers.js'
 import { syncBusMaintenanceFields } from '../utils/busMaintenanceSync.js'
+import {
+  computeMaintenanceDuration,
+  finalizeMaintenanceFields,
+  sanitizeMaintenanceBody,
+  syncBusStatusFromMaintenance,
+} from '../utils/maintenanceHelpers.js'
 import { buildFuelMaintenanceReport } from '../services/fuelMaintenanceReport.js'
 import { createFuelMaintenanceReportPdfStream } from '../services/fuelMaintenanceReportPdf.js'
 import { buildFuelMaintenanceReportSpreadsheet } from '../utils/excelExport.js'
@@ -54,31 +60,42 @@ export const exportFuelMaintenanceReportPdf = async (req, res) => {
 // @desc    Create a maintenance record
 // @route   POST /api/maintenance
 // @access  Protected
-export const createMaintenance = async (req, res) => {
-  const { bus_id, service_date, description, cost } = req.body
+function attachMaintenancePresentation(record) {
+  const doc = record?.toObject ? record.toObject() : { ...record }
+  doc.durationLabel = computeMaintenanceDuration(doc)
+  return doc
+}
 
+export const createMaintenance = async (req, res) => {
   try {
+    const payload = finalizeMaintenanceFields(sanitizeMaintenanceBody(req.body))
+    const { bus_id, description } = payload
+
     const bus = await Bus.findById(bus_id)
     if (!bus) {
       return res.status(404).json({ message: 'Bus not found' })
     }
 
-    const record = await Maintenance.create({ bus_id, service_date, description, cost })
+    const record = await Maintenance.create(payload)
 
-    await cancelActiveSchedulesForBus(
-      bus_id,
-      description?.trim() || 'Vehicle logged for maintenance — schedule cancelled'
-    )
-    await Bus.findByIdAndUpdate(bus_id, { status: 'maintenance' })
+    if (payload.status === 'scheduled' || payload.status === 'in-progress') {
+      await cancelActiveSchedulesForBus(
+        bus_id,
+        description?.trim() || 'Vehicle logged for maintenance — schedule cancelled'
+      )
+    }
+
+    await syncBusStatusFromMaintenance(bus_id)
     await syncBusMaintenanceFields(bus_id)
 
     const populated = await Maintenance.findById(record._id).populate(
       'bus_id',
       'regNumber status lastMaintenanceDate nextMaintenanceDate'
     )
-    res.status(201).json(populated)
+    res.status(201).json(attachMaintenancePresentation(populated))
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
@@ -100,7 +117,7 @@ export const getAllMaintenance = async (req, res) => {
     const records = await Maintenance.find(filter)
       .populate('bus_id', 'regNumber status lastMaintenanceDate nextMaintenanceDate')
       .sort({ service_date: -1 })
-    res.json(records)
+    res.json(records.map((record) => attachMaintenancePresentation(record)))
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -115,7 +132,7 @@ export const getMaintenanceById = async (req, res) => {
     if (!record) {
       return res.status(404).json({ message: 'Maintenance record not found' })
     }
-    res.json(record)
+    res.json(attachMaintenancePresentation(record))
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -132,11 +149,20 @@ export const updateMaintenance = async (req, res) => {
     }
 
     const previousBusId = record.bus_id
+    const payload = finalizeMaintenanceFields(
+      sanitizeMaintenanceBody(req.body, { isUpdate: true }),
+      record
+    )
 
-    const updated = await Maintenance.findByIdAndUpdate(req.params.id, req.body, {
+    const updated = await Maintenance.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
     })
+
+    await syncBusStatusFromMaintenance(updated.bus_id)
+    if (previousBusId && String(previousBusId) !== String(updated.bus_id)) {
+      await syncBusStatusFromMaintenance(previousBusId)
+    }
 
     await syncBusMaintenanceFields(updated.bus_id)
     if (previousBusId && String(previousBusId) !== String(updated.bus_id)) {
@@ -147,9 +173,10 @@ export const updateMaintenance = async (req, res) => {
       'bus_id',
       'regNumber status lastMaintenanceDate nextMaintenanceDate'
     )
-    res.json(populated)
+    res.json(attachMaintenancePresentation(populated))
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 
@@ -165,19 +192,8 @@ export const deleteMaintenance = async (req, res) => {
 
     const busId = record.bus_id
     await record.deleteOne()
+    await syncBusStatusFromMaintenance(busId)
     await syncBusMaintenanceFields(busId)
-
-    const remaining = await Maintenance.countDocuments({ bus_id: busId })
-    if (remaining === 0) {
-      const bus = await Bus.findById(busId).select('status')
-      if (bus?.status === 'maintenance') {
-        await Bus.findByIdAndUpdate(busId, {
-          status: 'available',
-          lastMaintenanceDate: null,
-          nextMaintenanceDate: null,
-        })
-      }
-    }
 
     res.json({ message: 'Maintenance record removed successfully' })
   } catch (error) {

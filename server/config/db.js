@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { backfillIncompleteDriverProfiles } from '../utils/driverProfileBackfill.js'
 import { backfillTimeFormats } from '../utils/timeFormatBackfill.js'
+import { backfillMaintenanceStatusFields } from '../utils/maintenanceHelpers.js'
 
 const ensureAdminIndexes = async () => {
   const collection = mongoose.connection.collection('admins')
@@ -26,6 +27,7 @@ const connectDB = async () => {
     await ensureAdminIndexes()
     await backfillIncompleteDriverProfiles()
     await backfillTimeFormats()
+    await backfillMaintenanceStatusFields()
     console.log(`MongoDB Connected: ${conn.connection.host}`)
   } catch (error) {
     console.error(`MongoDB Connection Error: ${error.message}`)

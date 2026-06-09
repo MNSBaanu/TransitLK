@@ -38,11 +38,14 @@ export async function ensureMaintenanceRecordForBus(
   const count = await Maintenance.countDocuments({ bus_id: busId })
   if (count > 0) return null
 
+  const now = new Date()
   return Maintenance.create({
     bus_id: busId,
-    service_date: new Date(),
+    service_date: now,
     description,
     cost: 0,
+    status: 'in-progress',
+    startedAt: now,
   })
 }
 
