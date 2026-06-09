@@ -1,5 +1,15 @@
 import Icon from '../Icon'
 import {
+  ROUTE_COLUMN_CLASS,
+  ROUTE_HEADER_CLASS,
+  TIMETABLE_COLUMN_HEADER_CLASS,
+  TIMETABLE_DATA_ROW_CLASS,
+  TIMETABLE_HEADER_ROW_CLASS,
+  TIMETABLE_SCROLL_CLASS,
+  TIMETABLE_SHELL_CLASS,
+  timetableTripButtonClass,
+} from './scheduleTimetableShared'
+import {
   GANTT_HOURS,
   GANTT_HOUR_COLUMN_MIN_PX,
   GANTT_TIMELINE_WIDTH_PX,
@@ -8,13 +18,9 @@ import {
   getResourceBusyEndTime,
   formatRouteEndpointsLabel,
   formatScheduleStatusLabel,
+  formatTimeRange,
   scheduleCode,
 } from '../../utils/scheduleHelpers'
-
-const ROUTE_COLUMN_CLASS =
-  'sticky left-0 z-20 w-56 shrink-0 border-r border-outline-variant bg-white p-3'
-const ROUTE_HEADER_CLASS =
-  'sticky left-0 z-40 w-56 shrink-0 border-r border-outline-variant bg-depot-navy/5 p-3 text-xs font-bold uppercase tracking-wide text-depot-navy'
 
 const timelineGridStyle = {
   display: 'grid',
@@ -30,10 +36,10 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
   })
 
   return (
-    <div className="glass-subtle flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg">
-      <div className="min-h-0 flex-1 overflow-auto">
+    <div className={TIMETABLE_SHELL_CLASS}>
+      <div className={TIMETABLE_SCROLL_CLASS}>
         <div className="w-max min-w-full">
-          <div className="sticky top-0 z-30 flex border-b border-outline-variant bg-white/95 backdrop-blur-sm">
+          <div className={TIMETABLE_HEADER_ROW_CLASS}>
             <div className={ROUTE_HEADER_CLASS}>Route</div>
             <div
               className="grid shrink-0 divide-x divide-outline-variant/40"
@@ -42,7 +48,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
               {GANTT_HOURS.map((h, i) => (
                 <div
                   key={h}
-                  className={`px-1 py-2.5 text-center text-xs font-semibold tabular-nums tracking-wide text-on-surface-variant ${
+                  className={`${TIMETABLE_COLUMN_HEADER_CLASS} ${
                     i % 2 === 1 ? 'bg-surface-container/50' : ''
                   }`}
                 >
@@ -60,10 +66,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
             rows.map((row) => {
               const routeLabel = formatRouteEndpointsLabel(row)
               return (
-                <div
-                  key={row._id}
-                  className="group flex border-b border-outline-variant transition-colors hover:bg-surface-container/50"
-                >
+                <div key={row._id} className={TIMETABLE_DATA_ROW_CLASS}>
                   <div className={`${ROUTE_COLUMN_CLASS} group-hover:bg-surface-container`}>
                     <div className="flex items-center gap-2">
                       <Icon name="map" size={20} className="shrink-0 text-depot-navy" />
@@ -126,23 +129,24 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                               .filter(Boolean)
                               .join(' · ')}
                             style={pos.style}
-                            className={`absolute top-1.5 bottom-1.5 z-10 overflow-hidden rounded px-2 py-2 text-left text-white shadow-sm transition-all ${
-                              isConflict
-                                ? 'border-2 border-dashed border-red-600 bg-depot-navy schedule-conflict-hatch'
-                                : isSelected
-                                  ? 'bg-depot-blue-light ring-2 ring-depot-navy ring-offset-1'
-                                  : 'bg-depot-navy hover:bg-depot-navy/85'
-                            }`}
+                            className={`absolute top-1.5 bottom-1.5 z-10 ${timetableTripButtonClass({
+                              selected: isSelected,
+                              conflict: isConflict,
+                            })}`}
                           >
-                            <div className="flex items-start justify-between gap-1">
-                              <span className="truncate text-xs font-bold">{tripRouteLabel}</span>
-                              <span className="shrink-0 text-[10px] opacity-80">
+                            <div className="flex items-start justify-between gap-1.5">
+                              <span className="min-w-0 flex-1 font-mono text-[11px] font-bold leading-tight tabular-nums whitespace-nowrap">
+                                {formatTimeRange(trip.departureTime, trip.arrivalTime)}
+                              </span>
+                              <span className="max-w-[3.5rem] shrink-0 truncate text-[10px] opacity-80">
                                 {trip.driverId?.name?.split(' ')[0] || ''}
                               </span>
                             </div>
-                            <p className="mt-0.5 font-mono text-[11px] leading-tight tabular-nums">
-                              {trip.departureTime} – {trip.arrivalTime}
-                            </p>
+                            {trip.busId?.regNumber ? (
+                              <span className="mt-0.5 block truncate text-[10px] leading-snug opacity-90">
+                                {trip.busId.regNumber}
+                              </span>
+                            ) : null}
                             <span className="mt-0.5 inline-block rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold leading-tight">
                               {formatScheduleStatusLabel(trip.status)}
                             </span>
