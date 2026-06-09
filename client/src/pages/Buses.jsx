@@ -23,6 +23,7 @@ import {
   validateBusForm,
   validateDriverForm,
 } from '../utils/formValidation'
+import { formatRouteEndpointsLabel } from '../utils/scheduleHelpers'
 
 function busFormState(bus) {
   if (!bus) {
@@ -61,13 +62,14 @@ function NotAssignedLabel() {
 }
 
 function formatCurrentRouteCell(route) {
-  if (!route?.routeName) {
+  const label = formatRouteEndpointsLabel(route || {})
+  if (!label || label === 'Route') {
     return <NotAssignedLabel />
   }
   return (
     <div>
-      <p className="font-medium text-neutral-800">{route.routeName}</p>
-      {route.routeNo && (
+      <p className="font-medium text-neutral-800">{label}</p>
+      {route?.routeNo && (
         <p className="text-xs text-neutral-400">{route.routeNo}</p>
       )}
     </div>
@@ -89,7 +91,9 @@ function formatCurrentScheduleCell(schedule) {
       <p className="font-medium text-neutral-800">
         {schedule.departureTime}–{schedule.arrivalTime}
       </p>
-      <p className="text-xs text-neutral-500">{schedule.routeName || 'Trip'}</p>
+      <p className="text-xs text-neutral-500">
+        {schedule.routeLabel || formatRouteEndpointsLabel(schedule) || schedule.routeName || 'Trip'}
+      </p>
       <span
         className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed}`}
       >
@@ -964,7 +968,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                 <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute)}</td>
                 <td className="px-4 py-3">{formatCurrentScheduleCell(d.currentSchedule)}</td>
                 <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
+                <td className="px-4 py-3 text-neutral-600">{d.contactNo || '—'}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
@@ -1038,7 +1042,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                     })()
                   : 'Not set'],
                 ['Email', viewDriver.email || '—'],
-                ['Contact', viewDriver.contactNo],
+                ['Contact', viewDriver.contactNo || '—'],
                 ['Working Hours', viewDriver.workingHours || '—'],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-outline-variant py-1.5">
