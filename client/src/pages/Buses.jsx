@@ -66,14 +66,8 @@ function formatCurrentRouteCell(route) {
   if (!label || label === 'Route') {
     return <NotAssignedLabel />
   }
-  return (
-    <div>
-      <p className="font-medium text-neutral-800">{label}</p>
-      {route?.routeNo && (
-        <p className="text-xs text-neutral-400">{route.routeNo}</p>
-      )}
-    </div>
-  )
+  const text = route?.routeNo ? `${label} (${route.routeNo})` : label
+  return <span className="font-medium text-neutral-800 whitespace-nowrap">{text}</span>
 }
 
 function formatCurrentScheduleCell(schedule) {
@@ -87,19 +81,35 @@ function formatCurrentScheduleCell(schedule) {
         ? 'Next today'
         : 'Completed today'
   return (
-    <div>
-      <p className="font-medium text-neutral-800">
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      <span className="font-medium text-neutral-800">
         {schedule.departureTime}–{schedule.arrivalTime}
-      </p>
-      <p className="text-xs text-neutral-500">
-        {schedule.routeLabel || formatRouteEndpointsLabel(schedule) || schedule.routeName || 'Trip'}
-      </p>
+      </span>
       <span
-        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed}`}
+        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed}`}
       >
         {phaseLabel}
       </span>
-    </div>
+    </span>
+  )
+}
+
+function formatLicenseExpiryCell(licenseExpiry) {
+  if (!licenseExpiry) {
+    return <span className="text-xs text-neutral-400">—</span>
+  }
+  const s = getLicenseStatus(licenseExpiry)
+  const date = new Date(licenseExpiry).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+  return (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+      {s.label}
+      <span className="font-normal text-neutral-500">· {date}</span>
+    </span>
   )
 }
 
@@ -909,7 +919,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-outline-variant">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
               <th className="w-12 px-4 py-3 text-left">#</th>
@@ -936,8 +946,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-xs font-bold text-neutral-700">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-bold text-neutral-700">
                       {getInitials(d.name)}
                     </div>
                     <span className="font-semibold text-neutral-900">{d.name}</span>
@@ -949,25 +959,10 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
-                <td className="px-4 py-3">
-                  {d.licenseExpiry ? (() => {
-                    const s = getLicenseStatus(d.licenseExpiry)
-                    return (
-                      <div>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                          {s.label}
-                        </span>
-                        <p className="mt-0.5 text-xs text-neutral-400">
-                          {new Date(d.licenseExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                    )
-                  })() : <span className="text-xs text-neutral-400">—</span>}
-                </td>
+                <td className="px-4 py-3">{formatLicenseExpiryCell(d.licenseExpiry)}</td>
                 <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute)}</td>
                 <td className="px-4 py-3">{formatCurrentScheduleCell(d.currentSchedule)}</td>
-                <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
+                <td className="max-w-[11rem] truncate px-4 py-3 text-neutral-500 text-xs" title={d.email || undefined}>{d.email || '—'}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.contactNo || '—'}</td>
                 <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
                 <td className="px-4 py-3">
