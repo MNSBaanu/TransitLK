@@ -50,15 +50,6 @@ cd client && npm run dev
 
 Open the Vite URL (usually `http://localhost:5173`). The client proxies `/api` to `http://localhost:5000`.
 
-### Sample data
-
-```bash
-cd server
-npm run seed:all          # fleet, routes, schedules
-npm run seed:maintenance  # maintenance & fuel (optional)
-node scripts/seedMataleDepot.js   # depot & staff accounts (if needed)
-```
-
 ## Roles
 
 | Role | Main modules |

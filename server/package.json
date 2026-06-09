@@ -10,7 +10,8 @@
     "import:matale-routes": "node scripts/importMataleRoutes.js",
     "backfill:route-service-types": "node scripts/backfillRouteServiceTypes.js",
     "backfill:driver-profiles": "node scripts/backfillDriverProfiles.js",
-    "backfill:time-formats": "node scripts/backfillTimeFormats.js"
+    "backfill:time-formats": "node scripts/backfillTimeFormats.js",
+    "backfill:report-data": "node scripts/backfillReportData.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

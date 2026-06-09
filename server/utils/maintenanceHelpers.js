@@ -118,24 +118,3 @@ export async function syncBusStatusFromMaintenance(busId) {
   }
 }
 
-export async function backfillMaintenanceStatusFields() {
-  const records = await Maintenance.find({
-    $or: [{ status: { $exists: false } }, { status: null }, { status: '' }],
-  })
-
-  let updated = 0
-  for (const record of records) {
-    await Maintenance.findByIdAndUpdate(record._id, {
-      status: 'completed',
-      startedAt: record.service_date,
-      completedAt: record.service_date,
-    })
-    updated++
-  }
-
-  if (updated) {
-    console.log(`Maintenance status backfill: updated ${updated} record(s)`)
-  }
-
-  return { updated }
-}
