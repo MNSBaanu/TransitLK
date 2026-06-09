@@ -13,8 +13,8 @@ import {
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSelectTrip }) {
-  const weekDays = getWeekDayDates(anchorDate)
+function ScheduleWeekTimetable({ schedules, routes, focusDate, selectedId, onSelectTrip }) {
+  const weekDays = getWeekDayDates(focusDate)
 
   const routeRows = useMemo(() => {
     const byId = new Map()
@@ -53,7 +53,12 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
             <th className="w-12 px-4 py-3 text-left">#</th>
             <th className="sticky left-0 z-10 bg-depot-navy px-4 py-3 text-left">Route</th>
             {weekDays.map((day, i) => (
-              <th key={day} className="min-w-[110px] px-2 py-3 text-left">
+              <th
+                key={day}
+                className={`min-w-[110px] px-2 py-3 text-left ${
+                  day === focusDate ? 'bg-depot-blue-light/40' : ''
+                }`}
+              >
                 <span className="block">{DAY_LABELS[i]}</span>
                 <span className="font-normal normal-case text-white/70">
                   {parseLocalDateInput(day).toLocaleDateString('en-GB', {
@@ -82,7 +87,12 @@ function ScheduleWeekTimetable({ schedules, routes, anchorDate, selectedId, onSe
                 {weekDays.map((day) => {
                   const trips = tripsFor(route._id, day)
                   return (
-                    <td key={day} className="align-top px-2 py-2">
+                    <td
+                      key={day}
+                      className={`align-top px-2 py-2 ${
+                        day === focusDate ? 'bg-depot-blue-light/5' : ''
+                      }`}
+                    >
                       {trips.length === 0 ? (
                         <span className="text-xs text-on-surface-variant">—</span>
                       ) : (
