@@ -15,6 +15,7 @@ import {
   depotIdValue,
   formatServiceType,
   formatWorkingHours,
+  formatWorkingHoursDisplay,
   parseWorkingHours,
 } from '../utils/fleetHelpers'
 import {
@@ -23,7 +24,7 @@ import {
   validateBusForm,
   validateDriverForm,
 } from '../utils/formValidation'
-import { formatRouteEndpointsLabel } from '../utils/scheduleHelpers'
+import { formatRouteEndpointsLabel, formatTimeRange } from '../utils/scheduleHelpers'
 
 function busFormState(bus) {
   if (!bus) {
@@ -61,16 +62,26 @@ function NotAssignedLabel() {
   return <span className="text-xs italic text-neutral-400">Not assigned</span>
 }
 
-function formatCurrentRouteCell(route) {
+function formatCurrentRouteCell(route, { compact = false } = {}) {
   const label = formatRouteEndpointsLabel(route || {})
   if (!label || label === 'Route') {
     return <NotAssignedLabel />
+  }
+  if (compact) {
+    return (
+      <div className="min-w-[12rem] max-w-[18rem] leading-tight">
+        <p className="truncate font-medium text-neutral-800" title={label}>{label}</p>
+        {route?.routeNo && (
+          <p className="truncate text-xs text-neutral-400" title={route.routeNo}>{route.routeNo}</p>
+        )}
+      </div>
+    )
   }
   const text = route?.routeNo ? `${label} (${route.routeNo})` : label
   return <span className="font-medium text-neutral-800 whitespace-nowrap">{text}</span>
 }
 
-function formatCurrentScheduleCell(schedule) {
+function formatCurrentScheduleCell(schedule, { compact = false } = {}) {
   if (!schedule) {
     return <NotAssignedLabel />
   }
@@ -80,21 +91,32 @@ function formatCurrentScheduleCell(schedule) {
       : schedule.phase === 'upcoming'
         ? 'Next today'
         : 'Completed today'
+  const timeLabel = formatTimeRange(schedule.departureTime, schedule.arrivalTime)
+  const phaseClass =
+    SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed
+
+  if (compact) {
+    return (
+      <div className="min-w-[11rem] leading-tight">
+        <p className="whitespace-nowrap font-medium text-neutral-800">{timeLabel}</p>
+        <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${phaseClass}`}>
+          {phaseLabel}
+        </span>
+      </div>
+    )
+  }
+
   return (
     <span className="inline-flex items-center gap-2 whitespace-nowrap">
-      <span className="font-medium text-neutral-800">
-        {schedule.departureTime}–{schedule.arrivalTime}
-      </span>
-      <span
-        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed}`}
-      >
+      <span className="font-medium text-neutral-800">{timeLabel}</span>
+      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${phaseClass}`}>
         {phaseLabel}
       </span>
     </span>
   )
 }
 
-function formatLicenseExpiryCell(licenseExpiry) {
+function formatLicenseExpiryCell(licenseExpiry, { compact = false } = {}) {
   if (!licenseExpiry) {
     return <span className="text-xs text-neutral-400">—</span>
   }
@@ -104,6 +126,19 @@ function formatLicenseExpiryCell(licenseExpiry) {
     month: 'short',
     year: 'numeric',
   })
+
+  if (compact) {
+    return (
+      <div className="leading-tight">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+          {s.label}
+        </span>
+        <p className="mt-0.5 whitespace-nowrap text-xs text-neutral-500">{date}</p>
+      </div>
+    )
+  }
+
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
@@ -919,53 +954,64 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-outline-variant">
-        <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
+        <table className="w-full min-w-[94rem] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[3.5rem]" />
+            <col className="w-[7.5rem]" />
+            <col className="w-[15rem]" />
+            <col className="w-[7.5rem]" />
+            <col className="w-[10rem]" />
+            <col className="w-[9.5rem]" />
+            <col className="w-[15rem]" />
+            <col className="w-[15rem]" />
+            <col className="w-[10rem]" />
+            <col className="w-[10rem]" />
+            <col className="w-[7.5rem]" />
+          </colgroup>
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
-              <th className="w-12 px-4 py-3 text-left">#</th>
-              <th className="px-4 py-3 text-left">Driver ID</th>
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">License No.</th>
-              <th className="px-4 py-3 text-left">Expiry</th>
-              <th className="px-4 py-3 text-left">Current Route</th>
-              <th className="px-4 py-3 text-left">Current Schedule</th>
-              <th className="px-4 py-3 text-left">Email</th>
-              <th className="px-4 py-3 text-left">Contact</th>
-              <th className="px-4 py-3 text-left">Working Hours</th>
-              <th className="px-4 py-3 text-left">Actions</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">#</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Driver ID</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Name</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Status</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">License No.</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Expiry</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Current Route</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Email</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Contact</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Working Hours</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && drivers.length === 0 ? (
-              <tr><td colSpan={12} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={12} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
             ) : paginated.map((d, index) => (
-              <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
-                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
-                <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
-                <td className="px-4 py-3">
+              <tr key={d._id} className="align-top hover:bg-surface-container-low transition-colors">
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
+                <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-bold text-neutral-700">
                       {getInitials(d.name)}
                     </div>
-                    <span className="font-semibold text-neutral-900">{d.name}</span>
+                    <span className="truncate font-semibold text-neutral-900" title={d.name}>{d.name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">
                   <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${driverStatusClass(d.status || 'available')}`}>
                     {formatServiceType(d.status || 'available')}
                   </span>
                 </td>
-                <td className="px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
-                <td className="px-4 py-3">{formatLicenseExpiryCell(d.licenseExpiry)}</td>
-                <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute)}</td>
-                <td className="px-4 py-3">{formatCurrentScheduleCell(d.currentSchedule)}</td>
-                <td className="max-w-[11rem] truncate px-4 py-3 text-neutral-500 text-xs" title={d.email || undefined}>{d.email || '—'}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.contactNo || '—'}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
+                <td className="px-4 py-3">{formatLicenseExpiryCell(d.licenseExpiry, { compact: true })}</td>
+                <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute, { compact: true })}</td>
+                <td className="truncate px-4 py-3 text-neutral-500 text-xs" title={d.email || undefined}>{d.email || '—'}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-600">{d.contactNo || '—'}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-600">{formatWorkingHoursDisplay(d.workingHours)}</td>
+                <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setViewDriver(d)}
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="View">
@@ -1038,7 +1084,7 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                   : 'Not set'],
                 ['Email', viewDriver.email || '—'],
                 ['Contact', viewDriver.contactNo || '—'],
-                ['Working Hours', viewDriver.workingHours || '—'],
+                ['Working Hours', formatWorkingHoursDisplay(viewDriver.workingHours)],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-outline-variant py-1.5">
                   <span className="text-on-surface-variant">{label}</span>

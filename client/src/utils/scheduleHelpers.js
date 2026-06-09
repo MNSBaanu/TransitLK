@@ -825,9 +825,7 @@ export function isTripInViewRange(trip, viewMode, focusDate) {
   return isTripInDateRange(trip, from, to)
 }
 
-export function formatTimeRange(departureTime, arrivalTime) {
-  return `${departureTime || '—'} – ${arrivalTime || '—'}`
-}
+export { formatTimeRange } from './timeFormat.js'
 
 /** Via text or intermediary stops for display on schedule views */
 export function formatRouteStopsLabel(route = {}) {

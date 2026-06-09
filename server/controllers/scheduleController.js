@@ -28,6 +28,7 @@ import {
   getDriverLicenseInvalidReason,
   isTripWithinWorkingHours,
 } from '../utils/fleetHelpers.js'
+import { resolveScheduleTimes } from '../utils/timeFormat.js'
 import { syncBusStatusForBusId, syncDriverStatusForDriverId } from '../utils/fleetAssignmentHelpers.js'
 import {
   assertDepotAccess,
@@ -536,8 +537,10 @@ export const createSchedule = async (req, res) => {
       })
     }
 
-    const timeError = validateTimeRange(departureTime, arrivalTime)
-    if (timeError) return res.status(400).json({ message: timeError })
+    const {
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
+    } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
 
     const route = await getAccessibleRoute(req.user, routeId)
     if (route.status && route.status !== 'active') {
@@ -551,8 +554,8 @@ export const createSchedule = async (req, res) => {
     await validateAssignment({
       busId,
       driverId,
-      departureTime,
-      arrivalTime,
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
       routeId,
       routeDepotId: route.depotId,
       tripDate: normalizedTripDate,
@@ -563,8 +566,8 @@ export const createSchedule = async (req, res) => {
       routeId,
       busId,
       driverId,
-      departureTime,
-      arrivalTime,
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
     })
     if (conflicts.length) {
       return res.status(409).json({ message: 'Schedule conflict detected', conflicts })
@@ -579,8 +582,8 @@ export const createSchedule = async (req, res) => {
       routeId,
       busId,
       driverId,
-      departureTime,
-      arrivalTime,
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
       tripDate: normalizedTripDate,
       status: nextStatus,
       submittedAt: submittedNow,
@@ -617,8 +620,12 @@ export const updateSchedule = async (req, res) => {
     const normalizedTripDate = normalizeTripDate(tripDate)
     if (data.tripDate !== undefined) data.tripDate = normalizedTripDate
 
-    const timeError = validateTimeRange(departureTime, arrivalTime)
-    if (timeError) return res.status(400).json({ message: timeError })
+    const {
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
+    } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
+    if (data.departureTime !== undefined) data.departureTime = normalizedDepartureTime
+    if (data.arrivalTime !== undefined) data.arrivalTime = normalizedArrivalTime
 
     if (data.reason && !data.adjustmentReason) {
       data.adjustmentReason = data.reason
@@ -653,8 +660,8 @@ export const updateSchedule = async (req, res) => {
       await validateAssignment({
         busId,
         driverId,
-        departureTime,
-        arrivalTime,
+        departureTime: normalizedDepartureTime,
+        arrivalTime: normalizedArrivalTime,
         routeId,
         routeDepotId: assignmentRoute?.depotId,
         tripDate: normalizedTripDate,
@@ -665,8 +672,8 @@ export const updateSchedule = async (req, res) => {
         routeId,
         busId,
         driverId,
-        departureTime,
-        arrivalTime,
+        departureTime: normalizedDepartureTime,
+        arrivalTime: normalizedArrivalTime,
         excludeId: req.params.id,
       })
       if (conflicts.length) {
@@ -894,14 +901,18 @@ export const checkScheduleConflicts = async (req, res) => {
         message: 'tripDate, busId, driverId, departureTime, and arrivalTime are required',
       })
     }
+    const {
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
+    } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
     const route = routeId ? await getAccessibleRoute(req.user, routeId) : null
     const availabilityIssues = []
     try {
       await validateAssignment({
         busId,
         driverId,
-        departureTime,
-        arrivalTime,
+        departureTime: normalizedDepartureTime,
+        arrivalTime: normalizedArrivalTime,
         routeId,
         routeDepotId: route?.depotId,
         tripDate: normalizeTripDate(tripDate),
@@ -918,14 +929,15 @@ export const checkScheduleConflicts = async (req, res) => {
       routeId,
       busId,
       driverId,
-      departureTime,
-      arrivalTime,
+      departureTime: normalizedDepartureTime,
+      arrivalTime: normalizedArrivalTime,
       excludeId,
     })
     const combined = [...availabilityIssues, ...conflicts]
     res.json({ hasConflict: combined.length > 0, conflicts: combined })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    const status = error.statusCode || 500
+    res.status(status).json({ message: error.message })
   }
 }
 

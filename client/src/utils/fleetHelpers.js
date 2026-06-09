@@ -1,3 +1,7 @@
+import { normalizeTime, normalizeWorkingHours, formatWorkingHoursDisplay } from './timeFormat.js'
+
+export { formatWorkingHoursDisplay }
+
 /** Populated depot object or legacy string id */
 export function depotLabel(depot) {
   if (!depot) return '—'
@@ -28,10 +32,13 @@ export function parseWorkingHours(workingHours) {
   }
 }
 
-/** Format start/end time pickers for storage */
+/** Format start/end time pickers for HH:mm - HH:mm storage */
 export function formatWorkingHours(start, end) {
   if (!start?.trim() || !end?.trim()) return ''
-  return `${start.trim()} - ${end.trim()}`
+  const normalizedStart = normalizeTime(start.trim())
+  const normalizedEnd = normalizeTime(end.trim())
+  if (!normalizedStart || !normalizedEnd) return ''
+  return `${normalizedStart} - ${normalizedEnd}`
 }
 
 /** Parse "06:00-18:00" style working hours */
