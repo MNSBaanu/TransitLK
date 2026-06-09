@@ -715,14 +715,38 @@ export function formatReportRangeLabel(from, to) {
   return `${parseLocalDateInput(from).toLocaleDateString('en-GB', opts)} – ${parseLocalDateInput(to).toLocaleDateString('en-GB', opts)}`
 }
 
-export function formatPeriodLabel(viewMode, anchorDate) {
-  const { from, to } = getViewDateRange(viewMode, anchorDate)
-  if (viewMode === 'daily') return formatTripDate(anchorDate)
+export function formatPeriodLabel(viewMode, focusDate) {
+  const day = coerceFocusDate(focusDate)
+  if (viewMode === 'daily') return formatTripDate(day)
   if (viewMode === 'weekly') {
+    const from = startOfWeekDate(day)
+    const to = endOfWeekDate(day)
     return `${formatTripDate(from)} – ${formatTripDate(to)}`
   }
-  const d = new Date(anchorDate)
+  const d = parseLocalDateInput(day)
   return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+}
+
+/** Always store a single calendar day as YYYY-MM-DD. */
+export function coerceFocusDate(value) {
+  if (!value) return toDateInputValue(new Date())
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+    if (/^\d{4}-\d{2}$/.test(trimmed)) return `${trimmed}-01`
+  }
+  const coerced = toDateInputValue(value)
+  return coerced || toDateInputValue(new Date())
+}
+
+/** Canonical anchor for schedule page navigation (day, week start, or 1st of month). */
+export function normalizeViewDate(viewMode, focusDate) {
+  return normalizeTimetableAnchor(viewMode, focusDate)
+}
+
+/** Period range anchor derived from the user's selected calendar day. */
+export function getViewAnchor(viewMode, focusDate) {
+  return normalizeViewDate(viewMode, focusDate)
 }
 
 export function tripDateKey(trip) {
@@ -743,8 +767,8 @@ export function isTripInDateRange(trip, fromDate, toDate) {
   return key >= from && key <= to
 }
 
-export function isTripInViewRange(trip, viewMode, anchorDate) {
-  const { from, to } = getViewDateRange(viewMode, anchorDate)
+export function isTripInViewRange(trip, viewMode, focusDate) {
+  const { from, to } = getViewDateRange(viewMode, coerceFocusDate(focusDate))
   return isTripInDateRange(trip, from, to)
 }
 
