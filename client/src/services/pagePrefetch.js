@@ -150,8 +150,9 @@ async function fetchRoutesPageData(options = {}) {
     summary: routeData.summary || {
       total: 0,
       active: 0,
-      assigned: 0,
+      draft: 0,
       avgDistance: null,
+      distanceRouteCount: 0,
     },
     page,
     limit,
