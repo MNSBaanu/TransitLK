@@ -1,10 +1,16 @@
 ﻿// Module: Depot Management Dashboard
 
 import { useCallback, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData } from '../services/pagePrefetch'
+import {
+  formatScheduleStatusLabel,
+  formatTimeRange,
+  scheduleStatusClass,
+} from '../utils/scheduleHelpers'
 
 const EMPTY_DASHBOARD = {
   buses: {
@@ -17,19 +23,10 @@ const EMPTY_DASHBOARD = {
   },
   drivers: { total: 0, available: 0, onDuty: 0, onLeave: 0, offDuty: 0 },
   maintenance: { totalCost: 0, alerts: [], urgentCount: 0 },
-  recentSchedules: [],
+  operations: [],
   totalRoutes: 0,
   tripCompletion: 0,
   vehicleUtilization: { rate: 0, busesUsed: 0, busesTotal: 0 },
-}
-
-const STATUS_STYLES = {
-  'on-duty':   'bg-indigo-100 text-indigo-700',
-  'on-time':   'bg-green-100 text-green-700',
-  scheduled:   'bg-blue-100 text-blue-700',
-  delayed:     'bg-yellow-100 text-yellow-700',
-  completed:   'bg-gray-100 text-gray-500',
-  cancelled:   'bg-red-100 text-red-600',
 }
 
 function StatCard({ label, value, sub, subColor }) {
@@ -97,11 +94,23 @@ function Dashboard() {
     buses,
     drivers,
     maintenance,
+    operations: operationsFromApi,
+    ongoingOperations,
     recentSchedules,
     totalRoutes,
     tripCompletion,
     vehicleUtilization,
   } = data || EMPTY_DASHBOARD
+
+  const operations = (operationsFromApi?.length
+    ? operationsFromApi
+    : ongoingOperations?.length
+      ? ongoingOperations
+      : recentSchedules || []
+  ).map((trip) => ({
+    ...trip,
+    routeLabel: trip.routeLabel || trip.routeName || '—',
+  }))
 
   const typeTotals = buses.byServiceTypeTotal || buses.byServiceType
 
@@ -167,40 +176,63 @@ function Dashboard() {
       </div>
 
       <div className="rounded-xl border border-outline-variant bg-white shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
-          <h3 className="text-base font-semibold text-neutral-900">Real-time Trip Status</h3>
-          <button className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline">
-            View All Trips <Icon name="chevron_right" size={16} />
-          </button>
+        <div className="flex items-center justify-between border-b border-outline-variant px-5 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-neutral-900">Operations</h3>
+            <p className="mt-0.5 text-xs text-on-surface-variant">
+              {operations.length} trip{operations.length !== 1 ? 's' : ''} scheduled for today
+            </p>
+          </div>
+          <Link
+            to="/schedules"
+            className="flex items-center gap-1 text-sm font-medium text-depot-blue-light hover:underline"
+          >
+            View schedules <Icon name="chevron_right" size={16} />
+          </Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+        <div className="max-h-[28rem] overflow-auto">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="sticky top-0 z-10 bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
               <tr>
-                <th className="px-4 py-3 text-left">Route</th>
-                <th className="px-4 py-3 text-left">Driver</th>
-                <th className="px-4 py-3 text-left">Vehicle</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Departure</th>
+                <th className="px-4 py-3 text-left">Active route</th>
+                <th className="px-4 py-3 text-left">Assigned driver</th>
+                <th className="px-4 py-3 text-left">Assigned bus</th>
+                <th className="px-4 py-3 text-left">Trip window</th>
+                <th className="px-4 py-3 text-left">Trip status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
-              {recentSchedules.length === 0 ? (
-                <tr><td colSpan={5} className="py-8 text-center text-on-surface-variant">No scheduled trips yet</td></tr>
-              ) : recentSchedules.map((s) => (
-                <tr key={s._id} className="hover:bg-surface-container-low transition-colors">
-                  <td className="px-4 py-3 font-semibold text-blue-700">{s.routeName}</td>
-                  <td className="px-4 py-3 text-neutral-700">{s.driverName}</td>
-                  <td className="px-4 py-3 text-neutral-700">{s.busReg}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[s.status] || 'bg-gray-100 text-gray-600'}`}>
-                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                      {s.status?.toUpperCase()}
-                    </span>
+              {operations.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-on-surface-variant">
+                    No operations scheduled for today
                   </td>
-                  <td className="px-4 py-3 text-neutral-600">{s.departureTime}</td>
                 </tr>
-              ))}
+              ) : (
+                operations.map((trip) => (
+                  <tr key={trip._id} className="transition-colors hover:bg-surface-container/40">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-neutral-900">{trip.routeLabel}</p>
+                      {trip.routeName && trip.routeName !== trip.routeLabel ? (
+                        <p className="mt-0.5 text-xs text-on-surface-variant">{trip.routeName}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-neutral-800">{trip.driverName}</td>
+                    <td className="px-4 py-3 font-medium text-neutral-800">{trip.busReg}</td>
+                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-neutral-700">
+                      {formatTimeRange(trip.departureTime, trip.arrivalTime)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(trip.status)}`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {formatScheduleStatusLabel(trip.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
