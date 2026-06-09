@@ -6,6 +6,7 @@ import {
   TIMETABLE_COLUMN_HEADER_CLASS,
   TIMETABLE_DATA_ROW_CLASS,
   TIMETABLE_HEADER_ROW_CLASS,
+  TIMETABLE_HEADER_CELL_STRIPE_CLASS,
   TIMETABLE_SCROLL_CLASS,
   TIMETABLE_SHELL_CLASS,
   timetableTripButtonClass,
@@ -63,9 +64,9 @@ function ScheduleRouteTimetable({
                 <div
                   key={day}
                   style={dayColumnStyle}
-                  className={`shrink-0 border-l border-outline-variant/40 ${
-                    i % 2 === 1 ? 'bg-surface-container/50' : ''
-                  } ${isFocus ? 'bg-depot-blue-light/10' : ''}`}
+                  className={`shrink-0 border-l border-outline-variant/40 bg-white ${
+                    i % 2 === 1 ? TIMETABLE_HEADER_CELL_STRIPE_CLASS : ''
+                  } ${isFocus ? '!bg-depot-blue-light/15' : ''}`}
                 >
                   {compact && onPickDay ? (
                     <button
