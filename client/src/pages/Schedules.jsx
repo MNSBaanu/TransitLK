@@ -1283,7 +1283,11 @@ function SchedulesPage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
+          <div
+            className={`min-h-0 flex-1 bg-white/20 p-4 backdrop-blur-sm ${
+              viewMode === 'daily' ? 'flex flex-col overflow-hidden' : 'overflow-auto'
+            }`}
+          >
             {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
