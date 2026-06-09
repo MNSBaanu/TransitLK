@@ -47,6 +47,14 @@ export function buildRouteName(startPoint, endPoint) {
   return `${start} — ${end}`
 }
 
+/** Start/end label used in fleet and schedule views */
+export function formatRouteEndpointsLabel(route = {}) {
+  const start = String(route.startPoint || '').trim()
+  const end = String(route.endPoint || '').trim()
+  if (start && end) return `${start} → ${end}`
+  return buildRouteName(start, end) || route.routeName || ''
+}
+
 /** Legacy SLTB-style label derived from the first stop when stops are used instead of manual via. */
 export function deriveViaDescription(stops) {
   if (!stops?.length) return undefined
