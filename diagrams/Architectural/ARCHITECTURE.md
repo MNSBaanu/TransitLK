@@ -21,7 +21,7 @@ External services: **Google Maps Platform** (maps/geocoding from the browser), *
 
 | Stage | Description |
 |-------|-------------|
-| **Single depot (now)** | MVP targets one operational depot. `scripts/seedDepot.js` creates **SRMSS Central Depot** and links buses/drivers. JWT + role guards secure modules per actor. |
+| **Single depot (now)** | MVP targets one operational depot (**SRMSS Central Depot**) with linked buses and drivers. JWT + role guards secure modules per actor. |
 | **Multi-depot (later)** | Add depots island-wide; assign each staff user, bus, and driver to a `depotId`; scope routes, schedules, and reports by depot; depot managers see only their depot; administrators see all. |
 
 **Already in the data model:** `Depot`, optional `depotId` on `User`, `Admin`, `Bus`, `Driver`. **Not yet enforced:** depot filters on `Route` / `Schedule` APIs or UI; cross-depot admin views.
@@ -302,7 +302,7 @@ Replace or supplement the original architectural diagram PNG with an export from
 
 ## 12. Authentication and RBAC
 
-- **Seed accounts:** `npm run seed:auth` in `server/` (see `docs/DEMO-SCRIPT.md`).
+- **Staff accounts:** role logins documented in `docs/Summary.md`.
 - **Frontend:** `AuthContext`, `RequireAuth`, `RoleGuard`, role config in `client/src/config/roles.js`.
 - **Backend:** `protect` + `authorize` on all `/api/*` modules except auth login.
 - **Driver trips:** `GET /api/schedules` auto-filters to `req.user.driverId` when role is `driver`.
