@@ -18,12 +18,6 @@ import RouteView from '../components/routes/RouteView'
 import RouteFleetAssignModal from '../components/routes/RouteFleetAssignModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
-  defaultMinCapacityForService,
-  isBusAssignable,
-  driverUnassignableReason,
-  isDriverAssignable,
-} from '../utils/fleetHelpers'
-import {
   buildRouteName,
   getRouteDeleteDisabledReason,
   getRouteStatusChangeBlockedReason,
@@ -73,8 +67,9 @@ const EMPTY_PAGINATION = {
 const EMPTY_SUMMARY = {
   total: 0,
   active: 0,
-  assigned: 0,
+  draft: 0,
   avgDistance: null,
+  distanceRouteCount: 0,
 }
 
 function routeCode(route) {
@@ -271,18 +266,37 @@ function RoutesPage() {
   }, [pagination, search, statusFilter, serviceTypeFilter])
 
   const routeStats = useMemo(() => {
-    const distanceValues = routes
+    const summaryAvg = Number(summary.avgDistance)
+    const summaryCount = summary.distanceRouteCount || 0
+    const pageDistances = routes
       .map((route) => Number(route?.distance))
       .filter((distance) => Number.isFinite(distance) && distance > 0)
-    const avgDist =
-      distanceValues.length > 0
-        ? (distanceValues.reduce((sum, distance) => sum + distance, 0) / distanceValues.length).toFixed(1)
-        : null
+
+    let avgDist = null
+    let distanceRouteCount = 0
+
+    if (summaryCount > 0 && Number.isFinite(summaryAvg) && summaryAvg > 0) {
+      avgDist = summaryAvg.toFixed(1)
+      distanceRouteCount = summaryCount
+    } else if (pageDistances.length > 0) {
+      const total = pageDistances.reduce((sum, distance) => sum + distance, 0)
+      avgDist = (total / pageDistances.length).toFixed(1)
+      distanceRouteCount = pageDistances.length
+    }
+
+    const avgDistHint =
+      distanceRouteCount > 0
+        ? summaryCount > 0
+          ? `Mean of ${distanceRouteCount} route${distanceRouteCount !== 1 ? 's' : ''} with distance`
+          : `Based on ${distanceRouteCount} route${distanceRouteCount !== 1 ? 's' : ''} on this page`
+        : 'No routes with distance set'
+
     return {
       total: summary.total || 0,
       active: summary.active || 0,
-      assigned: summary.assigned || 0,
+      draft: summary.draft || 0,
       avgDist,
+      avgDistHint,
     }
   }, [routes, summary])
 
@@ -367,44 +381,8 @@ function RoutesPage() {
           name === 'endPoint' ? value : prev.endPoint
         )
       }
-      if (name === 'serviceType' && prev.busId) {
-        const bus = buses.find((b) => b._id === prev.busId)
-        const minCap = defaultMinCapacityForService(value)
-        if (bus && !isBusAssignable(bus, value, minCap)) next.busId = ''
-      }
       return next
     })
-  }
-
-  const handleBusChange = (id) => {
-    setForm((prev) => ({ ...prev, busId: id }))
-  }
-
-  const handleDriverChange = (id) => {
-    setForm((prev) => ({ ...prev, driverId: id }))
-  }
-
-  const validateFleetAssignment = () => {
-    const hasBus = Boolean(form.busId?.trim())
-    const hasDriver = Boolean(form.driverId?.trim())
-    if (!hasBus && !hasDriver) return true
-    if (hasBus !== hasDriver) {
-      setError('Select both a bus and a driver, or clear both.')
-      return false
-    }
-    const minCap = defaultMinCapacityForService(form.serviceType)
-    if (!isBusAssignable(selectedBus, form.serviceType, minCap)) {
-      setError('Selected bus does not meet availability, capacity, or service type requirements.')
-      return false
-    }
-    if (!isDriverAssignable(selectedDriver)) {
-      setError(
-        driverUnassignableReason(selectedDriver) ||
-          'Selected driver is not available or is outside working hours.'
-      )
-      return false
-    }
-    return true
   }
 
   const handleStartPlaceSelect = useCallback((place) => {
@@ -469,10 +447,6 @@ function RoutesPage() {
     if (form.stopLocations?.length) payload.stopLocations = form.stopLocations
     if (form.serviceType) payload.serviceType = form.serviceType
     if (form.status) payload.status = form.status
-    if (isEditingExisting) {
-      payload.busId = form.busId?.trim() || null
-      payload.driverId = form.driverId?.trim() || null
-    }
     return payload
   }
 
@@ -482,7 +456,6 @@ function RoutesPage() {
     const errors = validateRouteForm(form)
     setFieldErrors(errors)
     if (hasErrors(errors)) return
-    if (isEditingExisting && !validateFleetAssignment()) return
     if (isEditingExisting) {
       const statusBlock = getRouteStatusChangeBlockedReason(
         { status: initialRouteStatus, scheduleCount: selectedRoute?.scheduleCount },
@@ -584,14 +557,15 @@ function RoutesPage() {
                 icon: 'check_circle',
               },
               {
-                label: 'Fleet assigned',
-                value: routeStats.assigned,
-                hint: 'Bus and driver on route',
-                icon: 'directions_bus',
+                label: 'Draft routes',
+                value: routeStats.draft,
+                hint: 'Awaiting activation',
+                icon: 'edit_note',
               },
               {
                 label: 'Avg distance',
                 value: routeStats.avgDist == null ? '—' : `${routeStats.avgDist} km`,
+                hint: routeStats.avgDistHint,
                 icon: 'straighten',
               },
             ]}
@@ -715,9 +689,6 @@ function RoutesPage() {
               <h2 className="pro-page-title">
                 {isEditingExisting ? `Edit route · ${routeCode(selectedRoute)}` : 'New route'}
               </h2>
-              <p className="pro-page-subtitle">
-                Configure route ID, status, stops, fleet assignment, and map preview
-              </p>
             </div>
           </div>
           <RouteEditView
@@ -730,12 +701,6 @@ function RoutesPage() {
             stopInput={stopInput}
             onStopInputChange={setStopInput}
             onFormChange={handleFormChange}
-            onBusChange={handleBusChange}
-            onDriverChange={handleDriverChange}
-            buses={buses}
-            drivers={drivers}
-            selectedBus={selectedBus}
-            selectedDriver={selectedDriver}
             onStartPlaceSelect={handleStartPlaceSelect}
             onEndPlaceSelect={handleEndPlaceSelect}
             onStopPlaceSelect={handleStopPlaceSelect}

@@ -5,8 +5,6 @@ import FieldError from '../FieldError'
 import { ModuleCard } from '../layout/ModuleLayout'
 import { formatRouteStatus } from '../../utils/routeHelpers'
 import { fieldBorderClass } from '../../utils/formValidation'
-import RouteFleetAssignment from './RouteFleetAssignment'
-
 const inputClass =
   'mt-1 w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none'
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surface-variant'
@@ -21,12 +19,6 @@ function RouteEditView({
   stopInput,
   onStopInputChange,
   onFormChange,
-  onBusChange,
-  onDriverChange,
-  buses,
-  drivers,
-  selectedBus,
-  selectedDriver,
   onStopPlaceSelect,
   onStartPlaceSelect,
   onEndPlaceSelect,
@@ -157,20 +149,6 @@ function RouteEditView({
                 <FieldError message={fieldErrors.distance} />
               </label>
             </div>
-
-            {isEditing && (
-              <RouteFleetAssignment
-                serviceType={form.serviceType}
-                busId={form.busId}
-                driverId={form.driverId}
-                buses={buses}
-                drivers={drivers}
-                selectedBus={selectedBus}
-                selectedDriver={selectedDriver}
-                onBusChange={onBusChange}
-                onDriverChange={onDriverChange}
-              />
-            )}
           </div>
         </ModuleCard>
 
@@ -204,22 +182,6 @@ function RouteEditView({
                 <p className={labelClass}>Stops</p>
                 <p className="font-bold">{form.stops.length}</p>
               </div>
-              {isEditing && (
-                <>
-                  <div>
-                    <p className={labelClass}>Bus</p>
-                    <p className="font-bold text-sm">
-                      {selectedBus?.regNumber || '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className={labelClass}>Driver</p>
-                    <p className="font-bold text-sm">
-                      {selectedDriver?.name || '—'}
-                    </p>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </ModuleCard>
