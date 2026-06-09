@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import Icon from '../Icon'
 import {
   buildRouteTimetableRows,
   formatRouteEndpointsLabel,
@@ -44,7 +45,9 @@ function ScheduleRouteTimetable({
         <thead className="bg-depot-navy text-xs font-semibold uppercase tracking-wide text-white">
           <tr>
             <th className="w-12 px-4 py-3 text-left">#</th>
-            <th className="sticky left-0 z-10 bg-depot-navy px-4 py-3 text-left">Route</th>
+            <th className="sticky left-0 z-10 w-56 min-w-56 max-w-56 bg-depot-navy px-4 py-3 text-left">
+              Route
+            </th>
             {dayColumns.map((day) => {
               const isFocus = day === focusDate
               const d = parseLocalDateInput(day)
@@ -87,11 +90,32 @@ function ScheduleRouteTimetable({
               </td>
             </tr>
           ) : (
-            routeRows.map((route, index) => (
-              <tr key={route._id} className="hover:bg-surface-container/40">
+            routeRows.map((route, index) => {
+              const routeLabel = formatRouteEndpointsLabel(route)
+              const tripCount = dayColumns.reduce(
+                (sum, day) => sum + tripsFor(route._id, day).length,
+                0
+              )
+              return (
+              <tr key={route._id} className="group hover:bg-surface-container/40">
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{index + 1}</td>
-                <td className="sticky left-0 z-10 bg-white px-4 py-3 font-semibold text-neutral-900">
-                  <p>{formatRouteEndpointsLabel(route)}</p>
+                <td className="sticky left-0 z-10 w-56 min-w-56 max-w-56 bg-white px-4 py-3 group-hover:bg-surface-container">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Icon name="map" size={20} className="shrink-0 text-depot-navy" />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="truncate text-sm font-bold text-neutral-900"
+                        title={routeLabel}
+                      >
+                        {routeLabel}
+                      </p>
+                      <p className="truncate text-[10px] text-on-surface-variant">
+                        {tripCount
+                          ? `${tripCount} trip${tripCount !== 1 ? 's' : ''} in period`
+                          : 'No trips in period'}
+                      </p>
+                    </div>
+                  </div>
                 </td>
                 {dayColumns.map((day) => {
                   const trips = tripsFor(route._id, day)
@@ -149,7 +173,7 @@ function ScheduleRouteTimetable({
                   )
                 })}
               </tr>
-            ))
+            )})
           )}
         </tbody>
       </table>
