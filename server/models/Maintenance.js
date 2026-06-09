@@ -20,6 +20,17 @@ const maintenanceSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Cost is required'],
     },
+    status: {
+      type: String,
+      enum: ['scheduled', 'in-progress', 'completed', 'cancelled'],
+      default: 'in-progress',
+    },
+    startedAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
+    },
   },
   { timestamps: true, collection: 'maintenances' }
 )

@@ -25,6 +25,11 @@ import {
   validateDriverForm,
 } from '../utils/formValidation'
 import { formatRouteEndpointsLabel } from '../utils/scheduleHelpers'
+import {
+  computeMaintenanceDuration,
+  formatMaintenanceStatus,
+  maintenanceStatusClass,
+} from '../utils/maintenanceHelpers'
 
 function busFormState(bus) {
   if (!bus) {
@@ -472,13 +477,15 @@ function BusMaintenanceViewModal({ bus, onClose }) {
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Service Type</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Duration</th>
                     <th className="px-4 py-3 text-left">Cost</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
                   {records.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-10 text-center text-on-surface-variant">
+                      <td colSpan={7} className="py-10 text-center text-on-surface-variant">
                         No maintenance records found
                       </td>
                     </tr>
@@ -499,6 +506,14 @@ function BusMaintenanceViewModal({ bus, onClose }) {
                               <span className={`h-2 w-2 rounded-full ${style.dot}`} />
                               {record.description}
                             </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${maintenanceStatusClass(record.status)}`}>
+                              {formatMaintenanceStatus(record.status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-neutral-700">
+                            {record.durationLabel || computeMaintenanceDuration(record)}
                           </td>
                           <td className="px-4 py-3 text-neutral-700">{formatMaintenanceCost(record.cost)}</td>
                         </tr>
