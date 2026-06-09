@@ -11,7 +11,7 @@ function ScheduleTripDetailsDrawer({ open, onClose, ...detailsProps }) {
         onClick={onClose}
         aria-label="Close trip details panel"
       />
-      <div className="relative flex h-full w-full max-w-lg flex-col overflow-hidden rounded-none border-l border-outline-variant bg-white shadow-2xl xl:max-w-xl">
+      <div className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-none border-l border-outline-variant bg-white shadow-2xl xl:max-w-3xl">
         <ScheduleTripDetails {...detailsProps} onClose={onClose} />
       </div>
     </div>

@@ -7,6 +7,7 @@ import {
   endOfDay,
   timeToMinutes,
 } from './scheduleHelpers.js'
+import { formatRouteEndpointsLabel } from './routeHelpers.js'
 
 const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
 const SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE = [
@@ -127,6 +128,8 @@ export function serializeRouteRef(route) {
     _id: id,
     routeNo: route.routeNo ?? null,
     routeName: route.routeName ?? null,
+    startPoint: route.startPoint ?? null,
+    endPoint: route.endPoint ?? null,
     serviceType: route.serviceType ?? null,
     status: route.status ?? null,
   }
@@ -135,11 +138,16 @@ export function serializeRouteRef(route) {
 function serializeCurrentSchedule(schedule, phase) {
   if (!schedule) return null
   const route = schedule.routeId
+  const routeRef =
+    route && typeof route === 'object' ? serializeRouteRef(route) : null
   return {
     _id: schedule._id,
     routeId: route?._id ?? schedule.routeId ?? null,
     routeName: route?.routeName ?? null,
     routeNo: route?.routeNo ?? null,
+    startPoint: route?.startPoint ?? null,
+    endPoint: route?.endPoint ?? null,
+    routeLabel: routeRef ? formatRouteEndpointsLabel(routeRef) : null,
     departureTime: schedule.departureTime,
     arrivalTime: schedule.arrivalTime,
     status: schedule.status,
@@ -198,7 +206,7 @@ async function loadFleetContextFromDb(resourceIds, resourceField, today = new Da
     tripDate: { $gte: dayStart, $lte: dayEnd },
     status: { $nin: INACTIVE_SCHEDULE_STATUSES },
   })
-    .populate('routeId', 'routeNo routeName serviceType status')
+    .populate('routeId', 'routeNo routeName startPoint endPoint serviceType status')
     .select(`${resourceField} routeId departureTime arrivalTime status tripDate`)
     .sort({ departureTime: 1 })
     .lean()
@@ -214,7 +222,8 @@ function resolveCurrentRouteFromTodaySchedule(currentSchedulePick) {
     typeof currentSchedulePick.schedule.routeId === 'object'
       ? serializeRouteRef(currentSchedulePick.schedule.routeId)
       : null
-  return scheduleRoute?.routeName ? scheduleRoute : null
+  if (!scheduleRoute) return null
+  return formatRouteEndpointsLabel(scheduleRoute) ? scheduleRoute : null
 }
 
 /** Attach today's currentRoute + currentSchedule from DB onto fleet rows */

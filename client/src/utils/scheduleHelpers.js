@@ -825,9 +825,7 @@ export function isTripInViewRange(trip, viewMode, focusDate) {
   return isTripInDateRange(trip, from, to)
 }
 
-export function formatTimeRange(departureTime, arrivalTime) {
-  return `${departureTime || '—'} – ${arrivalTime || '—'}`
-}
+export { formatTimeRange } from './timeFormat.js'
 
 /** Via text or intermediary stops for display on schedule views */
 export function formatRouteStopsLabel(route = {}) {
@@ -872,6 +870,27 @@ export const ADJUSTMENT_REASON_LABELS = {
 
 export function requiresAdjustmentNotes(reason) {
   return ['emergency', 'maintenance', 'absence', 'obstruction'].includes(reason)
+}
+
+/** Hide internal dev/seed markers from trip notes shown in the UI. */
+export function isInternalTripNote(note) {
+  const text = String(note || '').trim()
+  if (!text) return true
+  const normalized = text.toLowerCase().replace(/\s+/g, '-')
+  return (
+    normalized.includes('seed-sample') ||
+    normalized.includes('seed_sample') ||
+    /^seed([-_]|$)/.test(normalized) ||
+    normalized === 'sample-data' ||
+    normalized === 'sample' ||
+    /^demo([-_]|$)/.test(normalized)
+  )
+}
+
+export function displayTripNote(note) {
+  const text = String(note || '').trim()
+  if (!text || isInternalTripNote(text)) return ''
+  return text
 }
 
 export function reasonToStatus(reason, currentStatus) {

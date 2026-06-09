@@ -17,6 +17,13 @@ import {
   validateMaintenanceForm,
 } from '../utils/formValidation'
 import { applyReportPeriodRange, formatReportRangeLabel } from '../utils/scheduleHelpers'
+import {
+  MAINTENANCE_STATUSES,
+  computeMaintenanceDuration,
+  formatMaintenanceStatus,
+  maintenanceFormState,
+  maintenanceStatusClass,
+} from '../utils/maintenanceHelpers'
 
 const ITEMS_PER_PAGE = 8
 
@@ -35,11 +42,7 @@ function serviceStyle(type) {
 
 // ── Maintenance Modal ─────────────────────────────────────────────────────────
 function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
-  const [form, setForm] = useState(
-    record
-      ? { bus_id: record.bus_id?._id || record.bus_id, service_date: record.service_date?.slice(0, 10), description: record.description, cost: record.cost }
-      : { bus_id: preSelectedBusId || '', service_date: new Date().toISOString().slice(0, 10), description: '', cost: '' }
-  )
+  const [form, setForm] = useState(() => maintenanceFormState(record, preSelectedBusId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -47,13 +50,27 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
   // Update form when preSelectedBusId changes
   useEffect(() => {
     if (preSelectedBusId && !record) {
-      setForm(prev => ({ ...prev, bus_id: preSelectedBusId }))
+      setForm((prev) => ({ ...prev, bus_id: preSelectedBusId }))
     }
   }, [preSelectedBusId, record])
 
   const handle = (e) => {
     const { name, value } = e.target
-    setForm({ ...form, [name]: value })
+    setForm((prev) => {
+      const next = { ...prev, [name]: value }
+      if (name === 'status') {
+        if (value === 'in-progress' && !next.startedAt) {
+          next.startedAt = next.service_date || new Date().toISOString().slice(0, 10)
+        }
+        if (value === 'completed' && !next.completedAt) {
+          next.completedAt = next.service_date || new Date().toISOString().slice(0, 10)
+        }
+        if (value === 'scheduled') {
+          next.completedAt = ''
+        }
+      }
+      return next
+    })
     setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
   }
 
@@ -115,6 +132,47 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
             <input name="cost" type="number" min="0.01" step="0.01" value={form.cost} onChange={handle} required
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.cost)}`} />
             <FieldError message={fieldErrors.cost} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Status</label>
+            <select
+              name="status"
+              value={form.status}
+              onChange={handle}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.status)}`}
+            >
+              {MAINTENANCE_STATUSES.map((status) => (
+                <option key={status} value={status}>{formatMaintenanceStatus(status)}</option>
+              ))}
+            </select>
+            <FieldError message={fieldErrors.status} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Started</label>
+              <input
+                name="startedAt"
+                type="date"
+                value={form.startedAt}
+                onChange={handle}
+                max={new Date().toISOString().slice(0, 10)}
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.startedAt)}`}
+              />
+              <FieldError message={fieldErrors.startedAt} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Completed</label>
+              <input
+                name="completedAt"
+                type="date"
+                value={form.completedAt}
+                onChange={handle}
+                disabled={form.status !== 'completed'}
+                max={new Date().toISOString().slice(0, 10)}
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none disabled:bg-surface-container-low ${fieldBorderClass(fieldErrors.completedAt)}`}
+              />
+              <FieldError message={fieldErrors.completedAt} />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
@@ -893,15 +951,17 @@ function Maintenance() {
                     <th className="px-4 py-3 text-left">Date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Service Type</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Duration</th>
                     <th className="px-4 py-3 text-left">Cost</th>
                     <th className="px-4 py-3 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant bg-white">
                   {loading && maintenance.length === 0 ? (
-                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+                    <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
                   ) : paginated.length === 0 ? (
-                    <tr><td colSpan={6} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
+                    <tr><td colSpan={8} className="py-10 text-center text-on-surface-variant">No maintenance records found</td></tr>
                   ) : paginated.map((r, index) => {
                     const style = serviceStyle(r.description)
                     return (
@@ -916,6 +976,14 @@ function Maintenance() {
                             <span className={`h-2 w-2 rounded-full ${style.dot}`} />
                             {r.description}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${maintenanceStatusClass(r.status)}`}>
+                            {formatMaintenanceStatus(r.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-neutral-700">
+                          {r.durationLabel || computeMaintenanceDuration(r)}
                         </td>
                         <td className="px-4 py-3 text-neutral-700">{formatCurrency(r.cost)}</td>
                         <td className="px-4 py-3">

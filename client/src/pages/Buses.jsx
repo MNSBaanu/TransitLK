@@ -15,6 +15,7 @@ import {
   depotIdValue,
   formatServiceType,
   formatWorkingHours,
+  formatWorkingHoursDisplay,
   parseWorkingHours,
 } from '../utils/fleetHelpers'
 import {
@@ -23,6 +24,12 @@ import {
   validateBusForm,
   validateDriverForm,
 } from '../utils/formValidation'
+import { formatRouteEndpointsLabel } from '../utils/scheduleHelpers'
+import {
+  computeMaintenanceDuration,
+  formatMaintenanceStatus,
+  maintenanceStatusClass,
+} from '../utils/maintenanceHelpers'
 
 function busFormState(bus) {
   if (!bus) {
@@ -50,52 +57,80 @@ const STATUS_STYLES = {
   maintenance:   'bg-red-100 text-red-700',
 }
 
-const SCHEDULE_PHASE_STYLES = {
-  'in-progress': 'bg-blue-100 text-blue-700',
-  upcoming: 'bg-amber-100 text-amber-800',
-  completed: 'bg-neutral-100 text-neutral-600',
-}
-
 function NotAssignedLabel() {
   return <span className="text-xs italic text-neutral-400">Not assigned</span>
 }
 
-function formatCurrentRouteCell(route) {
-  if (!route?.routeName) {
+function formatCurrentRouteCell(route, { compact = false } = {}) {
+  const label = formatRouteEndpointsLabel(route || {})
+  if (!label || label === 'Route') {
     return <NotAssignedLabel />
   }
-  return (
-    <div>
-      <p className="font-medium text-neutral-800">{route.routeName}</p>
-      {route.routeNo && (
-        <p className="text-xs text-neutral-400">{route.routeNo}</p>
-      )}
-    </div>
-  )
+  if (compact) {
+    return (
+      <div className="min-w-[12rem] max-w-[18rem] leading-tight">
+        <p className="truncate font-medium text-neutral-800" title={label}>{label}</p>
+        {route?.routeNo && (
+          <p className="truncate text-xs text-neutral-400" title={route.routeNo}>{route.routeNo}</p>
+        )}
+      </div>
+    )
+  }
+  const text = route?.routeNo ? `${label} (${route.routeNo})` : label
+  return <span className="font-medium text-neutral-800 whitespace-nowrap">{text}</span>
 }
 
-function formatCurrentScheduleCell(schedule) {
-  if (!schedule) {
-    return <NotAssignedLabel />
+function formatMaintenanceDate(value) {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+const MAINTENANCE_SERVICE_TYPE_STYLES = {
+  'Oil Change': { dot: 'bg-blue-500', text: 'text-blue-700' },
+  'Brake Check': { dot: 'bg-red-500', text: 'text-red-700' },
+  Fueling: { dot: 'bg-yellow-500', text: 'text-yellow-700' },
+  Inspection: { dot: 'bg-green-500', text: 'text-green-700' },
+  Repair: { dot: 'bg-orange-500', text: 'text-orange-700' },
+  Transmission: { dot: 'bg-purple-500', text: 'text-purple-700' },
+}
+
+function maintenanceServiceStyle(type) {
+  return MAINTENANCE_SERVICE_TYPE_STYLES[type] || { dot: 'bg-gray-400', text: 'text-gray-600' }
+}
+
+function formatLicenseExpiryCell(licenseExpiry, { compact = false } = {}) {
+  if (!licenseExpiry) {
+    return <span className="text-xs text-neutral-400">—</span>
   }
-  const phaseLabel =
-    schedule.phase === 'in-progress'
-      ? 'In progress'
-      : schedule.phase === 'upcoming'
-        ? 'Next today'
-        : 'Completed today'
+  const s = getLicenseStatus(licenseExpiry)
+  const date = new Date(licenseExpiry).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+
+  if (compact) {
+    return (
+      <div className="leading-tight">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+          {s.label}
+        </span>
+        <p className="mt-0.5 whitespace-nowrap text-xs text-neutral-500">{date}</p>
+      </div>
+    )
+  }
+
   return (
-    <div>
-      <p className="font-medium text-neutral-800">
-        {schedule.departureTime}–{schedule.arrivalTime}
-      </p>
-      <p className="text-xs text-neutral-500">{schedule.routeName || 'Trip'}</p>
-      <span
-        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${SCHEDULE_PHASE_STYLES[schedule.phase] || SCHEDULE_PHASE_STYLES.completed}`}
-      >
-        {phaseLabel}
-      </span>
-    </div>
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+      {s.label}
+      <span className="font-normal text-neutral-500">· {date}</span>
+    </span>
   )
 }
 
@@ -373,12 +408,144 @@ function BusModal({ bus, onClose, onSave }) {
   )
 }
 
+function formatMaintenanceCost(cost) {
+  return `LKR ${Number(cost || 0).toLocaleString()}`
+}
+
+function BusMaintenanceViewModal({ bus, onClose }) {
+  const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!bus?._id) return undefined
+
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    setRecords([])
+
+    api
+      .get('/maintenance', { params: { bus_id: bus._id } })
+      .then((res) => {
+        if (!cancelled) {
+          setRecords(Array.isArray(res.data) ? res.data : [])
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err.response?.data?.message || 'Could not load maintenance records')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [bus?._id])
+
+  if (!bus) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-6 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900">Maintenance History</h3>
+            <p className="text-sm text-on-surface-variant">
+              Vehicle <span className="font-semibold text-blue-700">{bus.regNumber}</span>
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container" aria-label="Close">
+            <Icon name="close" size={20} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <p className="py-10 text-center text-sm text-on-surface-variant">Loading maintenance records...</p>
+          ) : error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-outline-variant">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                  <tr>
+                    <th className="w-12 px-4 py-3 text-left">#</th>
+                    <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Vehicle ID</th>
+                    <th className="px-4 py-3 text-left">Service Type</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Duration</th>
+                    <th className="px-4 py-3 text-left">Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant bg-white">
+                  {records.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-on-surface-variant">
+                        No maintenance records found
+                      </td>
+                    </tr>
+                  ) : (
+                    records.map((record, index) => {
+                      const style = maintenanceServiceStyle(record.description)
+                      return (
+                        <tr key={record._id} className="hover:bg-surface-container-low transition-colors">
+                          <td className="px-4 py-3 text-neutral-500 tabular-nums">{index + 1}</td>
+                          <td className="px-4 py-3 text-neutral-600">
+                            {formatMaintenanceDate(record.service_date)}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-blue-700">
+                            {record.bus_id?.regNumber || bus.regNumber}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${style.text}`}>
+                              <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+                              {record.description}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${maintenanceStatusClass(record.status)}`}>
+                              {formatMaintenanceStatus(record.status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-neutral-700">
+                            {record.durationLabel || computeMaintenanceDuration(record)}
+                          </td>
+                          <td className="px-4 py-3 text-neutral-700">{formatMaintenanceCost(record.cost)}</td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 border-t border-outline-variant px-6 py-4">
+          <button
+            onClick={onClose}
+            className="w-full rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Fleet Inventory Tab ───────────────────────────────────────────────────────
 function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
+  const [viewMaintenanceBus, setViewMaintenanceBus] = useState(null)
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
@@ -463,18 +630,17 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
               <th className="px-4 py-3 text-left">Mileage</th>
               <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">Current Route</th>
-              <th className="px-4 py-3 text-left">Current Schedule</th>
-              <th className="px-4 py-3 text-left">Last Maintenance</th>
+              <th className="min-w-[14rem] px-4 py-3 text-left">Maintenance History</th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
             ) : paginated.map((bus, index) => (
-              <tr key={bus._id} className="hover:bg-surface-container-low transition-colors">
+              <tr key={bus._id} className="align-top hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
                 <td className="px-4 py-3 text-neutral-500 capitalize">{bus.serviceType || '—'}</td>
@@ -487,15 +653,18 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                   </span>
                 </td>
                 <td className="px-4 py-3">{formatCurrentRouteCell(bus.currentRoute)}</td>
-                <td className="px-4 py-3">{formatCurrentScheduleCell(bus.currentSchedule)}</td>
-                <td className="px-4 py-3 text-neutral-600">
-                  {bus.lastMaintenanceDate
-                    ? new Date(bus.lastMaintenanceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                    : <span className="text-neutral-400">—</span>
-                  }
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setViewMaintenanceBus(bus)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                  >
+                    <Icon name="visibility" size={14} />
+                    View
+                  </button>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <button onClick={() => setModal(bus)}
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="Edit">
                       <Icon name="edit" size={16} />
@@ -533,6 +702,13 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
             </button>
           </div>
         </div>
+      )}
+
+      {viewMaintenanceBus && (
+        <BusMaintenanceViewModal
+          bus={viewMaintenanceBus}
+          onClose={() => setViewMaintenanceBus(null)}
+        />
       )}
 
       {modal && (
@@ -905,68 +1081,64 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-outline-variant">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[94rem] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[3.5rem]" />
+            <col className="w-[7.5rem]" />
+            <col className="w-[15rem]" />
+            <col className="w-[7.5rem]" />
+            <col className="w-[10rem]" />
+            <col className="w-[9.5rem]" />
+            <col className="w-[15rem]" />
+            <col className="w-[15rem]" />
+            <col className="w-[10rem]" />
+            <col className="w-[10rem]" />
+            <col className="w-[7.5rem]" />
+          </colgroup>
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
-              <th className="w-12 px-4 py-3 text-left">#</th>
-              <th className="px-4 py-3 text-left">Driver ID</th>
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">License No.</th>
-              <th className="px-4 py-3 text-left">Expiry</th>
-              <th className="px-4 py-3 text-left">Current Route</th>
-              <th className="px-4 py-3 text-left">Current Schedule</th>
-              <th className="px-4 py-3 text-left">Email</th>
-              <th className="px-4 py-3 text-left">Contact</th>
-              <th className="px-4 py-3 text-left">Working Hours</th>
-              <th className="px-4 py-3 text-left">Actions</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">#</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Driver ID</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Name</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Status</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">License No.</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Expiry</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Current Route</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Email</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Contact</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Working Hours</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && drivers.length === 0 ? (
-              <tr><td colSpan={12} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={12} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
+              <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
             ) : paginated.map((d, index) => (
-              <tr key={d._id} className="hover:bg-surface-container-low transition-colors">
-                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
-                <td className="px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-xs font-bold text-neutral-700">
+              <tr key={d._id} className="align-top hover:bg-surface-container-low transition-colors">
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-200 text-[10px] font-bold text-neutral-700">
                       {getInitials(d.name)}
                     </div>
-                    <span className="font-semibold text-neutral-900">{d.name}</span>
+                    <span className="truncate font-semibold text-neutral-900" title={d.name}>{d.name}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">
                   <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${driverStatusClass(d.status || 'available')}`}>
                     {formatServiceType(d.status || 'available')}
                   </span>
                 </td>
-                <td className="px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
-                <td className="px-4 py-3">
-                  {d.licenseExpiry ? (() => {
-                    const s = getLicenseStatus(d.licenseExpiry)
-                    return (
-                      <div>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${s.style}`}>
-                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                          {s.label}
-                        </span>
-                        <p className="mt-0.5 text-xs text-neutral-400">
-                          {new Date(d.licenseExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </p>
-                      </div>
-                    )
-                  })() : <span className="text-xs text-neutral-400">—</span>}
-                </td>
-                <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute)}</td>
-                <td className="px-4 py-3">{formatCurrentScheduleCell(d.currentSchedule)}</td>
-                <td className="px-4 py-3 text-neutral-500 text-xs">{d.email || '—'}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.contactNo}</td>
-                <td className="px-4 py-3 text-neutral-600">{d.workingHours || '—'}</td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-neutral-700">{d.licenseNo}</td>
+                <td className="px-4 py-3">{formatLicenseExpiryCell(d.licenseExpiry, { compact: true })}</td>
+                <td className="px-4 py-3">{formatCurrentRouteCell(d.currentRoute, { compact: true })}</td>
+                <td className="truncate px-4 py-3 text-neutral-500 text-xs" title={d.email || undefined}>{d.email || '—'}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-600">{d.contactNo || '—'}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-600">{formatWorkingHoursDisplay(d.workingHours)}</td>
+                <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setViewDriver(d)}
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="View">
@@ -1038,8 +1210,8 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                     })()
                   : 'Not set'],
                 ['Email', viewDriver.email || '—'],
-                ['Contact', viewDriver.contactNo],
-                ['Working Hours', viewDriver.workingHours || '—'],
+                ['Contact', viewDriver.contactNo || '—'],
+                ['Working Hours', formatWorkingHoursDisplay(viewDriver.workingHours)],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-outline-variant py-1.5">
                   <span className="text-on-surface-variant">{label}</span>
@@ -1099,7 +1271,8 @@ function Buses() {
   const stale = getStalePageData('/buses')
   const staleLacksFleetContext =
     (stale?.buses || []).some(
-      (bus) => !Object.prototype.hasOwnProperty.call(bus, 'currentRoute')
+      (bus) =>
+        !Object.prototype.hasOwnProperty.call(bus, 'currentRoute')
     ) ||
     (stale?.drivers || []).some(
       (driver) => !Object.prototype.hasOwnProperty.call(driver, 'currentRoute')
