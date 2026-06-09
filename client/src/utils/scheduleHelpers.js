@@ -419,10 +419,53 @@ export function duplicateTimetableRow(route, siblingRows = []) {
   }
 }
 
+function compareRoutesScheduledFirst(a, b, scheduledRouteIds) {
+  const aScheduled = scheduledRouteIds.has(String(a._id))
+  const bScheduled = scheduledRouteIds.has(String(b._id))
+  if (aScheduled !== bScheduled) return aScheduled ? -1 : 1
+  return formatRouteEndpointsLabel(a).localeCompare(formatRouteEndpointsLabel(b))
+}
+
+/** Sorted route list for daily / weekly / monthly timetable grids. */
+export function buildRouteTimetableRows(routes, schedules = []) {
+  const byId = new Map()
+  const scheduledRouteIds = new Set()
+  const addRoute = (route) => {
+    const id = route?._id || route
+    if (!id) return
+    const key = String(id)
+    if (byId.has(key)) return
+    byId.set(key, {
+      _id: key,
+      routeName: route?.routeName || 'Route',
+      startPoint: route?.startPoint,
+      endPoint: route?.endPoint,
+      stops: route?.stops,
+      viaDescription: route?.viaDescription,
+      serviceType: route?.serviceType,
+    })
+  }
+  schedules.forEach((trip) => {
+    const routeId = trip.routeId?._id || trip.routeId
+    if (routeId) scheduledRouteIds.add(String(routeId))
+    addRoute(trip.routeId)
+  })
+  routes.filter(isSchedulableRoute).forEach((route) => addRoute(route))
+  return [...byId.values()].sort((a, b) => compareRoutesScheduledFirst(a, b, scheduledRouteIds))
+}
+
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
-  const active = routes.filter(isSchedulableRoute)
-  const rows = []
   const dayKey = toDateInputValue(anchorDate)
+  const scheduledRouteIds = new Set()
+  for (const trip of schedules) {
+    if (tripDateKey(trip) !== dayKey) continue
+    const routeId = trip.routeId?._id || trip.routeId
+    if (routeId) scheduledRouteIds.add(String(routeId))
+  }
+  const active = [...routes.filter(isSchedulableRoute)].sort((a, b) =>
+    compareRoutesScheduledFirst(a, b, scheduledRouteIds)
+  )
+  const rows = []
 
   for (const route of active) {
     const routeId = String(route._id)

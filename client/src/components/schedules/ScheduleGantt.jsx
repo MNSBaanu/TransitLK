@@ -20,7 +20,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
     <div className="glass-subtle flex flex-1 flex-col overflow-hidden rounded-lg">
       <div className="sticky top-0 z-30 flex border-b border-outline-variant">
         <div className="w-56 shrink-0 border-r border-outline-variant bg-depot-navy/5 p-3 text-xs font-bold uppercase tracking-wide text-depot-navy">
-          Resource / route
+          Route
         </div>
         <div className="min-w-[900px] flex-1 overflow-hidden">
           <div
@@ -44,23 +44,27 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
       <div className="flex-1 overflow-auto">
         {rows.length === 0 ? (
           <p className="p-8 text-center text-sm text-on-surface-variant">
-            No schedules for this date. Add a schedule to see trips on the timetable.
+            No active routes to display. Add or activate routes in Route Management.
           </p>
         ) : (
-          rows.map((row) => (
+          rows.map((row) => {
+            const routeLabel = formatRouteEndpointsLabel(row)
+            return (
             <div
-              key={row.busId}
+              key={row._id}
               className="group flex border-b border-outline-variant transition-colors hover:bg-surface-container/50"
             >
               <div className="sticky left-0 z-20 w-56 shrink-0 border-r border-outline-variant bg-white p-3 group-hover:bg-surface-container">
                 <div className="flex items-center gap-2">
-                  <Icon name="directions_bus" size={20} className="text-depot-navy" />
+                  <Icon name="map" size={20} className="text-depot-navy" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-neutral-900">
-                      {row.regNumber}
+                      {routeLabel}
                     </p>
                     <p className="truncate text-[10px] text-on-surface-variant">
-                      {row.driverName || 'Unassigned driver'}
+                      {row.trips.length
+                        ? `${row.trips.length} trip${row.trips.length !== 1 ? 's' : ''} today`
+                        : 'No trips today'}
                     </p>
                   </div>
                 </div>
@@ -138,7 +142,8 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                 })}
               </div>
             </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>
