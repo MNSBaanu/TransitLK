@@ -171,7 +171,15 @@ export function NavMessagesPanel({ hub, replyText, setReplyText, onClose }) {
         )}
       </div>
       <ul className="space-y-2">
-        {hub.messages.map((m) => (
+        {hub.messages.length === 0 ? (
+          <li className="glass-subtle rounded-xl px-4 py-8 text-center">
+            <p className="text-sm font-medium text-fleet-ink">No messages</p>
+            <p className="mt-1 text-xs text-fleet-ink-muted">
+              Depot messages will appear here when available.
+            </p>
+          </li>
+        ) : (
+          hub.messages.map((m) => (
           <li key={m.id}>
             <button
               type="button"
@@ -199,7 +207,8 @@ export function NavMessagesPanel({ hub, replyText, setReplyText, onClose }) {
               </span>
             </button>
           </li>
-        ))}
+        ))
+        )}
       </ul>
     </div>
   )

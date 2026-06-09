@@ -1,4 +1,4 @@
-﻿// Module: Depot Management Dashboard
+// Module: Depot Management Dashboard
 
 import { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'

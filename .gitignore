@@ -16,7 +16,7 @@ node_modules/
 *.log
 npm-debug.log*
 
-# DB setup / seed / import / backfill scripts (local use; DB already populated)
+# Local DB setup scripts (not shipped with the app)
 server/scripts
 
 # OS files
