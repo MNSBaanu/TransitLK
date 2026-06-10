@@ -1146,12 +1146,17 @@ export function canDriverReportIssue(status) {
   return ['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'].includes(status)
 }
 
-/** Driver issue = delayed trip with driver report data on the existing schedule record. */
+/** Driver issue = delayed trip with an explicit driver report on the schedule record. */
 export function isDriverReportedIssue(trip) {
   if (!trip || trip.status !== 'delayed') return false
-  if (trip.driverIssueReportedAt) return true
-  const note = displayTripNote(trip.adjustmentNotes)?.trim()
-  return trip.adjustmentReason === 'obstruction' && Boolean(note)
+  return Boolean(trip.driverIssueReportedAt || getDriverIssueNotes(trip))
+}
+
+export function getDriverIssueNotes(trip) {
+  const dedicated = displayTripNote(trip?.driverIssueNotes)?.trim()
+  if (dedicated) return dedicated
+  if (!trip?.driverIssueReportedAt) return ''
+  return displayTripNote(trip?.adjustmentNotes)?.trim() || ''
 }
 
 export function getDriverIssueReportedAt(trip) {

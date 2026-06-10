@@ -1,9 +1,9 @@
 import Icon from '../Icon'
 import DriverIssueIndicator from './DriverIssueIndicator'
 import {
-  displayTripNote,
   formatRouteEndpointsLabel,
   formatTripDate,
+  getDriverIssueNotes,
   getDriverIssueReportedAt,
   tripDateKey,
 } from '../../utils/scheduleHelpers'
@@ -102,7 +102,7 @@ function ScheduleDriverIssuesDrawer({
                             {trip.busId?.regNumber ? ` · ${trip.busId.regNumber}` : ''}
                           </p>
                           <p className="mt-2 line-clamp-3 text-sm text-amber-950">
-                            {displayTripNote(trip.adjustmentNotes) || 'No details'}
+                            {getDriverIssueNotes(trip) || 'No details'}
                           </p>
                           {reportedAt ? (
                             <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-amber-800/70">
