@@ -208,7 +208,28 @@ export function formatTripDate(date) {
   })
 }
 
+function isLocalCalendarDate(date) {
+  return (
+    date.getHours() === 0 &&
+    date.getMinutes() === 0 &&
+    date.getSeconds() === 0 &&
+    date.getMilliseconds() === 0
+  )
+}
+
 export function toDateInputValue(date) {
+  if (typeof date === 'string') {
+    const trimmed = date.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  }
+
+  if (date instanceof Date && !Number.isNaN(date.getTime()) && isLocalCalendarDate(date)) {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
   const d = parseTripDate(date) || new Date(date)
   if (Number.isNaN(d.getTime())) return ''
   const y = d.getFullYear()
@@ -1123,6 +1144,30 @@ export function canDriverAcknowledgeTrip(status) {
 
 export function canDriverReportIssue(status) {
   return ['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'].includes(status)
+}
+
+/** Driver issue = delayed trip with an explicit driver report on the schedule record. */
+export function isDriverReportedIssue(trip) {
+  if (!trip || trip.status !== 'delayed') return false
+  return Boolean(trip.driverIssueReportedAt || getDriverIssueNotes(trip))
+}
+
+export function getDriverIssueNotes(trip) {
+  const dedicated = displayTripNote(trip?.driverIssueNotes)?.trim()
+  if (dedicated) return dedicated
+  if (!trip?.driverIssueReportedAt) return ''
+  return displayTripNote(trip?.adjustmentNotes)?.trim() || ''
+}
+
+export function getDriverIssueReportedAt(trip) {
+  if (trip?.driverIssueReportedAt) return trip.driverIssueReportedAt
+  if (!isDriverReportedIssue(trip)) return null
+  const history = trip.adjustmentHistory
+  if (Array.isArray(history) && history.length) {
+    const entry = [...history].reverse().find((e) => e.reason === 'obstruction')
+    if (entry?.at) return entry.at
+  }
+  return trip.updatedAt || null
 }
 
 export function canDriverCompleteTrip(status) {

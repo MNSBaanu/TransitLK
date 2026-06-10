@@ -3,6 +3,9 @@ import {
   ADJUSTMENT_REASON_LABELS,
   displayTripNote,
   formatAdjustmentChange,
+  isDriverReportedIssue,
+  getDriverIssueNotes,
+  getDriverIssueReportedAt,
   formatRouteStopsLabel,
   formatScheduleStatusLabel,
   formatTimeRange,
@@ -17,7 +20,16 @@ const labelClass = 'text-[10px] font-bold uppercase tracking-wide text-on-surfac
 const sectionClass = 'border border-outline-variant bg-surface-container/40'
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-none bg-white'
 
-function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules = false }) {
+function ScheduleTripDetails({
+  selected,
+  onClose,
+  onAdjust,
+  canAdjustSchedules = false,
+  canApproveSchedules = false,
+  onApprove,
+  onReject,
+  saving = false,
+}) {
   if (!selected) {
     return (
       <div className={panelClass}>
@@ -39,6 +51,8 @@ function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules =
     )
   }
 
+  const driverIssue = isDriverReportedIssue(selected)
+
   return (
     <div className={panelClass}>
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
@@ -59,6 +73,24 @@ function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules =
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto bg-white px-5 py-4">
+        {driverIssue && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-900">
+              <Icon name="report_problem" size={22} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-amber-950">Driver reported an issue</p>
+              <p className="mt-1 text-sm text-amber-900/90">
+                {getDriverIssueNotes(selected) || 'No details provided.'}
+              </p>
+              {getDriverIssueReportedAt(selected) ? (
+                <p className="mt-1 text-xs text-amber-800/80">
+                  Reported {new Date(getDriverIssueReportedAt(selected)).toLocaleString('en-GB')}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
         <div className={`${sectionClass} p-4`}>
           <p className={`${labelClass} mb-2`}>Trip overview</p>
           {selected.routeId && (
@@ -166,6 +198,26 @@ function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules =
       </div>
 
       <div className="shrink-0 space-y-2 border-t border-outline-variant bg-white px-5 py-4">
+        {canApproveSchedules && selected.status === 'pending' && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onApprove?.(selected._id)}
+              disabled={saving}
+              className="rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Approve trip
+            </button>
+            <button
+              type="button"
+              onClick={() => onReject?.(selected._id)}
+              disabled={saving}
+              className="rounded-lg border border-red-300 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reject trip
+            </button>
+          </div>
+        )}
         {canAdjustSchedules && (
           <button type="button" onClick={onAdjust} className="btn-primary flex w-full items-center justify-center gap-2 py-3">
             <Icon name="tune" size={18} />

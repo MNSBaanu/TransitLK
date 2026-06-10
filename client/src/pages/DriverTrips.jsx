@@ -83,9 +83,28 @@ function DriverTrips() {
       setError('Please describe the issue before submitting')
       return
     }
-    await handleStatusChange(issueTrip._id, 'delayed', issueNotes.trim())
-    setIssueTrip(null)
-    setIssueNotes('')
+    const tripId = issueTrip._id
+    const notes = issueNotes.trim()
+    setSavingId(tripId)
+    setError('')
+    try {
+      const { data } = await api.patch(`/schedules/${tripId}/trip-status`, {
+        status: 'delayed',
+        notes,
+      })
+      setTrips((prev) => prev.map((t) => (String(t._id) === String(tripId) ? data : t)))
+      invalidatePageData('/my-trips')
+      invalidatePageData('/schedules')
+      setIssueTrip(null)
+      setIssueNotes('')
+      showToast('Issue reported — scheduler and admin notified')
+      await refreshSession()
+      await reload({ keepContent: true, force: true })
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to report issue')
+    } finally {
+      setSavingId(null)
+    }
   }
 
   return (
@@ -129,7 +148,86 @@ function DriverTrips() {
             your schedule.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-3 p-4 md:hidden">
+            {trips.map((trip) => {
+              const isSaving = savingId === trip._id
+              const canAcknowledge = canDriverAcknowledgeTrip(trip.status)
+              const canReport = canDriverReportIssue(trip.status)
+              const canComplete = canDriverCompleteTrip(trip.status)
+
+              return (
+                <article
+                  key={trip._id}
+                  className="rounded-xl border border-outline-variant bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-neutral-900">
+                        {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
+                      </p>
+                      <p className="mt-1 text-sm text-on-surface-variant">
+                        {formatTripDate(trip.tripDate)}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(trip.status)}`}
+                    >
+                      {formatScheduleStatusLabel(trip.status)}
+                    </span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+                        Departure
+                      </dt>
+                      <dd className="font-medium tabular-nums">{trip.departureTime || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+                        Arrival
+                      </dt>
+                      <dd className="font-medium tabular-nums">{trip.arrivalTime || '—'}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
+                        Bus
+                      </dt>
+                      <dd className="font-medium">{trip.busId?.regNumber || '—'}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={!canAcknowledge || isSaving}
+                      onClick={() => handleAcknowledge(trip._id)}
+                      className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {isSaving ? 'Saving…' : 'Start'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canReport || isSaving}
+                      onClick={() => openIssueModal(trip)}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Icon name="report_problem" size={14} />
+                      Report issue
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canComplete || isSaving}
+                      onClick={() => handleComplete(trip._id)}
+                      className="w-full rounded-lg bg-slate-700 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Mark completed
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1100px]">
               <thead>
                 <tr className="border-b border-outline-variant text-left">
@@ -139,8 +237,13 @@ function DriverTrips() {
                   <th className={`${labelClass} ${cellClass}`}>Arrival time</th>
                   <th className={`${labelClass} ${cellClass}`}>Assigned bus</th>
                   <th className={`${labelClass} ${cellClass}`}>Current status</th>
-                  <th className={`${labelClass} ${cellClass}`}>Acknowledge trip</th>
-                  <th className={`${labelClass} ${cellClass}`}>Report issue</th>
+                  <th className={`${labelClass} ${cellClass}`}>Start trip</th>
+                  <th className={`${labelClass} ${cellClass}`}>
+                    <span className="inline-flex items-center gap-1">
+                      <Icon name="report_problem" size={14} />
+                      Report issue
+                    </span>
+                  </th>
                   <th className={`${labelClass} ${cellClass}`}>Completed</th>
                 </tr>
               </thead>
@@ -182,7 +285,7 @@ function DriverTrips() {
                           onClick={() => handleAcknowledge(trip._id)}
                           className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          {isSaving ? 'Saving…' : 'Acknowledge'}
+                          {isSaving ? 'Saving…' : 'Start'}
                         </button>
                       </td>
                       <td className={cellClass}>
@@ -190,9 +293,10 @@ function DriverTrips() {
                           type="button"
                           disabled={!canReport || isSaving}
                           onClick={() => openIssueModal(trip)}
-                          className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          Report issue
+                          <Icon name="report_problem" size={14} />
+                          Issue
                         </button>
                       </td>
                       <td className={cellClass}>
@@ -211,6 +315,7 @@ function DriverTrips() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </ModuleCard>
 
@@ -257,8 +362,9 @@ function DriverTrips() {
                 type="button"
                 disabled={Boolean(savingId) || !issueNotes.trim()}
                 onClick={handleReportIssue}
-                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
               >
+                <Icon name="report_problem" size={16} />
                 {savingId ? 'Submitting…' : 'Submit report'}
               </button>
             </div>

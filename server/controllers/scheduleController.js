@@ -36,6 +36,7 @@ import {
   isSuperadministrator,
   requireUserDepot,
 } from '../utils/depotAccess.js'
+import { notifyDriverIssueReport } from '../utils/notifyDriverIssue.js'
 
 const routePopulate = {
   path: 'routeId',
@@ -377,6 +378,7 @@ async function validateAssignment({
   routeId,
   routeDepotId,
   tripDate,
+  scheduleId,
 }) {
   const bus = await Bus.findById(busId)
   if (!bus) {
@@ -407,9 +409,17 @@ async function validateAssignment({
     throw error
   }
   if (driver.status && driver.status !== 'available') {
-    const error = new Error(`Driver is not available (status: ${driver.status})`)
-    error.statusCode = 400
-    throw error
+    const assignedOnThisTrip =
+      scheduleId &&
+      (await Schedule.exists({
+        _id: scheduleId,
+        driverId,
+      }))
+    if (!assignedOnThisTrip) {
+      const error = new Error(`Driver is not available (status: ${driver.status})`)
+      error.statusCode = 400
+      throw error
+    }
   }
   if (!isTripWithinWorkingHours(driver.workingHours, departureTime, arrivalTime)) {
     const error = new Error(
@@ -447,6 +457,7 @@ export const getSchedules = async (req, res) => {
       timetableId,
       timetablePeriod,
       timetableAnchor,
+      driverIssues,
     } = req.query
     const filter = {}
 
@@ -466,7 +477,16 @@ export const getSchedules = async (req, res) => {
       if (busId) filter.busId = busId
       if (driverId) filter.driverId = driverId
     }
-    if (status === 'rejected') {
+    if (driverIssues === 'true') {
+      if (isDriver(req.user)) {
+        return res.status(403).json({ message: 'Not allowed to list driver issues' })
+      }
+      filter.status = 'delayed'
+      filter.$or = [
+        { driverIssueReportedAt: { $ne: null } },
+        { driverIssueNotes: { $exists: true, $nin: [null, ''] } },
+      ]
+    } else if (status === 'rejected') {
       filter.status = 'draft'
       filter.rejectionReason = { $exists: true, $ne: '' }
     } else if (status) {
@@ -491,7 +511,9 @@ export const getSchedules = async (req, res) => {
     }
 
     let sort = { tripDate: 1, departureTime: 1 }
-    if (status === 'pending') {
+    if (driverIssues === 'true') {
+      sort = { driverIssueReportedAt: -1, updatedAt: -1, tripDate: -1 }
+    } else if (status === 'pending') {
       sort = { receivedAt: -1, submittedAt: -1, createdAt: -1 }
     } else if (status === 'rejected') {
       sort = { rejectedAt: -1, updatedAt: -1, createdAt: -1 }
@@ -665,6 +687,7 @@ export const updateSchedule = async (req, res) => {
         routeId,
         routeDepotId: assignmentRoute?.depotId,
         tripDate: normalizedTripDate,
+        scheduleId: req.params.id,
       })
 
       const conflicts = await findConflicts({
@@ -685,6 +708,10 @@ export const updateSchedule = async (req, res) => {
 
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
+    if (data.status && data.status !== 'delayed') {
+      existing.driverIssueReportedAt = null
+      existing.driverIssueNotes = ''
+    }
     await existing.save()
     await syncBusServiceType(busId, assignmentRoute?.serviceType)
     await syncBusStatusForBusId(busId)
@@ -846,9 +873,6 @@ export const updateDriverTripStatus = async (req, res) => {
     if (!DRIVER_TRIP_STATUS_SOURCES.has(schedule.status)) {
       return res.status(400).json({ message: 'This trip status cannot be changed' })
     }
-    if (schedule.status === status) {
-      return res.status(400).json({ message: 'Trip is already in that status' })
-    }
 
     const statusLabel = {
       'on-duty': 'on duty',
@@ -864,12 +888,40 @@ export const updateDriverTripStatus = async (req, res) => {
         return res.status(400).json({ message: 'Please describe the issue before reporting' })
       }
       adjustmentReason = 'obstruction'
+      schedule.driverIssueReportedAt = new Date()
+      schedule.driverIssueNotes = notes
+    } else if (status === 'completed') {
+      schedule.driverIssueReportedAt = null
+      schedule.driverIssueNotes = ''
     } else if (status === 'on-duty') {
       notes = notes || 'Driver started trip — on duty'
     } else if (status === 'on-time') {
       notes = notes || 'Driver acknowledged trip'
     } else {
       notes = notes || `Driver marked trip as ${statusLabel}`
+    }
+
+    if (schedule.status === status && status !== 'delayed') {
+      return res.status(400).json({ message: 'Trip is already in that status' })
+    }
+
+    if (schedule.status === status && status === 'delayed') {
+      schedule.adjustmentReason = adjustmentReason
+      schedule.adjustmentNotes = notes
+      await schedule.save()
+      await syncBusStatusForBusId(schedule.busId)
+      await syncDriverStatusForDriverId(schedule.driverId, schedule.tripDate)
+      try {
+        await notifyDriverIssueReport({ schedule, notes })
+      } catch (notifyError) {
+        console.error('Failed to notify scheduler/admin of driver issue:', notifyError)
+      }
+      const populated = await populateSchedule(Schedule.findById(schedule._id))
+      return res.json(populated)
+    }
+
+    if (schedule.status === status) {
+      return res.status(400).json({ message: 'Trip is already in that status' })
     }
 
     appendAdjustmentHistory(
@@ -883,6 +935,14 @@ export const updateDriverTripStatus = async (req, res) => {
     await schedule.save()
     await syncBusStatusForBusId(schedule.busId)
     await syncDriverStatusForDriverId(schedule.driverId, schedule.tripDate)
+
+    if (status === 'delayed') {
+      try {
+        await notifyDriverIssueReport({ schedule, notes })
+      } catch (notifyError) {
+        console.error('Failed to notify scheduler/admin of driver issue:', notifyError)
+      }
+    }
 
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
@@ -916,6 +976,7 @@ export const checkScheduleConflicts = async (req, res) => {
         routeId,
         routeDepotId: route?.depotId,
         tripDate: normalizeTripDate(tripDate),
+        scheduleId: excludeId || undefined,
       })
     } catch (err) {
       if (err.statusCode === 400) {

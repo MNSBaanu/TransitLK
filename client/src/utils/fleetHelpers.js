@@ -139,15 +139,38 @@ export function isDriverStatusAvailable(driver) {
 
 /** @param {string} [atTime] HH:mm — trip departure; omit to use current time (route assignment) */
 /** @param {string|Date} [onDate] calendar day for license validity; defaults to today */
-export function isDriverAssignable(driver, atTime, onDate = new Date()) {
+/** @param {string} [keepAssignedDriverId] allow on-duty driver already assigned to this trip */
+export function isDriverAssignable(driver, atTime, onDate = new Date(), keepAssignedDriverId = null) {
+  if (
+    keepAssignedDriverId &&
+    String(driver?._id) === String(keepAssignedDriverId)
+  ) {
+    if (!isDriverLicenseValid(driver, onDate)) return false
+    if (atTime) return isWithinWorkingHoursAtTime(driver.workingHours, atTime)
+    return isWithinWorkingHours(driver.workingHours)
+  }
   if (!isDriverStatusAvailable(driver)) return false
   if (!isDriverLicenseValid(driver, onDate)) return false
   if (atTime) return isWithinWorkingHoursAtTime(driver.workingHours, atTime)
   return isWithinWorkingHours(driver.workingHours)
 }
 
-export function driverUnassignableReason(driver, atTime, onDate = new Date()) {
+export function driverUnassignableReason(driver, atTime, onDate = new Date(), keepAssignedDriverId = null) {
   if (!driver) return 'Not found'
+  if (
+    keepAssignedDriverId &&
+    String(driver._id) === String(keepAssignedDriverId)
+  ) {
+    const licenseIssue = getDriverLicenseInvalidReason(driver, onDate)
+    if (licenseIssue) return licenseIssue
+    const withinHours = atTime
+      ? isWithinWorkingHoursAtTime(driver.workingHours, atTime)
+      : isWithinWorkingHours(driver.workingHours)
+    if (!withinHours) {
+      return atTime ? 'Outside working hours for trip time' : 'Outside working hours'
+    }
+    return null
+  }
   if (!isDriverStatusAvailable(driver)) {
     return `Not available (${formatServiceType(driver.status || 'unavailable')})`
   }

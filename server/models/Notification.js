@@ -14,6 +14,7 @@ const notificationSchema = new mongoose.Schema(
         'overdue_maintenance',
         'schedule_conflict',
         'delayed_trip',
+        'driver_issue',
         'bus_status_change',
         'license_expiry_warning',
       ],

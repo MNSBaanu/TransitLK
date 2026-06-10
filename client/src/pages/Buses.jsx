@@ -137,6 +137,18 @@ function formatLicenseExpiryCell(licenseExpiry, { compact = false } = {}) {
 const ITEMS_PER_PAGE = 8
 const MILEAGE_SERVICE_THRESHOLD = 150_000
 
+/** Oldest records first so recently added fleet/drivers appear at the end of the list. */
+function sortOldestFirst(items) {
+  return [...items].sort((a, b) => {
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    if (ta !== tb) return ta - tb
+    const labelA = String(a.regNumber || a.name || a._id || '')
+    const labelB = String(b.regNumber || b.name || b._id || '')
+    return labelA.localeCompare(labelB)
+  })
+}
+
 function getBusesNeedingMaintenanceSoon(buses) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -549,11 +561,13 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
-  const filtered = buses.filter((b) => {
-    const matchSearch = b.regNumber?.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter ? b.status === statusFilter : true
-    return matchSearch && matchStatus
-  })
+  const filtered = sortOldestFirst(
+    buses.filter((b) => {
+      const matchSearch = b.regNumber?.toLowerCase().includes(search.toLowerCase())
+      const matchStatus = statusFilter ? b.status === statusFilter : true
+      return matchSearch && matchStatus
+    })
+  )
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
@@ -574,8 +588,14 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
     {
       label: 'Total fleet',
       value: buses.length,
-      hint: `${inServiceBuses.length} in service · ${availableBuses.length} available`,
+      hint: `${availableBuses.length} available for assignment`,
       icon: 'directions_bus',
+    },
+    {
+      label: 'In service',
+      value: inServiceBuses.length,
+      hint: inServiceBuses.length ? 'On active routes' : 'No buses on routes',
+      icon: 'timeline',
     },
     {
       label: 'In maintenance',
@@ -976,19 +996,21 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
-  const filtered = drivers.filter((d) => {
-    const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
-      (d.licenseNo || '').toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter ? d.status === statusFilter : true
-    const licStatus = getLicenseStatus(d.licenseExpiry)
-    const matchLicense = licenseFilter
-      ? (licenseFilter === 'valid' && licStatus?.label === 'Valid') ||
-        (licenseFilter === 'expiring' && licStatus?.label === 'Expiring Soon') ||
-        (licenseFilter === 'expired' && licStatus?.label === 'Expired') ||
-        (licenseFilter === 'none' && !d.licenseExpiry)
-      : true
-    return matchSearch && matchStatus && matchLicense
-  })
+  const filtered = sortOldestFirst(
+    drivers.filter((d) => {
+      const matchSearch = d.name.toLowerCase().includes(search.toLowerCase()) ||
+        (d.licenseNo || '').toLowerCase().includes(search.toLowerCase())
+      const matchStatus = statusFilter ? d.status === statusFilter : true
+      const licStatus = getLicenseStatus(d.licenseExpiry)
+      const matchLicense = licenseFilter
+        ? (licenseFilter === 'valid' && licStatus?.label === 'Valid') ||
+          (licenseFilter === 'expiring' && licStatus?.label === 'Expiring Soon') ||
+          (licenseFilter === 'expired' && licStatus?.label === 'Expired') ||
+          (licenseFilter === 'none' && !d.licenseExpiry)
+        : true
+      return matchSearch && matchStatus && matchLicense
+    })
+  )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
