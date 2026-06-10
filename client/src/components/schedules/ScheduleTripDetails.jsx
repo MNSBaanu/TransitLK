@@ -3,6 +3,7 @@ import {
   ADJUSTMENT_REASON_LABELS,
   displayTripNote,
   formatAdjustmentChange,
+  isDriverReportedIssue,
   formatRouteStopsLabel,
   formatScheduleStatusLabel,
   formatTimeRange,
@@ -48,6 +49,8 @@ function ScheduleTripDetails({
     )
   }
 
+  const driverIssue = isDriverReportedIssue(selected)
+
   return (
     <div className={panelClass}>
       <div className="flex shrink-0 items-center justify-between border-b border-outline-variant px-5 py-4">
@@ -68,6 +71,24 @@ function ScheduleTripDetails({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto bg-white px-5 py-4">
+        {driverIssue && (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-900">
+              <Icon name="report_problem" size={22} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-amber-950">Driver reported an issue</p>
+              <p className="mt-1 text-sm text-amber-900/90">
+                {displayTripNote(selected.adjustmentNotes) || 'No details provided.'}
+              </p>
+              {selected.driverIssueReportedAt ? (
+                <p className="mt-1 text-xs text-amber-800/80">
+                  Reported {new Date(selected.driverIssueReportedAt).toLocaleString('en-GB')}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
         <div className={`${sectionClass} p-4`}>
           <p className={`${labelClass} mb-2`}>Trip overview</p>
           {selected.routeId && (

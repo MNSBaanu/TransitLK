@@ -34,6 +34,7 @@ import {
   buildTimetableRowsForPeriod,
   defaultTripTimes,
   displayTripNote,
+  isDriverReportedIssue,
   filterSchedulesInDateRange,
   getTimetableDateBounds,
   getTimetableDates,
@@ -143,6 +144,7 @@ function SchedulesPage() {
   const maintenanceOfflineTripRef = useRef(null)
   const viewDatePickerRef = useRef(null)
   const prevViewModeRef = useRef(initialViewMode)
+  const prevDriverIssueIdsRef = useRef(new Set())
 
   const showToast = (msg) => {
     setToast(msg)
@@ -345,8 +347,14 @@ function SchedulesPage() {
   const scheduleStats = useMemo(() => {
     const active = displaySchedules.filter((s) => s.status !== 'cancelled').length
     const delayed = displaySchedules.filter((s) => s.status === 'delayed').length
-    return { trips: displaySchedules.length, active, delayed, conflicts: conflicts.length }
+    const driverIssues = displaySchedules.filter(isDriverReportedIssue).length
+    return { trips: displaySchedules.length, active, delayed, conflicts: conflicts.length, driverIssues }
   }, [displaySchedules, conflicts])
+
+  const driverIssueTrips = useMemo(
+    () => displaySchedules.filter(isDriverReportedIssue),
+    [displaySchedules]
+  )
 
   const ganttRows = useMemo(() => {
     const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, focusDate))
@@ -1073,6 +1081,21 @@ function SchedulesPage() {
   const canPlanSchedules = isScheduler || isAdministrator
   const canApproveSchedules = isDepotManager || isAdministrator
   const canAdjustSchedules = canPlanSchedules
+  const canSeeDriverIssues = canPlanSchedules || canApproveSchedules
+  const driverIssueCount = driverIssueTrips.length
+
+  useEffect(() => {
+    if (!canSeeDriverIssues) return undefined
+    const currentIds = new Set(driverIssueTrips.map((t) => String(t._id)))
+    const newIssues = [...currentIds].filter((id) => !prevDriverIssueIdsRef.current.has(id))
+    if (prevDriverIssueIdsRef.current.size > 0 && newIssues.length > 0) {
+      showToast(
+        `Driver reported ${newIssues.length} trip issue${newIssues.length > 1 ? 's' : ''} — check schedules`
+      )
+    }
+    prevDriverIssueIdsRef.current = currentIds
+    return undefined
+  }, [driverIssueTrips, canSeeDriverIssues])
 
   const shouldPrefetchApprovals =
     canApproveSchedules || (isScheduler && !isAdministrator)
@@ -1132,12 +1155,18 @@ function SchedulesPage() {
       icon: 'event',
     },
     { label: 'Active trips', value: scheduleStats.active, icon: 'schedule' },
-    {
-      label: 'Conflicts',
-      value: scheduleStats.conflicts,
-      hint: scheduleStats.conflicts ? 'Resolve in adjust panel' : 'No overlaps',
-      icon: 'warning',
-    },
+    ...(canSeeDriverIssues
+      ? [
+          {
+            label: 'Driver issues',
+            value: scheduleStats.driverIssues,
+            hint: scheduleStats.driverIssues
+              ? 'Driver reported trip delays'
+              : 'No driver issues',
+            icon: 'report_problem',
+          },
+        ]
+      : []),
     ...(!canApproveSchedules
       ? [{ label: 'Delayed', value: scheduleStats.delayed, icon: 'schedule_send' }]
       : []),
@@ -1161,6 +1190,21 @@ function SchedulesPage() {
               {canAdjustSchedules && (
                 <ModuleSecondaryButton icon="tune" onClick={openAdjustDrawer}>
                   Adjust
+                </ModuleSecondaryButton>
+              )}
+              {canSeeDriverIssues && (
+                <ModuleSecondaryButton
+                  icon="report_problem"
+                  badge={driverIssueCount}
+                  onClick={() => {
+                    if (driverIssueTrips.length > 0) {
+                      selectTrip(driverIssueTrips[0])
+                    } else {
+                      showToast('No driver-reported issues in this period')
+                    }
+                  }}
+                >
+                  Issues
                 </ModuleSecondaryButton>
               )}
               {isAdministrator && canApproveSchedules && (
@@ -1196,6 +1240,27 @@ function SchedulesPage() {
       />
 
       <ModuleStats items={scheduleStatItems} />
+
+      {canSeeDriverIssues && driverIssueCount > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
+          <div className="flex items-center gap-3 text-sm font-semibold text-amber-950">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-900">
+              <Icon name="report_problem" size={20} />
+            </span>
+            <span>
+              {driverIssueCount} driver-reported issue{driverIssueCount > 1 ? 's' : ''} in this
+              period
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => selectTrip(driverIssueTrips[0])}
+            className="text-xs font-bold uppercase tracking-wide text-amber-900 hover:underline"
+          >
+            View latest report
+          </button>
+        </div>
+      )}
 
       {/* Conflict & emergency bar */}
       <div

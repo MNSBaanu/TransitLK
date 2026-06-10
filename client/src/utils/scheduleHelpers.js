@@ -1146,6 +1146,11 @@ export function canDriverReportIssue(status) {
   return ['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'].includes(status)
 }
 
+/** Trip flagged when a driver submitted an issue report from My Trips. */
+export function isDriverReportedIssue(trip) {
+  return Boolean(trip?.driverIssueReportedAt && trip?.status === 'delayed')
+}
+
 export function canDriverCompleteTrip(status) {
   return ['on-duty', 'on-time', 'delayed'].includes(status)
 }

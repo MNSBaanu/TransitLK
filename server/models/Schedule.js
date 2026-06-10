@@ -76,6 +76,11 @@ const scheduleSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    /** Set when a driver reports a trip issue (delayed status from driver app). */
+    driverIssueReportedAt: {
+      type: Date,
+      default: null,
+    },
     adjustmentHistory: [
       {
         at: { type: Date, default: Date.now },
