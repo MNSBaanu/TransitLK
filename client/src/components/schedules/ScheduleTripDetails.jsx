@@ -17,7 +17,16 @@ const labelClass = 'text-[10px] font-bold uppercase tracking-wide text-on-surfac
 const sectionClass = 'border border-outline-variant bg-surface-container/40'
 const panelClass = 'flex h-full flex-col overflow-hidden rounded-none bg-white'
 
-function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules = false }) {
+function ScheduleTripDetails({
+  selected,
+  onClose,
+  onAdjust,
+  canAdjustSchedules = false,
+  canApproveSchedules = false,
+  onApprove,
+  onReject,
+  saving = false,
+}) {
   if (!selected) {
     return (
       <div className={panelClass}>
@@ -166,6 +175,26 @@ function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules =
       </div>
 
       <div className="shrink-0 space-y-2 border-t border-outline-variant bg-white px-5 py-4">
+        {canApproveSchedules && selected.status === 'pending' && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onApprove?.(selected._id)}
+              disabled={saving}
+              className="rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Approve trip
+            </button>
+            <button
+              type="button"
+              onClick={() => onReject?.(selected._id)}
+              disabled={saving}
+              className="rounded-lg border border-red-300 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reject trip
+            </button>
+          </div>
+        )}
         {canAdjustSchedules && (
           <button type="button" onClick={onAdjust} className="btn-primary flex w-full items-center justify-center gap-2 py-3">
             <Icon name="tune" size={18} />

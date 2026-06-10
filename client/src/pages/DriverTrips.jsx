@@ -184,7 +184,7 @@ function DriverTrips() {
                       onClick={() => handleAcknowledge(trip._id)}
                       className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      {isSaving ? 'Saving…' : 'Acknowledge'}
+                      {isSaving ? 'Saving…' : 'Start'}
                     </button>
                     <button
                       type="button"
@@ -217,7 +217,7 @@ function DriverTrips() {
                   <th className={`${labelClass} ${cellClass}`}>Arrival time</th>
                   <th className={`${labelClass} ${cellClass}`}>Assigned bus</th>
                   <th className={`${labelClass} ${cellClass}`}>Current status</th>
-                  <th className={`${labelClass} ${cellClass}`}>Acknowledge trip</th>
+                  <th className={`${labelClass} ${cellClass}`}>Start trip</th>
                   <th className={`${labelClass} ${cellClass}`}>Report issue</th>
                   <th className={`${labelClass} ${cellClass}`}>Completed</th>
                 </tr>
@@ -260,7 +260,7 @@ function DriverTrips() {
                           onClick={() => handleAcknowledge(trip._id)}
                           className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          {isSaving ? 'Saving…' : 'Acknowledge'}
+                          {isSaving ? 'Saving…' : 'Start'}
                         </button>
                       </td>
                       <td className={cellClass}>
