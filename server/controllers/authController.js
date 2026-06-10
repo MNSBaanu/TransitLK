@@ -76,7 +76,7 @@ export const login = async (req, res) => {
   }
 }
 
-// @desc    Register staff user (administrator only in production; open for dev seeding)
+// @desc    Register staff user (administrator only)
 // @route   POST /api/auth/register
 export const register = async (req, res) => {
   const { name, email, password, role, depotId } = req.body

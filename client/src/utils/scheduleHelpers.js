@@ -1,9 +1,18 @@
 import { buildRouteName, isSchedulableRoute } from './routeHelpers'
 
-const GANTT_START_MIN = 6 * 60
+const GANTT_START_MIN = 0
 const GANTT_END_MIN = 24 * 60
 const GANTT_SPAN = GANTT_END_MIN - GANTT_START_MIN
-export const GANTT_CARD_START_INSET_PX = 6
+export const GANTT_HOUR_COLUMN_MIN_PX = 56
+const GANTT_HOURS_LIST = []
+for (let h = 0; h < 24; h++) {
+  GANTT_HOURS_LIST.push(`${String(h).padStart(2, '0')}:00`)
+}
+export const GANTT_HOURS = GANTT_HOURS_LIST
+export const GANTT_TIMELINE_WIDTH_PX = GANTT_HOURS.length * GANTT_HOUR_COLUMN_MIN_PX
+/** @deprecated use GANTT_TIMELINE_WIDTH_PX */
+export const GANTT_MIN_WIDTH_PX = GANTT_TIMELINE_WIDTH_PX
+const GANTT_TRIP_MIN_WIDTH_PX = 40
 
 /** Default departure/arrival for all routes in a new timetable */
 export const DEFAULT_TRIP_DEPARTURE_TIME = '08:00'
@@ -148,17 +157,18 @@ export function toConflictTrip(trip = {}) {
 
 function ganttPositionFromMinutes(startMin, endMin) {
   if (startMin == null || endMin == null || endMin <= startMin) return null
-  const left = ((startMin - GANTT_START_MIN) / GANTT_SPAN) * 100
-  const width = ((endMin - startMin) / GANTT_SPAN) * 100
-  if (left + width <= 0 || left >= 100) return null
-  const clampedLeft = Math.max(0, left)
-  const clampedWidth = Math.min(100 - clampedLeft, width)
+  const leftPx = ((startMin - GANTT_START_MIN) / GANTT_SPAN) * GANTT_TIMELINE_WIDTH_PX
+  const widthPx = ((endMin - startMin) / GANTT_SPAN) * GANTT_TIMELINE_WIDTH_PX
+  if (leftPx + widthPx <= 0 || leftPx >= GANTT_TIMELINE_WIDTH_PX) return null
+  const clampedLeft = Math.max(0, leftPx)
+  const clampedWidth = Math.min(GANTT_TIMELINE_WIDTH_PX - clampedLeft, widthPx)
+  const barWidth = Math.max(GANTT_TRIP_MIN_WIDTH_PX, clampedWidth)
   return {
     left: clampedLeft,
-    width: clampedWidth,
+    width: barWidth,
     style: {
-      left: `calc(${clampedLeft}% + ${GANTT_CARD_START_INSET_PX}px)`,
-      width: `max(2.5rem, calc(${clampedWidth}% - ${GANTT_CARD_START_INSET_PX}px))`,
+      left: `${clampedLeft}px`,
+      width: `${barWidth}px`,
     },
   }
 }
@@ -419,10 +429,53 @@ export function duplicateTimetableRow(route, siblingRows = []) {
   }
 }
 
+function compareRoutesScheduledFirst(a, b, scheduledRouteIds) {
+  const aScheduled = scheduledRouteIds.has(String(a._id))
+  const bScheduled = scheduledRouteIds.has(String(b._id))
+  if (aScheduled !== bScheduled) return aScheduled ? -1 : 1
+  return formatRouteEndpointsLabel(a).localeCompare(formatRouteEndpointsLabel(b))
+}
+
+/** Sorted route list for daily / weekly / monthly timetable grids. */
+export function buildRouteTimetableRows(routes, schedules = []) {
+  const byId = new Map()
+  const scheduledRouteIds = new Set()
+  const addRoute = (route) => {
+    const id = route?._id || route
+    if (!id) return
+    const key = String(id)
+    if (byId.has(key)) return
+    byId.set(key, {
+      _id: key,
+      routeName: route?.routeName || 'Route',
+      startPoint: route?.startPoint,
+      endPoint: route?.endPoint,
+      stops: route?.stops,
+      viaDescription: route?.viaDescription,
+      serviceType: route?.serviceType,
+    })
+  }
+  schedules.forEach((trip) => {
+    const routeId = trip.routeId?._id || trip.routeId
+    if (routeId) scheduledRouteIds.add(String(routeId))
+    addRoute(trip.routeId)
+  })
+  routes.filter(isSchedulableRoute).forEach((route) => addRoute(route))
+  return [...byId.values()].sort((a, b) => compareRoutesScheduledFirst(a, b, scheduledRouteIds))
+}
+
 export function buildTimetableRows(routes, schedules = [], anchorDate) {
-  const active = routes.filter(isSchedulableRoute)
-  const rows = []
   const dayKey = toDateInputValue(anchorDate)
+  const scheduledRouteIds = new Set()
+  for (const trip of schedules) {
+    if (tripDateKey(trip) !== dayKey) continue
+    const routeId = trip.routeId?._id || trip.routeId
+    if (routeId) scheduledRouteIds.add(String(routeId))
+  }
+  const active = [...routes.filter(isSchedulableRoute)].sort((a, b) =>
+    compareRoutesScheduledFirst(a, b, scheduledRouteIds)
+  )
+  const rows = []
 
   for (const route of active) {
     const routeId = String(route._id)
@@ -772,9 +825,7 @@ export function isTripInViewRange(trip, viewMode, focusDate) {
   return isTripInDateRange(trip, from, to)
 }
 
-export function formatTimeRange(departureTime, arrivalTime) {
-  return `${departureTime || '—'} – ${arrivalTime || '—'}`
-}
+export { formatTimeRange } from './timeFormat.js'
 
 /** Via text or intermediary stops for display on schedule views */
 export function formatRouteStopsLabel(route = {}) {
@@ -821,6 +872,27 @@ export function requiresAdjustmentNotes(reason) {
   return ['emergency', 'maintenance', 'absence', 'obstruction'].includes(reason)
 }
 
+/** Hide internal dev/seed markers from trip notes shown in the UI. */
+export function isInternalTripNote(note) {
+  const text = String(note || '').trim()
+  if (!text) return true
+  const normalized = text.toLowerCase().replace(/\s+/g, '-')
+  return (
+    normalized.includes('seed-sample') ||
+    normalized.includes('seed_sample') ||
+    /^seed([-_]|$)/.test(normalized) ||
+    normalized === 'sample-data' ||
+    normalized === 'sample' ||
+    /^demo([-_]|$)/.test(normalized)
+  )
+}
+
+export function displayTripNote(note) {
+  const text = String(note || '').trim()
+  if (!text || isInternalTripNote(text)) return ''
+  return text
+}
+
 export function reasonToStatus(reason, currentStatus) {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'
@@ -846,13 +918,6 @@ export function scheduleCode(schedule) {
   const short = schedule._id?.slice(-4).toUpperCase() || ''
   return short ? `${route.split(' ')[0]}-${short}` : route
 }
-
-const HOURS = []
-for (let h = 6; h <= 23; h++) {
-  HOURS.push(`${String(h).padStart(2, '0')}:00`)
-}
-
-export const GANTT_HOURS = HOURS
 
 export function detectDayConflicts(schedules) {
   const conflicts = []

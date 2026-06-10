@@ -3,7 +3,14 @@ import Driver from '../models/Driver.js'
 import Maintenance from '../models/Maintenance.js'
 import Schedule from '../models/Schedule.js'
 import Route from '../models/Route.js'
-import { startOfMonth, endOfMonth } from '../utils/scheduleHelpers.js'
+import { startOfMonth, endOfMonth, startOfDay, endOfDay } from '../utils/scheduleHelpers.js'
+
+function formatRouteLabel(route = {}) {
+  const start = String(route.startPoint || '').trim()
+  const end = String(route.endPoint || '').trim()
+  if (start && end) return `${start} → ${end}`
+  return route.routeName || '—'
+}
 
 const MILEAGE_SERVICE_THRESHOLD = 150_000
 const MILEAGE_NO_HISTORY_THRESHOLD = 100_000
@@ -119,6 +126,8 @@ export const getDashboardSummary = async (req, res) => {
 
     const monthStart = startOfMonth(new Date())
     const monthEnd = endOfMonth(new Date())
+    const todayStart = startOfDay(new Date())
+    const todayEnd = endOfDay(new Date())
 
     const [
       allBuses,
@@ -127,7 +136,7 @@ export const getDashboardSummary = async (req, res) => {
       totalRoutes,
       totalOperational,
       completedCount,
-      schedules,
+      todaySchedules,
       monthSchedules,
     ] = await Promise.all([
       Bus.find({}).lean(),
@@ -136,12 +145,13 @@ export const getDashboardSummary = async (req, res) => {
       Route.countDocuments({ status: 'active' }),
       Schedule.countDocuments({ status: { $in: operationalStatuses } }),
       Schedule.countDocuments({ status: 'completed' }),
-      Schedule.find({ status: { $in: ['scheduled', 'on-duty', 'on-time', 'delayed', 'completed'] } })
-        .populate('routeId', 'routeName startPoint endPoint')
+      Schedule.find({
+        tripDate: { $gte: todayStart, $lte: todayEnd },
+      })
+        .populate('routeId', 'routeName startPoint endPoint status')
         .populate('busId', 'regNumber status')
         .populate('driverId', 'name')
-        .sort({ tripDate: -1, departureTime: -1 })
-        .limit(8)
+        .sort({ departureTime: 1, status: 1 })
         .lean(),
       Schedule.find({
         tripDate: { $gte: monthStart, $lte: monthEnd },
@@ -177,7 +187,7 @@ export const getDashboardSummary = async (req, res) => {
     }
 
     const totalMaintenanceCost = maintenanceRecords.reduce((sum, r) => sum + (r.cost || 0), 0)
-    const alerts = buildMaintenanceAlerts(allBuses, maintenanceRecords, schedules)
+    const alerts = buildMaintenanceAlerts(allBuses, maintenanceRecords, todaySchedules)
 
     const maintenance = {
       total: maintenanceRecords.length,
@@ -200,15 +210,14 @@ export const getDashboardSummary = async (req, res) => {
       busesTotal,
     }
 
-    const recentSchedules = schedules.map((s) => ({
+    const operations = todaySchedules.map((s) => ({
       _id: s._id,
+      routeLabel: formatRouteLabel(s.routeId),
       routeName: s.routeId?.routeName || '—',
       driverName: s.driverId?.name || '—',
       busReg: s.busId?.regNumber || '—',
-      busStatus: s.busId?.status || null,
-      departureTime: s.departureTime,
-      arrivalTime: s.arrivalTime,
-      tripDate: s.tripDate,
+      departureTime: s.departureTime || '—',
+      arrivalTime: s.arrivalTime || '—',
       status: s.status,
     }))
 
@@ -216,7 +225,8 @@ export const getDashboardSummary = async (req, res) => {
       buses,
       drivers,
       maintenance,
-      recentSchedules,
+      operations,
+      ongoingOperations: operations,
       totalRoutes,
       tripCompletion,
       vehicleUtilization,

@@ -11,6 +11,7 @@ import {
 import {
   ADJUSTMENT_REASON_LABELS,
   defaultTripTimes,
+  displayTripNote,
   formatAdjustmentChange,
   formatTimeRange,
   formatTripDate,
@@ -438,7 +439,9 @@ function ScheduleQuickAdjust({
                       {entry.by?.name ? ` · ${entry.by.name}` : ''}
                     </span>
                   </p>
-                  {entry.notes && <p className="text-on-surface-variant">{entry.notes}</p>}
+                  {displayTripNote(entry.notes) ? (
+                    <p className="text-on-surface-variant">{displayTripNote(entry.notes)}</p>
+                  ) : null}
                   {(entry.changes || []).slice(0, 3).map((ch, ci) => (
                     <p key={ci} className="text-on-surface-variant">
                       {formatAdjustmentChange(ch)}

@@ -2,43 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 
-const MESSAGES_KEY = 'transitlk_nav_messages'
-
-const SEED_MESSAGES = [
-  {
-    id: 'msg-1',
-    from: 'Fleet Control',
-    subject: 'Bus swap request',
-    preview: 'NC-2087 needs replacement before evening peak on Route 138.',
-    time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'msg-2',
-    from: 'Maintenance Desk',
-    subject: 'Service window confirmed',
-    preview: 'Workshop slot reserved tomorrow 06:00–09:00 for scheduled inspection.',
-    time: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'msg-3',
-    from: 'Analytics',
-    subject: 'Weekly report ready',
-    preview: 'Fuel and trip completion summary is available under Analytics.',
-    time: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    read: true,
-  },
-]
-
-function loadJson(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : fallback
-  } catch {
-    return fallback
-  }
-}
+const LEGACY_MESSAGES_KEY = 'transitlk_nav_messages'
 
 function formatRelativeTime(iso) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -69,33 +33,30 @@ function mapPriorityToType(priority) {
 export function useNavHub() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
-  const [messages, setMessages] = useState(() => loadJson(MESSAGES_KEY, SEED_MESSAGES))
+  const [messages, setMessages] = useState([])
   const [loadingAlerts, setLoadingAlerts] = useState(true)
   const [activeMessageId, setActiveMessageId] = useState(null)
 
   useEffect(() => {
-    localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages))
-  }, [messages])
+    try {
+      localStorage.removeItem(LEGACY_MESSAGES_KEY)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
 
     async function loadAlerts() {
       setLoadingAlerts(true)
-      
+
       try {
-        const [busesRes, maintRes, schedRes] = await Promise.all([
-          api.get('/buses', { params: { light: 1 } }),
-          api.get('/maintenance').catch(() => ({ data: [] })),
-          api.get('/schedules', { params: { fromDate: today, toDate: today } }),
-        ])
+        const { data } = await api.get('/notifications')
 
         if (cancelled) return
 
-        const backendNotifications = response.data || []
-        
-        // Map backend notifications to frontend format
-        const mappedNotifications = backendNotifications.map((n) => ({
+        const mappedNotifications = (data || []).map((n) => ({
           id: n._id,
           type: mapPriorityToType(n.priority),
           title: n.title,
@@ -106,22 +67,21 @@ export function useNavHub() {
           data: n.data,
         }))
 
+        setNotifications(mappedNotifications)
+        setLoadingAlerts(false)
+      } catch {
         if (!cancelled) {
-          setNotifications(mappedNotifications)
-          setLoadingAlerts(false)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          // Fallback to error notification if backend fails
-          setNotifications([{
-            id: 'alerts-offline',
-            type: 'warning',
-            title: 'Alerts unavailable',
-            body: 'Could not load live alerts. Check server connection.',
-            link: '/dashboard',
-            time: new Date().toISOString(),
-            read: false,
-          }])
+          setNotifications([
+            {
+              id: 'alerts-offline',
+              type: 'warning',
+              title: 'Alerts unavailable',
+              body: 'Could not load live alerts. Check server connection.',
+              link: '/dashboard',
+              time: new Date().toISOString(),
+              read: false,
+            },
+          ])
           setLoadingAlerts(false)
         }
       }
@@ -144,7 +104,9 @@ export function useNavHub() {
     [notifications]
   )
 
-  const unreadNotifCount = notificationsWithRead.filter((n) => !n.read && n.title !== 'All Clear').length
+  const unreadNotifCount = notificationsWithRead.filter(
+    (n) => !n.read && n.title !== 'All Clear'
+  ).length
 
   const messagesWithMeta = useMemo(
     () =>
@@ -195,10 +157,13 @@ export function useNavHub() {
     setMessages((prev) => prev.map((m) => ({ ...m, read: true })))
   }, [])
 
-  const selectMessage = useCallback((id) => {
-    setActiveMessageId(id)
-    markMessageRead(id)
-  }, [markMessageRead])
+  const selectMessage = useCallback(
+    (id) => {
+      setActiveMessageId(id)
+      markMessageRead(id)
+    },
+    [markMessageRead]
+  )
 
   const sendQuickReply = useCallback((messageId, text) => {
     if (!text.trim()) return
@@ -209,7 +174,10 @@ export function useNavHub() {
               ...m,
               read: true,
               preview: `You: ${text.trim()}`,
-              replies: [...(m.replies || []), { from: 'You', text: text.trim(), time: new Date().toISOString() }],
+              replies: [
+                ...(m.replies || []),
+                { from: 'You', text: text.trim(), time: new Date().toISOString() },
+              ],
             }
           : m
       )

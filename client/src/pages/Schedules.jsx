@@ -30,8 +30,10 @@ import {
   formatPeriodLabel,
   formatTripDate,
   applySharedTripTimes,
+  buildRouteTimetableRows,
   buildTimetableRowsForPeriod,
   defaultTripTimes,
+  displayTripNote,
   filterSchedulesInDateRange,
   getTimetableDateBounds,
   getTimetableDates,
@@ -325,21 +327,13 @@ function SchedulesPage() {
 
   const ganttRows = useMemo(() => {
     const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, focusDate))
-    const byBus = new Map()
-    for (const trip of dayTrips) {
-      const busId = String(trip.busId?._id || trip.busId || 'unknown')
-      if (!byBus.has(busId)) {
-        byBus.set(busId, {
-          busId,
-          regNumber: trip.busId?.regNumber || 'Unknown bus',
-          driverName: trip.driverId?.name,
-          trips: [],
-        })
-      }
-      byBus.get(busId).trips.push(trip)
-    }
-    return [...byBus.values()].sort((a, b) => a.regNumber.localeCompare(b.regNumber))
-  }, [displaySchedules, focusDate])
+    return buildRouteTimetableRows(activeRoutes, dayTrips).map((route) => ({
+      ...route,
+      trips: dayTrips.filter(
+        (trip) => String(trip.routeId?._id || trip.routeId) === String(route._id)
+      ),
+    }))
+  }, [displaySchedules, focusDate, activeRoutes])
 
   const timetableTripCount = useMemo(() => {
     const included = timetableRows.filter((r) => r.included).length
@@ -510,7 +504,7 @@ function SchedulesPage() {
     driverId: trip.driverId?._id || trip.driverId || '',
     status: trip.status || 'scheduled',
     reason: trip.adjustmentReason || 'normal',
-    notes: trip.adjustmentNotes || '',
+    notes: displayTripNote(trip.adjustmentNotes) || '',
   })
 
   const closeScheduleModals = ({ clearSelection = false } = {}) => {
@@ -1290,25 +1284,25 @@ function SchedulesPage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto bg-white/20 p-4 backdrop-blur-sm">
+          <div
+            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white/20 p-4 backdrop-blur-sm"
+          >
             {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
                 Loading timetable...
               </div>
-            ) : displaySchedules.length === 0 ? (
+            ) : activeRoutes.length === 0 ? (
               <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 text-center text-on-surface-variant">
                 <Icon name="event_busy" size={40} className="text-outline" />
-                <p className="text-sm font-medium text-neutral-800">No trips in this period</p>
+                <p className="text-sm font-medium text-neutral-800">No active routes</p>
                 <p className="max-w-sm text-xs">
-                  {canPlanSchedules
-                    ? 'Create a timetable to add trips, or change the date range to view existing schedules.'
-                    : 'Change the date range or wait for schedulers to submit trips for approval.'}
+                  Timetables are organised by route. Add or activate routes in Route Management first.
                 </p>
               </div>
             ) : viewMode === 'weekly' ? (
               <ScheduleWeekTimetable
                 schedules={displaySchedules}
-                routes={routes}
+                routes={activeRoutes}
                 focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
@@ -1316,6 +1310,7 @@ function SchedulesPage() {
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
                 schedules={displaySchedules}
+                routes={activeRoutes}
                 focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}

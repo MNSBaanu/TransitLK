@@ -1,6 +1,7 @@
 import Icon from '../Icon'
 import {
   ADJUSTMENT_REASON_LABELS,
+  displayTripNote,
   formatAdjustmentChange,
   formatRouteStopsLabel,
   formatScheduleStatusLabel,
@@ -128,12 +129,12 @@ function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules =
               </span>
             )}
           </div>
-          {selected.adjustmentNotes && (
+          {displayTripNote(selected.adjustmentNotes) ? (
             <p className="mt-2 text-xs text-on-surface-variant">
               <span className="font-semibold">Note: </span>
-              {selected.adjustmentNotes}
+              {displayTripNote(selected.adjustmentNotes)}
             </p>
-          )}
+          ) : null}
         </div>
 
         {Array.isArray(selected.adjustmentHistory) && selected.adjustmentHistory.length > 0 && (
@@ -149,7 +150,9 @@ function ScheduleTripDetails({ selected, onClose, onAdjust, canAdjustSchedules =
                       {entry.by?.name ? ` · ${entry.by.name}` : ''}
                     </span>
                   </p>
-                  {entry.notes && <p className="mt-0.5">{entry.notes}</p>}
+                  {displayTripNote(entry.notes) ? (
+                    <p className="mt-0.5">{displayTripNote(entry.notes)}</p>
+                  ) : null}
                   {(entry.changes || []).map((ch, ci) => (
                     <p key={ci} className="mt-0.5">
                       {formatAdjustmentChange(ch)}
