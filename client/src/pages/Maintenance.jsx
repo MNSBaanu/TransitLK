@@ -27,6 +27,46 @@ import {
 
 const ITEMS_PER_PAGE = 8
 
+const CEYPETCO_FUEL_PRICES_URL = 'https://ceypetco.gov.lk/marketing-sales/'
+
+function FuelPricingReference({ compact = false }) {
+  if (compact) {
+    return (
+      <p className="text-xs text-on-surface-variant">
+        Use official CEYPETCO rates for amount —{' '}
+        <a
+          href={CEYPETCO_FUEL_PRICES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-depot-navy underline underline-offset-2 hover:text-depot-blue-light"
+        >
+          view current fuel pricing
+        </a>
+        {' '}(rates may change).
+      </p>
+    )
+  }
+
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200/60 bg-amber-50/50 px-4 py-3 text-sm text-amber-950">
+      <Icon name="info" size={18} className="mt-0.5 shrink-0 text-amber-700" />
+      <p>
+        Fuel log costs should follow official CEYPETCO market rates. Prices are updated by Ceylon Petroleum
+        Corporation and may change —{' '}
+        <a
+          href={CEYPETCO_FUEL_PRICES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-depot-navy underline underline-offset-2 hover:text-depot-blue-light"
+        >
+          view current fuel pricing
+        </a>
+        .
+      </p>
+    </div>
+  )
+}
+
 const SERVICE_TYPE_STYLES = {
   'Oil Change':    { dot: 'bg-blue-500',   text: 'text-blue-700' },
   'Brake Check':   { dot: 'bg-red-500',    text: 'text-red-700' },
@@ -267,6 +307,7 @@ function FuelModal({ record, onClose, onSave }) {
               <FieldError message={fieldErrors.amount} />
             </div>
           </div>
+          <FuelPricingReference compact />
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
               className="rounded-lg border border-outline-variant px-4 py-2 text-sm font-medium hover:bg-surface-container">
@@ -1016,6 +1057,8 @@ function Maintenance() {
 
           {/* Fuel Table */}
           {tab === 'fuel' && (
+            <>
+            <FuelPricingReference />
             <div className="overflow-x-auto rounded-xl border border-outline-variant">
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
@@ -1072,6 +1115,7 @@ function Maintenance() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* Pagination */}
