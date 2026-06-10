@@ -4,6 +4,7 @@ import {
   displayTripNote,
   formatAdjustmentChange,
   isDriverReportedIssue,
+  getDriverIssueReportedAt,
   formatRouteStopsLabel,
   formatScheduleStatusLabel,
   formatTimeRange,
@@ -81,9 +82,9 @@ function ScheduleTripDetails({
               <p className="mt-1 text-sm text-amber-900/90">
                 {displayTripNote(selected.adjustmentNotes) || 'No details provided.'}
               </p>
-              {selected.driverIssueReportedAt ? (
+              {getDriverIssueReportedAt(selected) ? (
                 <p className="mt-1 text-xs text-amber-800/80">
-                  Reported {new Date(selected.driverIssueReportedAt).toLocaleString('en-GB')}
+                  Reported {new Date(getDriverIssueReportedAt(selected)).toLocaleString('en-GB')}
                 </p>
               ) : null}
             </div>

@@ -448,6 +448,7 @@ export const getSchedules = async (req, res) => {
       timetableId,
       timetablePeriod,
       timetableAnchor,
+      driverIssues,
     } = req.query
     const filter = {}
 
@@ -467,7 +468,19 @@ export const getSchedules = async (req, res) => {
       if (busId) filter.busId = busId
       if (driverId) filter.driverId = driverId
     }
-    if (status === 'rejected') {
+    if (driverIssues === 'true') {
+      if (isDriver(req.user)) {
+        return res.status(403).json({ message: 'Not allowed to list driver issues' })
+      }
+      filter.status = 'delayed'
+      filter.$or = [
+        { driverIssueReportedAt: { $ne: null } },
+        {
+          adjustmentReason: 'obstruction',
+          adjustmentNotes: { $exists: true, $nin: [null, ''] },
+        },
+      ]
+    } else if (status === 'rejected') {
       filter.status = 'draft'
       filter.rejectionReason = { $exists: true, $ne: '' }
     } else if (status) {
@@ -492,7 +505,9 @@ export const getSchedules = async (req, res) => {
     }
 
     let sort = { tripDate: 1, departureTime: 1 }
-    if (status === 'pending') {
+    if (driverIssues === 'true') {
+      sort = { driverIssueReportedAt: -1, updatedAt: -1, tripDate: -1 }
+    } else if (status === 'pending') {
       sort = { receivedAt: -1, submittedAt: -1, createdAt: -1 }
     } else if (status === 'rejected') {
       sort = { rejectedAt: -1, updatedAt: -1, createdAt: -1 }

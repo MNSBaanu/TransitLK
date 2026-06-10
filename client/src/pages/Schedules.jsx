@@ -20,6 +20,7 @@ import ScheduleMonthOverview from '../components/schedules/ScheduleMonthOverview
 import ScheduleAdjustDrawer from '../components/schedules/ScheduleAdjustDrawer'
 import ScheduleTripDetailsDrawer from '../components/schedules/ScheduleTripDetailsDrawer'
 import ScheduleTimetableDrawer from '../components/schedules/ScheduleTimetableDrawer'
+import ScheduleDriverIssuesDrawer from '../components/schedules/ScheduleDriverIssuesDrawer'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { isSchedulableRoute } from '../utils/routeHelpers'
 import { useAuth } from '../context/AuthContext'
@@ -141,6 +142,10 @@ function SchedulesPage() {
   const [maintenanceConfirm, setMaintenanceConfirm] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [rejectTargetId, setRejectTargetId] = useState(null)
+  const [showIssuesDrawer, setShowIssuesDrawer] = useState(false)
+  const [allDriverIssues, setAllDriverIssues] = useState([])
+  const [loadingDriverIssues, setLoadingDriverIssues] = useState(false)
+  const [refreshingDriverIssues, setRefreshingDriverIssues] = useState(false)
   const maintenanceOfflineTripRef = useRef(null)
   const viewDatePickerRef = useRef(null)
   const prevViewModeRef = useRef(initialViewMode)
@@ -156,6 +161,29 @@ function SchedulesPage() {
     invalidatePageData('/reports')
     invalidatePageData('/buses')
   }, [])
+
+  const canSeeDriverIssues =
+    user?.role === ROLES.TRANSPORT_SCHEDULER ||
+    user?.role === ROLES.ADMINISTRATOR ||
+    user?.role === ROLES.DEPOT_MANAGER
+
+  const loadDriverIssues = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!canSeeDriverIssues) return
+      if (silent) setRefreshingDriverIssues(true)
+      else setLoadingDriverIssues(true)
+      try {
+        const { data } = await api.get('/schedules', { params: { driverIssues: 'true' } })
+        setAllDriverIssues(Array.isArray(data) ? data.filter(isDriverReportedIssue) : [])
+      } catch {
+        if (!silent) setAllDriverIssues([])
+      } finally {
+        setLoadingDriverIssues(false)
+        setRefreshingDriverIssues(false)
+      }
+    },
+    [canSeeDriverIssues]
+  )
 
   const loadData = useCallback(async ({ force = false, keepContent = false, viewMode: viewModeOverride, focusDate: focusDateOverride } = {}) => {
     const activeViewMode = viewModeOverride ?? viewMode
@@ -253,9 +281,26 @@ function SchedulesPage() {
   }, [loadData, viewMode, focusDate])
 
   useAutoRefresh(
-    () => loadData({ force: true, keepContent: true }),
-    { enabled: !showTimetable && !showAdjustDrawer && !showTripDetailsDrawer && !saving && !maintenanceConfirm }
+    () => {
+      loadData({ force: true, keepContent: true })
+      loadDriverIssues({ silent: true })
+    },
+    {
+      enabled:
+        !showTimetable &&
+        !showAdjustDrawer &&
+        !showTripDetailsDrawer &&
+        !showIssuesDrawer &&
+        !saving &&
+        !maintenanceConfirm,
+    }
   )
+
+  useEffect(() => {
+    if (!canSeeDriverIssues) return undefined
+    loadDriverIssues()
+    return undefined
+  }, [canSeeDriverIssues, loadDriverIssues])
 
   const applyTimetableSource = useCallback(
     (period, anchor, sourceSchedules) => {
@@ -347,14 +392,14 @@ function SchedulesPage() {
   const scheduleStats = useMemo(() => {
     const active = displaySchedules.filter((s) => s.status !== 'cancelled').length
     const delayed = displaySchedules.filter((s) => s.status === 'delayed').length
-    const driverIssues = displaySchedules.filter(isDriverReportedIssue).length
-    return { trips: displaySchedules.length, active, delayed, conflicts: conflicts.length, driverIssues }
-  }, [displaySchedules, conflicts])
-
-  const driverIssueTrips = useMemo(
-    () => displaySchedules.filter(isDriverReportedIssue),
-    [displaySchedules]
-  )
+    return {
+      trips: displaySchedules.length,
+      active,
+      delayed,
+      conflicts: conflicts.length,
+      driverIssues: allDriverIssues.length,
+    }
+  }, [displaySchedules, conflicts, allDriverIssues.length])
 
   const ganttRows = useMemo(() => {
     const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, focusDate))
@@ -1081,21 +1126,20 @@ function SchedulesPage() {
   const canPlanSchedules = isScheduler || isAdministrator
   const canApproveSchedules = isDepotManager || isAdministrator
   const canAdjustSchedules = canPlanSchedules
-  const canSeeDriverIssues = canPlanSchedules || canApproveSchedules
-  const driverIssueCount = driverIssueTrips.length
+  const driverIssueCount = allDriverIssues.length
 
   useEffect(() => {
     if (!canSeeDriverIssues) return undefined
-    const currentIds = new Set(driverIssueTrips.map((t) => String(t._id)))
+    const currentIds = new Set(allDriverIssues.map((t) => String(t._id)))
     const newIssues = [...currentIds].filter((id) => !prevDriverIssueIdsRef.current.has(id))
     if (prevDriverIssueIdsRef.current.size > 0 && newIssues.length > 0) {
       showToast(
-        `Driver reported ${newIssues.length} trip issue${newIssues.length > 1 ? 's' : ''} — check schedules`
+        `Driver reported ${newIssues.length} trip issue${newIssues.length > 1 ? 's' : ''} — open Issues`
       )
     }
     prevDriverIssueIdsRef.current = currentIds
     return undefined
-  }, [driverIssueTrips, canSeeDriverIssues])
+  }, [allDriverIssues, canSeeDriverIssues])
 
   const shouldPrefetchApprovals =
     canApproveSchedules || (isScheduler && !isAdministrator)
@@ -1197,11 +1241,8 @@ function SchedulesPage() {
                   icon="report_problem"
                   badge={driverIssueCount}
                   onClick={() => {
-                    if (driverIssueTrips.length > 0) {
-                      selectTrip(driverIssueTrips[0])
-                    } else {
-                      showToast('No driver-reported issues in this period')
-                    }
+                    setShowIssuesDrawer(true)
+                    loadDriverIssues({ silent: true })
                   }}
                 >
                   Issues
@@ -1240,27 +1281,6 @@ function SchedulesPage() {
       />
 
       <ModuleStats items={scheduleStatItems} />
-
-      {canSeeDriverIssues && driverIssueCount > 0 && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3">
-          <div className="flex items-center gap-3 text-sm font-semibold text-amber-950">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-900">
-              <Icon name="report_problem" size={20} />
-            </span>
-            <span>
-              {driverIssueCount} driver-reported issue{driverIssueCount > 1 ? 's' : ''} in this
-              period
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => selectTrip(driverIssueTrips[0])}
-            className="text-xs font-bold uppercase tracking-wide text-amber-900 hover:underline"
-          >
-            View latest report
-          </button>
-        </div>
-      )}
 
       {/* Conflict & emergency bar */}
       <div
@@ -1512,6 +1532,20 @@ function SchedulesPage() {
           </div>
         </div>
       </div>
+
+      <ScheduleDriverIssuesDrawer
+        open={showIssuesDrawer}
+        onClose={() => setShowIssuesDrawer(false)}
+        issues={allDriverIssues}
+        loading={loadingDriverIssues}
+        refreshing={refreshingDriverIssues}
+        onRefresh={() => loadDriverIssues({ silent: true })}
+        onSelectIssue={(trip) => {
+          setShowIssuesDrawer(false)
+          setFocusDate(coerceFocusDate(tripDateKey(trip)))
+          selectTrip(trip)
+        }}
+      />
 
       <ScheduleTripDetailsDrawer
         open={showTripDetailsDrawer}

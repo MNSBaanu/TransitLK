@@ -1146,9 +1146,23 @@ export function canDriverReportIssue(status) {
   return ['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'].includes(status)
 }
 
-/** Trip flagged when a driver submitted an issue report from My Trips. */
+/** Driver issue = delayed trip with driver report data on the existing schedule record. */
 export function isDriverReportedIssue(trip) {
-  return Boolean(trip?.driverIssueReportedAt && trip?.status === 'delayed')
+  if (!trip || trip.status !== 'delayed') return false
+  if (trip.driverIssueReportedAt) return true
+  const note = displayTripNote(trip.adjustmentNotes)?.trim()
+  return trip.adjustmentReason === 'obstruction' && Boolean(note)
+}
+
+export function getDriverIssueReportedAt(trip) {
+  if (trip?.driverIssueReportedAt) return trip.driverIssueReportedAt
+  if (!isDriverReportedIssue(trip)) return null
+  const history = trip.adjustmentHistory
+  if (Array.isArray(history) && history.length) {
+    const entry = [...history].reverse().find((e) => e.reason === 'obstruction')
+    if (entry?.at) return entry.at
+  }
+  return trip.updatedAt || null
 }
 
 export function canDriverCompleteTrip(status) {
