@@ -37,7 +37,7 @@ function NavDropdownPanel({
   return (
     <div
       ref={panelRef}
-      className={`glass-card absolute right-0 top-full z-[60] mt-2 ${width} overflow-hidden`}
+      className={`glass-card absolute right-0 top-full z-[60] mt-2 max-w-[calc(100vw-2rem)] overflow-hidden ${width}`}
       role="dialog"
       aria-label={title || 'Panel'}
     >

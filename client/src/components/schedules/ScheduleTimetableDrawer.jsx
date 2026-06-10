@@ -376,8 +376,8 @@ function ScheduleTimetableDrawer({
         }`}
       >
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-outline-variant px-5 py-4">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-outline-variant px-3 py-3 sm:px-5 sm:py-4">
+            <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -428,15 +428,20 @@ function ScheduleTimetableDrawer({
                   checkingConflicts ||
                   !canCreateTimetable
                 }
-                className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-primary shrink-0 text-sm disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
               >
-                {saving ? 'Sending...' : 'Send for approval'}
+                {saving ? 'Sending...' : (
+                  <>
+                    <span className="sm:hidden">Send</span>
+                    <span className="hidden sm:inline">Send for approval</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
-          <div className="shrink-0 border-b border-outline-variant bg-surface-container/40 px-5 py-4">
+          <div className="shrink-0 border-b border-outline-variant bg-surface-container/40 px-3 py-4 sm:px-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-6 sm:gap-y-3">
                 <div>
                   <span className={`${labelClass} mb-2 block`}>Timetable period</span>
                   <div className="pro-segmented">
@@ -456,7 +461,7 @@ function ScheduleTimetableDrawer({
                     ))}
                   </div>
                 </div>
-                <label className="block min-w-[11rem]">
+                <label className="block w-full min-w-0 sm:min-w-[11rem]">
                   <span className={`${labelClass} mb-1 block`}>{dateFieldLabel}</span>
                   {period === 'monthly' ? (
                     <input
@@ -496,7 +501,7 @@ function ScheduleTimetableDrawer({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+          <div className="min-h-0 flex-1 overflow-auto px-3 py-4 sm:px-5">
             <div className="mb-4 rounded-lg border border-depot-blue-light/30 bg-depot-navy/5 px-4 py-3">
               <p className={`${labelClass} text-depot-navy`}>
                 {period === 'daily' ? 'Showing trips for' : 'Timetable coverage'}
@@ -523,7 +528,7 @@ function ScheduleTimetableDrawer({
                   value={routeSearch}
                   onChange={(e) => setRouteSearch(e.target.value)}
                   placeholder="Search routes by name, stops, service type..."
-                  className="max-w-md flex-1"
+                  className="w-full max-w-md flex-1"
                 />
                 {routeSearch.trim() ? (
                   <p className="text-xs text-on-surface-variant">
@@ -537,6 +542,7 @@ function ScheduleTimetableDrawer({
                   No routes match &ldquo;{routeSearch.trim()}&rdquo;. Try a different search term.
                 </p>
               ) : (
+              <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-outline-variant text-left">
@@ -767,6 +773,7 @@ function ScheduleTimetableDrawer({
                   })}
                 </tbody>
               </table>
+              </div>
               )}
               </>
             )}

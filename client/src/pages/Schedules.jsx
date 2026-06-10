@@ -1196,8 +1196,8 @@ function SchedulesPage() {
       {/* Workspace card */}
       <div className="pro-card flex min-h-[560px] flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-outline-variant bg-surface-container/50 px-5 py-4">
-            <div className="pro-segmented shrink-0 bg-white/50">
+          <div className="flex shrink-0 flex-col gap-4 border-b border-outline-variant bg-surface-container/50 px-3 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="pro-segmented w-full shrink-0 bg-white/50 sm:w-auto">
               {['daily', 'weekly', 'monthly'].map((mode) => (
                 <button
                   key={mode}
@@ -1218,8 +1218,8 @@ function SchedulesPage() {
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap items-end justify-end gap-4">
-              <div className="flex min-w-[12rem] flex-col gap-1 sm:min-w-[14rem]">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end lg:w-auto lg:gap-4">
+              <div className="flex w-full flex-col gap-1 sm:min-w-[12rem] sm:w-auto lg:min-w-[14rem]">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   Search
                 </span>
@@ -1230,7 +1230,7 @@ function SchedulesPage() {
                   className="min-w-0"
                 />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   Route filter
                 </span>
@@ -1238,7 +1238,7 @@ function SchedulesPage() {
                   value={routeFilter}
                   onChange={(e) => setRouteFilter(e.target.value)}
                   aria-label="Route filter"
-                  className={`${inputClass} w-full min-w-[9.5rem] py-2`}
+                  className={`${inputClass} w-full py-2 sm:min-w-[9.5rem]`}
                 >
                   <option value="">All routes</option>
                   {activeRoutes.map((r) => (
@@ -1248,7 +1248,7 @@ function SchedulesPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   Driver filter
                 </span>
@@ -1256,7 +1256,7 @@ function SchedulesPage() {
                   value={driverFilter}
                   onChange={(e) => setDriverFilter(e.target.value)}
                   aria-label="Driver filter"
-                  className={`${inputClass} w-full min-w-[9.5rem] py-2`}
+                  className={`${inputClass} w-full py-2 sm:min-w-[9.5rem]`}
                 >
                   <option value="">All drivers</option>
                   {drivers.map((d) => (
@@ -1267,7 +1267,7 @@ function SchedulesPage() {
                 </select>
               </div>
               <div
-                className="relative flex items-center rounded-lg border border-outline-variant bg-white"
+                className="relative flex w-full items-center rounded-lg border border-outline-variant bg-white sm:w-auto"
                 role="group"
                 aria-label="Date navigation"
               >
@@ -1282,7 +1282,7 @@ function SchedulesPage() {
                 <button
                   type="button"
                   onClick={openViewDatePicker}
-                  className="flex min-w-[11.5rem] items-center justify-center gap-1.5 border-x border-outline-variant px-3 py-2 text-sm font-semibold text-fleet-ink transition-colors hover:bg-surface-container sm:min-w-[13rem]"
+                  className="flex min-w-0 flex-1 items-center justify-center gap-1.5 border-x border-outline-variant px-2 py-2 text-sm font-semibold text-fleet-ink transition-colors hover:bg-surface-container sm:min-w-[11.5rem] sm:flex-none sm:px-3 lg:min-w-[13rem]"
                   aria-label={
                     viewMode === 'monthly' ? 'Pick month' : 'Pick date'
                   }
@@ -1317,7 +1317,7 @@ function SchedulesPage() {
           </div>
 
           <div
-            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white/20 p-4 backdrop-blur-sm"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white/20 p-2 backdrop-blur-sm sm:p-4"
           >
             {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
