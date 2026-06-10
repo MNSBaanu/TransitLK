@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../Icon'
+import { ModuleSearchInput } from '../layout/ModuleLayout'
 import {
   buildTimetableFeedbackCards,
   formatRouteEndpointsLabel,
@@ -34,6 +35,24 @@ function groupConsecutiveIndices(indices) {
     }
   }
   return groups
+}
+
+function matchesTimetableRouteSearch(row, query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const haystack = [
+    row.routeName,
+    row.startPoint,
+    row.endPoint,
+    row.viaDescription,
+    row.serviceType,
+    formatRouteEndpointsLabel(row),
+    ...(row.stops || []).map((s) => s?.name || s?.address || ''),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(q)
 }
 
 function getFocusedRowHighlight(rowIndex, focusedIndices, kind) {
@@ -85,6 +104,7 @@ function ScheduleTimetableDrawer({
 }) {
   const [focusedTripRowIds, setFocusedTripRowIds] = useState([])
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [routeSearch, setRouteSearch] = useState('')
 
   const focusTripRows = useCallback(
     (tripRowIds) => {
@@ -127,10 +147,30 @@ function ScheduleTimetableDrawer({
   useEffect(() => {
     if (!open) {
       setFeedbackOpen(false)
+      setRouteSearch('')
       return undefined
     }
     return undefined
   }, [open])
+
+  const filteredRows = useMemo(
+    () => rows.filter((row) => matchesTimetableRouteSearch(row, routeSearch)),
+    [rows, routeSearch]
+  )
+
+  const handleToggleAllVisible = (checked) => {
+    if (!routeSearch.trim()) {
+      onToggleAll(checked)
+      return
+    }
+    for (const row of filteredRows) {
+      onRowChange(row.tripRowId, 'included', checked)
+    }
+  }
+
+  const allVisibleIncluded = routeSearch.trim()
+    ? filteredRows.length > 0 && filteredRows.every((r) => r.included)
+    : rows.every((r) => r.included)
 
   useEffect(() => {
     if (error) setFeedbackOpen(true)
@@ -336,8 +376,8 @@ function ScheduleTimetableDrawer({
         }`}
       >
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-outline-variant px-5 py-4">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-outline-variant px-3 py-3 sm:px-5 sm:py-4">
+            <div className="flex min-w-0 flex-1 items-start gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -388,15 +428,20 @@ function ScheduleTimetableDrawer({
                   checkingConflicts ||
                   !canCreateTimetable
                 }
-                className="btn-primary shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-primary shrink-0 text-sm disabled:cursor-not-allowed disabled:opacity-60 sm:text-base"
               >
-                {saving ? 'Sending...' : 'Send for approval'}
+                {saving ? 'Sending...' : (
+                  <>
+                    <span className="sm:hidden">Send</span>
+                    <span className="hidden sm:inline">Send for approval</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
-          <div className="shrink-0 border-b border-outline-variant bg-surface-container/40 px-5 py-4">
+          <div className="shrink-0 border-b border-outline-variant bg-surface-container/40 px-3 py-4 sm:px-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-6 sm:gap-y-3">
                 <div>
                   <span className={`${labelClass} mb-2 block`}>Timetable period</span>
                   <div className="pro-segmented">
@@ -416,7 +461,7 @@ function ScheduleTimetableDrawer({
                     ))}
                   </div>
                 </div>
-                <label className="block min-w-[11rem]">
+                <label className="block w-full min-w-0 sm:min-w-[11rem]">
                   <span className={`${labelClass} mb-1 block`}>{dateFieldLabel}</span>
                   {period === 'monthly' ? (
                     <input
@@ -456,7 +501,7 @@ function ScheduleTimetableDrawer({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+          <div className="min-h-0 flex-1 overflow-auto px-3 py-4 sm:px-5">
             <div className="mb-4 rounded-lg border border-depot-blue-light/30 bg-depot-navy/5 px-4 py-3">
               <p className={`${labelClass} text-depot-navy`}>
                 {period === 'daily' ? 'Showing trips for' : 'Timetable coverage'}
@@ -477,6 +522,27 @@ function ScheduleTimetableDrawer({
                 No active routes. Activate routes in Route Management before creating a timetable.
               </p>
             ) : (
+              <>
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <ModuleSearchInput
+                  value={routeSearch}
+                  onChange={(e) => setRouteSearch(e.target.value)}
+                  placeholder="Search routes by name, stops, service type..."
+                  className="w-full max-w-md flex-1"
+                />
+                {routeSearch.trim() ? (
+                  <p className="text-xs text-on-surface-variant">
+                    Showing {filteredRows.length} of {rows.length} route
+                    {rows.length !== 1 ? 's' : ''}
+                  </p>
+                ) : null}
+              </div>
+              {filteredRows.length === 0 ? (
+                <p className="py-10 text-center text-sm text-on-surface-variant">
+                  No routes match &ldquo;{routeSearch.trim()}&rdquo;. Try a different search term.
+                </p>
+              ) : (
+              <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
               <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-outline-variant text-left">
@@ -484,10 +550,10 @@ function ScheduleTimetableDrawer({
                     <th className="w-10 pb-2">
                       <input
                         type="checkbox"
-                        checked={rows.every((r) => r.included)}
-                        onChange={(e) => onToggleAll(e.target.checked)}
+                        checked={allVisibleIncluded}
+                        onChange={(e) => handleToggleAllVisible(e.target.checked)}
                         className="h-4 w-4 rounded border-outline-variant"
-                        title="Include all routes"
+                        title={routeSearch.trim() ? 'Include all visible routes' : 'Include all routes'}
                       />
                     </th>
                     <th className={`${labelClass} pb-2 pr-3`}>Route</th>
@@ -500,7 +566,10 @@ function ScheduleTimetableDrawer({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant">
-                  {rows.map((row, rowIndex) => {
+                  {filteredRows.map((row, rowIndex) => {
+                    const sourceRowIndex = rows.findIndex(
+                      (r) => String(r.tripRowId) === String(row.tripRowId)
+                    )
                     const timeErr = row.included
                       ? validateTimeRange(row.departureTime, row.arrivalTime)
                       : null
@@ -543,11 +612,11 @@ function ScheduleTimetableDrawer({
                       : ''
                     const missingBus = row.included && !busSelectValue
                     const missingDriver = row.included && !driverSelectValue
-                    const isFocused = focusedRowIndices.includes(rowIndex)
+                    const isFocused = focusedRowIndices.includes(sourceRowIndex)
                     const isPrimaryFocus = String(row.tripRowId) === primaryFocusTripRowId
                     const focusHighlight = isFocused
                       ? getFocusedRowHighlight(
-                          rowIndex,
+                          sourceRowIndex,
                           focusedRowIndices,
                           rowStatus === 'conflict' ? 'conflict' : 'incomplete'
                         )
@@ -704,6 +773,9 @@ function ScheduleTimetableDrawer({
                   })}
                 </tbody>
               </table>
+              </div>
+              )}
+              </>
             )}
           </div>
         </form>

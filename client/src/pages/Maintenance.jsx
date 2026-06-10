@@ -27,6 +27,46 @@ import {
 
 const ITEMS_PER_PAGE = 8
 
+const CEYPETCO_FUEL_PRICES_URL = 'https://ceypetco.gov.lk/marketing-sales/'
+
+function FuelPricingReference({ compact = false }) {
+  if (compact) {
+    return (
+      <p className="text-xs text-on-surface-variant">
+        Use official CEYPETCO rates for amount —{' '}
+        <a
+          href={CEYPETCO_FUEL_PRICES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-depot-navy underline underline-offset-2 hover:text-depot-blue-light"
+        >
+          view current fuel pricing
+        </a>
+        {' '}(rates may change).
+      </p>
+    )
+  }
+
+  return (
+    <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200/60 bg-amber-50/50 px-4 py-3 text-sm text-amber-950">
+      <Icon name="info" size={18} className="mt-0.5 shrink-0 text-amber-700" />
+      <p>
+        Fuel log costs should follow official CEYPETCO market rates. Prices are updated by Ceylon Petroleum
+        Corporation and may change —{' '}
+        <a
+          href={CEYPETCO_FUEL_PRICES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-depot-navy underline underline-offset-2 hover:text-depot-blue-light"
+        >
+          view current fuel pricing
+        </a>
+        .
+      </p>
+    </div>
+  )
+}
+
 const SERVICE_TYPE_STYLES = {
   'Oil Change':    { dot: 'bg-blue-500',   text: 'text-blue-700' },
   'Brake Check':   { dot: 'bg-red-500',    text: 'text-red-700' },
@@ -97,8 +137,8 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-900">{record ? 'Edit Maintenance Log' : 'Log Maintenance'}</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container">
@@ -230,8 +270,8 @@ function FuelModal({ record, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-900">{record ? 'Edit Fuel Log' : 'Log Fuel Entry'}</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container">
@@ -267,6 +307,7 @@ function FuelModal({ record, onClose, onSave }) {
               <FieldError message={fieldErrors.amount} />
             </div>
           </div>
+          <FuelPricingReference compact />
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
               className="rounded-lg border border-outline-variant px-4 py-2 text-sm font-medium hover:bg-surface-container">
@@ -287,8 +328,8 @@ function FuelModal({ record, onClose, onSave }) {
 function LogActivityModal({ onClose, onSave }) {
   const [type, setType] = useState('maintenance')
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-900">Log New Activity</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container">
@@ -908,24 +949,24 @@ function Maintenance() {
               </button>
             ))}
           </div>
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {tab !== 'report' && (
             <>
-            <div className="relative">
+            <div className="relative w-full sm:w-48">
               <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Search logs..."
-                className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-48" />
+                className="w-full rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900" />
             </div>
             {tab === 'fuel' && (
-              <div className="relative">
+              <div className="relative w-full sm:w-44">
                 <Icon name="filter_list" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
                 <input
                   type="number"
                   value={minAmount}
                   onChange={(e) => { setMinAmount(e.target.value); setPage(1) }}
                   placeholder="Min amount (LKR)"
-                  className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-44"
+                  className="w-full rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900"
                 />
               </div>
             )}
@@ -1016,6 +1057,8 @@ function Maintenance() {
 
           {/* Fuel Table */}
           {tab === 'fuel' && (
+            <>
+            <FuelPricingReference />
             <div className="overflow-x-auto rounded-xl border border-outline-variant">
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
@@ -1072,6 +1115,7 @@ function Maintenance() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* Pagination */}

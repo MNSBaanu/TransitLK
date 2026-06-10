@@ -59,6 +59,7 @@ import {
   ModuleHeader,
   ModulePrimaryButton,
   ModuleSecondaryButton,
+  ModuleSearchInput,
   ModuleStats,
   ModuleToast,
 } from '../components/layout/ModuleLayout'
@@ -108,7 +109,7 @@ function SchedulesPage() {
   const [drivers, setDrivers] = useState(() => initialData?.drivers || [])
   const [loading, setLoading] = useState(!initialData)
   const [refreshing, setRefreshing] = useState(false)
-  const { scheduleSearch } = useLayout()
+  const { scheduleSearch, setScheduleSearch } = useLayout()
   const [focusDate, setFocusDate] = useState(initialFocusDate)
   const [routeFilter, setRouteFilter] = useState('')
   const [driverFilter, setDriverFilter] = useState('')
@@ -297,10 +298,14 @@ function SchedulesPage() {
       if (!q) return true
       const hay = [
         s.routeId?.routeName,
+        s.routeId?.startPoint,
+        s.routeId?.endPoint,
         s.busId?.regNumber,
         s.driverId?.name,
         s.departureTime,
         s.arrivalTime,
+        scheduleCode(s),
+        s.status,
       ]
         .filter(Boolean)
         .join(' ')
@@ -313,6 +318,22 @@ function SchedulesPage() {
     () => filteredSchedules.filter((s) => s.status !== 'cancelled'),
     [filteredSchedules]
   )
+
+  const visibleRoutes = useMemo(() => {
+    const q = scheduleSearch.trim().toLowerCase()
+    if (!q) return activeRoutes
+    const tripRouteIds = new Set(
+      displaySchedules.map((s) => String(s.routeId?._id || s.routeId))
+    )
+    return activeRoutes.filter((r) => {
+      if (tripRouteIds.has(String(r._id))) return true
+      const routeHay = [r.routeName, r.routeNo, r.startPoint, r.endPoint]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return routeHay.includes(q)
+    })
+  }, [activeRoutes, displaySchedules, scheduleSearch])
 
   const conflicts = useMemo(
     () => detectPeriodConflicts(displaySchedules),
@@ -327,13 +348,13 @@ function SchedulesPage() {
 
   const ganttRows = useMemo(() => {
     const dayTrips = displaySchedules.filter((s) => isTripOnDate(s, focusDate))
-    return buildRouteTimetableRows(activeRoutes, dayTrips).map((route) => ({
+    return buildRouteTimetableRows(visibleRoutes, dayTrips).map((route) => ({
       ...route,
       trips: dayTrips.filter(
         (trip) => String(trip.routeId?._id || trip.routeId) === String(route._id)
       ),
     }))
-  }, [displaySchedules, focusDate, activeRoutes])
+  }, [displaySchedules, focusDate, visibleRoutes])
 
   const timetableTripCount = useMemo(() => {
     const included = timetableRows.filter((r) => r.included).length
@@ -1175,8 +1196,8 @@ function SchedulesPage() {
       {/* Workspace card */}
       <div className="pro-card flex min-h-[560px] flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-outline-variant bg-surface-container/50 px-5 py-4">
-            <div className="pro-segmented shrink-0 bg-white/50">
+          <div className="flex shrink-0 flex-col gap-4 border-b border-outline-variant bg-surface-container/50 px-3 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="pro-segmented w-full shrink-0 bg-white/50 sm:w-auto">
               {['daily', 'weekly', 'monthly'].map((mode) => (
                 <button
                   key={mode}
@@ -1197,8 +1218,19 @@ function SchedulesPage() {
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap items-end justify-end gap-4">
-              <div className="flex flex-col gap-1">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end lg:w-auto lg:gap-4">
+              <div className="flex w-full flex-col gap-1 sm:min-w-[12rem] sm:w-auto lg:min-w-[14rem]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                  Search
+                </span>
+                <ModuleSearchInput
+                  value={scheduleSearch}
+                  onChange={(e) => setScheduleSearch(e.target.value)}
+                  placeholder="Route, bus, driver, time..."
+                  className="min-w-0"
+                />
+              </div>
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   Route filter
                 </span>
@@ -1206,7 +1238,7 @@ function SchedulesPage() {
                   value={routeFilter}
                   onChange={(e) => setRouteFilter(e.target.value)}
                   aria-label="Route filter"
-                  className={`${inputClass} w-full min-w-[9.5rem] py-2`}
+                  className={`${inputClass} w-full py-2 sm:min-w-[9.5rem]`}
                 >
                   <option value="">All routes</option>
                   {activeRoutes.map((r) => (
@@ -1216,7 +1248,7 @@ function SchedulesPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
                   Driver filter
                 </span>
@@ -1224,7 +1256,7 @@ function SchedulesPage() {
                   value={driverFilter}
                   onChange={(e) => setDriverFilter(e.target.value)}
                   aria-label="Driver filter"
-                  className={`${inputClass} w-full min-w-[9.5rem] py-2`}
+                  className={`${inputClass} w-full py-2 sm:min-w-[9.5rem]`}
                 >
                   <option value="">All drivers</option>
                   {drivers.map((d) => (
@@ -1235,7 +1267,7 @@ function SchedulesPage() {
                 </select>
               </div>
               <div
-                className="relative flex items-center rounded-lg border border-outline-variant bg-white"
+                className="relative flex w-full items-center rounded-lg border border-outline-variant bg-white sm:w-auto"
                 role="group"
                 aria-label="Date navigation"
               >
@@ -1250,7 +1282,7 @@ function SchedulesPage() {
                 <button
                   type="button"
                   onClick={openViewDatePicker}
-                  className="flex min-w-[11.5rem] items-center justify-center gap-1.5 border-x border-outline-variant px-3 py-2 text-sm font-semibold text-fleet-ink transition-colors hover:bg-surface-container sm:min-w-[13rem]"
+                  className="flex min-w-0 flex-1 items-center justify-center gap-1.5 border-x border-outline-variant px-2 py-2 text-sm font-semibold text-fleet-ink transition-colors hover:bg-surface-container sm:min-w-[11.5rem] sm:flex-none sm:px-3 lg:min-w-[13rem]"
                   aria-label={
                     viewMode === 'monthly' ? 'Pick month' : 'Pick date'
                   }
@@ -1285,7 +1317,7 @@ function SchedulesPage() {
           </div>
 
           <div
-            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white/20 p-4 backdrop-blur-sm"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white/20 p-2 backdrop-blur-sm sm:p-4"
           >
             {loading || (refreshing && displaySchedules.length === 0) ? (
               <div className="flex min-h-[320px] items-center justify-center text-on-surface-variant">
@@ -1299,10 +1331,18 @@ function SchedulesPage() {
                   Timetables are organised by route. Add or activate routes in Route Management first.
                 </p>
               </div>
+            ) : visibleRoutes.length === 0 ? (
+              <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 text-center text-on-surface-variant">
+                <Icon name="search" size={40} className="text-outline" />
+                <p className="text-sm font-medium text-neutral-800">No matching trips</p>
+                <p className="max-w-sm text-xs">
+                  Try a different search term or clear the search and filters.
+                </p>
+              </div>
             ) : viewMode === 'weekly' ? (
               <ScheduleWeekTimetable
                 schedules={displaySchedules}
-                routes={activeRoutes}
+                routes={visibleRoutes}
                 focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}
@@ -1310,7 +1350,7 @@ function SchedulesPage() {
             ) : viewMode === 'monthly' ? (
               <ScheduleMonthOverview
                 schedules={displaySchedules}
-                routes={activeRoutes}
+                routes={visibleRoutes}
                 focusDate={focusDate}
                 selectedId={selected?._id}
                 onSelectTrip={selectTrip}

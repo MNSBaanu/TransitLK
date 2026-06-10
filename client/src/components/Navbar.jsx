@@ -115,16 +115,18 @@ function Navbar() {
 
   return (
     <header className="top-nav sticky top-0 z-50 shrink-0">
-      <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-[72px] max-w-[1600px] items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:gap-4 lg:px-8">
         <NavLink
           to={user ? homePathForRole(user.role) : '/login'}
-          className="relative z-10 shrink-0 text-white hover:opacity-90"
+          className="shrink-0 text-white hover:opacity-90"
         >
           <TransitLKBrand depotCode={getUserDepotCode(user)} variant="nav" />
         </NavLink>
 
         <nav
-          className="absolute left-1/2 top-1/2 z-20 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 lg:flex"
+          className={`hidden min-w-0 flex-1 items-center justify-center overflow-hidden transition-[padding] duration-300 ease-out lg:flex ${
+            searchOpen ? 'gap-0.5 pr-1' : 'gap-1'
+          }`}
           aria-label="Main"
         >
           {navItems.map((item) => (
@@ -132,9 +134,9 @@ function Navbar() {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `top-nav-link rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                  isActive ? 'top-nav-link-active' : ''
-                }`
+                `top-nav-link shrink-0 rounded-lg py-2 text-sm font-semibold transition-all duration-300 ${
+                  searchOpen ? 'px-2' : 'px-3'
+                } ${isActive ? 'top-nav-link-active' : ''}`
               }
             >
               {item.label}
@@ -142,7 +144,7 @@ function Navbar() {
           ))}
         </nav>
 
-        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <div ref={searchAnchorRef} className="flex items-center">
             <div
               className={`top-nav-search flex h-9 items-center overflow-hidden rounded-full transition-all duration-300 ease-out ${
@@ -196,7 +198,7 @@ function Navbar() {
               anchorRef={notifAnchorRef}
               title="Notifications"
               subtitle="Depot alerts & conflicts"
-              width="w-[360px]"
+              width="w-[min(360px,calc(100vw-2rem))]"
               footer={
                 <button
                   type="button"
@@ -230,7 +232,7 @@ function Navbar() {
               anchorRef={messagesAnchorRef}
               title={hub.activeMessage ? 'Conversation' : 'Messages'}
               subtitle={hub.activeMessage ? hub.activeMessage.subject : 'Depot team inbox'}
-              width="w-[380px]"
+              width="w-[min(380px,calc(100vw-2rem))]"
               footer={
                 !hub.activeMessage ? (
                   <button
@@ -256,7 +258,7 @@ function Navbar() {
             <button
               type="button"
               onClick={() => togglePanel('profile')}
-              className={`rounded-full px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+              className={`rounded-full p-2 text-xs font-bold uppercase tracking-wide transition-colors sm:px-3 ${
                 openPanel === 'profile'
                   ? 'bg-white text-depot-navy'
                   : 'bg-white/15 text-white hover:bg-white/25'
@@ -264,7 +266,8 @@ function Navbar() {
               aria-label="Profile menu"
               aria-expanded={openPanel === 'profile'}
             >
-              {profileRoleBadge}
+              <Icon name="person" size={22} className="sm:hidden" />
+              <span className="hidden sm:inline">{profileRoleBadge}</span>
             </button>
             <NavDropdownPanel
               open={openPanel === 'profile'}
@@ -272,7 +275,7 @@ function Navbar() {
               anchorRef={profileAnchorRef}
               title="Profile menu"
               hideHeader
-              width="w-[320px]"
+              width="w-[min(320px,calc(100vw-2rem))]"
             >
               <NavProfilePanel
                 onClose={closePanel}
