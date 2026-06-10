@@ -137,8 +137,8 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-900">{record ? 'Edit Maintenance Log' : 'Log Maintenance'}</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container">
@@ -270,8 +270,8 @@ function FuelModal({ record, onClose, onSave }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-900">{record ? 'Edit Fuel Log' : 'Log Fuel Entry'}</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container">
@@ -328,8 +328,8 @@ function FuelModal({ record, onClose, onSave }) {
 function LogActivityModal({ onClose, onSave }) {
   const [type, setType] = useState('maintenance')
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-neutral-900">Log New Activity</h3>
           <button onClick={onClose} className="rounded-full p-1 hover:bg-surface-container">
@@ -949,24 +949,24 @@ function Maintenance() {
               </button>
             ))}
           </div>
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {tab !== 'report' && (
             <>
-            <div className="relative">
+            <div className="relative w-full sm:w-48">
               <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 placeholder="Search logs..."
-                className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-48" />
+                className="w-full rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900" />
             </div>
             {tab === 'fuel' && (
-              <div className="relative">
+              <div className="relative w-full sm:w-44">
                 <Icon name="filter_list" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
                 <input
                   type="number"
                   value={minAmount}
                   onChange={(e) => { setMinAmount(e.target.value); setPage(1) }}
                   placeholder="Min amount (LKR)"
-                  className="rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900 w-44"
+                  className="w-full rounded-lg border border-outline-variant bg-surface py-1.5 pl-8 pr-3 text-sm outline-none focus:border-neutral-900"
                 />
               </div>
             )}

@@ -3,7 +3,7 @@ import Icon from '../Icon'
 /** Shared page chrome — TransitLK professional module layout */
 export function ModuleHeader({ title, subtitle, action }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:gap-4 xl:flex-row xl:items-end xl:justify-between">
       <div className="min-w-0 flex-1">
         <h2 className="pro-page-title">{title}</h2>
         {subtitle && <p className="pro-page-subtitle max-w-3xl">{subtitle}</p>}

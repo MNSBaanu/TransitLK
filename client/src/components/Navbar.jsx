@@ -198,7 +198,7 @@ function Navbar() {
               anchorRef={notifAnchorRef}
               title="Notifications"
               subtitle="Depot alerts & conflicts"
-              width="w-[360px]"
+              width="w-[min(360px,calc(100vw-2rem))]"
               footer={
                 <button
                   type="button"
@@ -232,7 +232,7 @@ function Navbar() {
               anchorRef={messagesAnchorRef}
               title={hub.activeMessage ? 'Conversation' : 'Messages'}
               subtitle={hub.activeMessage ? hub.activeMessage.subject : 'Depot team inbox'}
-              width="w-[380px]"
+              width="w-[min(380px,calc(100vw-2rem))]"
               footer={
                 !hub.activeMessage ? (
                   <button
@@ -258,7 +258,7 @@ function Navbar() {
             <button
               type="button"
               onClick={() => togglePanel('profile')}
-              className={`rounded-full px-3 py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+              className={`rounded-full p-2 text-xs font-bold uppercase tracking-wide transition-colors sm:px-3 ${
                 openPanel === 'profile'
                   ? 'bg-white text-depot-navy'
                   : 'bg-white/15 text-white hover:bg-white/25'
@@ -266,7 +266,8 @@ function Navbar() {
               aria-label="Profile menu"
               aria-expanded={openPanel === 'profile'}
             >
-              {profileRoleBadge}
+              <Icon name="person" size={22} className="sm:hidden" />
+              <span className="hidden sm:inline">{profileRoleBadge}</span>
             </button>
             <NavDropdownPanel
               open={openPanel === 'profile'}
@@ -274,7 +275,7 @@ function Navbar() {
               anchorRef={profileAnchorRef}
               title="Profile menu"
               hideHeader
-              width="w-[320px]"
+              width="w-[min(320px,calc(100vw-2rem))]"
             >
               <NavProfilePanel
                 onClose={closePanel}
