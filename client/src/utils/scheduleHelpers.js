@@ -208,7 +208,28 @@ export function formatTripDate(date) {
   })
 }
 
+function isLocalCalendarDate(date) {
+  return (
+    date.getHours() === 0 &&
+    date.getMinutes() === 0 &&
+    date.getSeconds() === 0 &&
+    date.getMilliseconds() === 0
+  )
+}
+
 export function toDateInputValue(date) {
+  if (typeof date === 'string') {
+    const trimmed = date.trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+  }
+
+  if (date instanceof Date && !Number.isNaN(date.getTime()) && isLocalCalendarDate(date)) {
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
   const d = parseTripDate(date) || new Date(date)
   if (Number.isNaN(d.getTime())) return ''
   const y = d.getFullYear()
