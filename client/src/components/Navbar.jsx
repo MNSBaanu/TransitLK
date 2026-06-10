@@ -115,16 +115,18 @@ function Navbar() {
 
   return (
     <header className="top-nav sticky top-0 z-50 shrink-0">
-      <div className="relative mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-[72px] max-w-[1600px] items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:gap-4 lg:px-8">
         <NavLink
           to={user ? homePathForRole(user.role) : '/login'}
-          className="relative z-10 shrink-0 text-white hover:opacity-90"
+          className="shrink-0 text-white hover:opacity-90"
         >
           <TransitLKBrand depotCode={getUserDepotCode(user)} variant="nav" />
         </NavLink>
 
         <nav
-          className="absolute left-1/2 top-1/2 z-20 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 lg:flex"
+          className={`hidden min-w-0 flex-1 items-center justify-center overflow-hidden transition-[padding] duration-300 ease-out lg:flex ${
+            searchOpen ? 'gap-0.5 pr-1' : 'gap-1'
+          }`}
           aria-label="Main"
         >
           {navItems.map((item) => (
@@ -132,9 +134,9 @@ function Navbar() {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `top-nav-link rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                  isActive ? 'top-nav-link-active' : ''
-                }`
+                `top-nav-link shrink-0 rounded-lg py-2 text-sm font-semibold transition-all duration-300 ${
+                  searchOpen ? 'px-2' : 'px-3'
+                } ${isActive ? 'top-nav-link-active' : ''}`
               }
             >
               {item.label}
@@ -142,7 +144,7 @@ function Navbar() {
           ))}
         </nav>
 
-        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <div ref={searchAnchorRef} className="flex items-center">
             <div
               className={`top-nav-search flex h-9 items-center overflow-hidden rounded-full transition-all duration-300 ease-out ${
