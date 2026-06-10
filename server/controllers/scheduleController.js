@@ -36,6 +36,7 @@ import {
   isSuperadministrator,
   requireUserDepot,
 } from '../utils/depotAccess.js'
+import { notifyDriverIssueReport } from '../utils/notifyDriverIssue.js'
 
 const routePopulate = {
   path: 'routeId',
@@ -685,6 +686,9 @@ export const updateSchedule = async (req, res) => {
 
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
+    if (data.status && data.status !== 'delayed') {
+      existing.driverIssueReportedAt = null
+    }
     await existing.save()
     await syncBusServiceType(busId, assignmentRoute?.serviceType)
     await syncBusStatusForBusId(busId)
@@ -864,6 +868,9 @@ export const updateDriverTripStatus = async (req, res) => {
         return res.status(400).json({ message: 'Please describe the issue before reporting' })
       }
       adjustmentReason = 'obstruction'
+      schedule.driverIssueReportedAt = new Date()
+    } else if (status === 'completed') {
+      schedule.driverIssueReportedAt = null
     } else if (status === 'on-duty') {
       notes = notes || 'Driver started trip — on duty'
     } else if (status === 'on-time') {
@@ -883,6 +890,14 @@ export const updateDriverTripStatus = async (req, res) => {
     await schedule.save()
     await syncBusStatusForBusId(schedule.busId)
     await syncDriverStatusForDriverId(schedule.driverId, schedule.tripDate)
+
+    if (status === 'delayed') {
+      try {
+        await notifyDriverIssueReport({ schedule, notes })
+      } catch (notifyError) {
+        console.error('Failed to notify scheduler/admin of driver issue:', notifyError)
+      }
+    }
 
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)

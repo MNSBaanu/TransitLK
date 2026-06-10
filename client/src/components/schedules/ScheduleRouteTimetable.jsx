@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import Icon from '../Icon'
+import DriverIssueIndicator from './DriverIssueIndicator'
 import {
   ROUTE_COLUMN_CLASS,
   ROUTE_HEADER_CLASS,
@@ -15,6 +16,7 @@ import {
 import {
   buildRouteTimetableRows,
   formatRouteEndpointsLabel,
+  isDriverReportedIssue,
   formatScheduleStatusLabel,
   formatTimeRange,
   formatTripDate,
@@ -143,6 +145,7 @@ function ScheduleRouteTimetable({
                           <ul className="space-y-1.5">
                             {trips.map((trip) => {
                               const selected = selectedId === trip._id
+                              const driverIssue = isDriverReportedIssue(trip)
                               return (
                                 <li key={trip._id}>
                                   <button
@@ -164,8 +167,11 @@ function ScheduleRouteTimetable({
                                       <span className="min-w-0 flex-1 font-mono text-[11px] font-bold leading-tight tabular-nums whitespace-nowrap">
                                         {formatTimeRange(trip.departureTime, trip.arrivalTime)}
                                       </span>
-                                      <span className="max-w-[3.5rem] shrink-0 truncate text-[10px] opacity-80">
-                                        {trip.driverId?.name?.split(' ')[0] || ''}
+                                      <span className="flex max-w-[4rem] shrink-0 items-center gap-0.5">
+                                        {driverIssue ? <DriverIssueIndicator size={11} /> : null}
+                                        <span className="truncate text-[10px] opacity-80">
+                                          {trip.driverId?.name?.split(' ')[0] || ''}
+                                        </span>
                                       </span>
                                     </div>
                                     {trip.busId?.regNumber ? (
