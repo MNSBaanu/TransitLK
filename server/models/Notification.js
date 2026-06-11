@@ -5,7 +5,10 @@ const notificationSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+    },
+    driverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
     },
     type: {
       type: String,
@@ -15,6 +18,7 @@ const notificationSchema = new mongoose.Schema(
         'schedule_conflict',
         'delayed_trip',
         'driver_issue',
+        'trip_approved',
         'bus_status_change',
         'license_expiry_warning',
       ],
@@ -55,7 +59,16 @@ const notificationSchema = new mongoose.Schema(
 
 // Index for efficient queries
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 })
+notificationSchema.index({ driverId: 1, read: 1, createdAt: -1 })
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+
+notificationSchema.pre('validate', function validateRecipient(next) {
+  if (!this.userId && !this.driverId) {
+    next(new Error('Notification requires userId or driverId'))
+  } else {
+    next()
+  }
+})
 
 const Notification = mongoose.model('Notification', notificationSchema)
 export default Notification
