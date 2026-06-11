@@ -11,7 +11,7 @@ import {
   NavProfilePanel,
 } from './nav/NavHubPanels'
 import { useAuth } from '../context/AuthContext'
-import { NAV_ITEMS, ROLE_LABELS, homePathForRole } from '../config/roles'
+import { NAV_ITEMS, ROLE_LABELS, ROLES, homePathForRole } from '../config/roles'
 import TransitLKBrand, { getUserDepotCode } from './TransitLKBrand'
 
 const PROFILE_ROLE_BADGES = {
@@ -38,7 +38,8 @@ function Navbar() {
   const { routeSearch, setRouteSearch, scheduleSearch, setScheduleSearch } = useLayout()
 
   const navItems = NAV_ITEMS.filter((item) => user && item.roles.includes(user.role))
-  const hub = useNavHub()
+  const isDriver = user?.role === ROLES.DRIVER
+  const hub = useNavHub({ skipNotifications: isDriver })
   const profileRoleBadge = user
     ? PROFILE_ROLE_BADGES[user.role] || ROLE_LABELS[user.role] || 'Account'
     : 'Account'
@@ -177,6 +178,7 @@ function Navbar() {
             </button>
           </div>
 
+          {!isDriver && (
           <div className="relative" ref={notifAnchorRef}>
             <button
               type="button"
@@ -212,6 +214,7 @@ function Navbar() {
               <NavNotificationsPanel hub={hub} onClose={closePanel} />
             </NavDropdownPanel>
           </div>
+          )}
 
           <div className="relative" ref={messagesAnchorRef}>
             <button

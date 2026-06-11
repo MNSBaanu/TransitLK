@@ -344,21 +344,61 @@ async function fetchMaintenancePageData() {
 
 function getDriverTripsDateRange() {
   const from = new Date()
-  from.setDate(from.getDate() - 7)
+  from.setDate(from.getDate() - 30)
   const to = new Date()
-  to.setDate(to.getDate() + 30)
+  to.setDate(to.getDate() + 90)
   return {
     fromDate: from.toISOString().slice(0, 10),
     toDate: to.toISOString().slice(0, 10),
   }
 }
 
+function sortDriverTrips(trips) {
+  return [...trips].sort((a, b) => {
+    const dateA = new Date(a.tripDate).getTime()
+    const dateB = new Date(b.tripDate).getTime()
+    if (dateA !== dateB) return dateA - dateB
+    return String(a.departureTime || '').localeCompare(String(b.departureTime || ''))
+  })
+}
+
 async function fetchDriverTripsPageData() {
   const { fromDate, toDate } = getDriverTripsDateRange()
-  const { data } = await api.get('/schedules', {
-    params: { fromDate, toDate },
-  })
-  return { trips: asArray(data), fromDate, toDate }
+  const [schedulesRes, notificationsRes] = await Promise.all([
+    api.get('/schedules', { params: { fromDate, toDate } }),
+    api.get('/notifications'),
+  ])
+  const approvalAlerts = asArray(notificationsRes.data).filter(
+    (notification) => notification.type === 'trip_approved' && !notification.read
+  )
+  let trips = asArray(schedulesRes.data)
+  const tripIds = new Set(trips.map((trip) => String(trip._id)))
+  const missingScheduleIds = [
+    ...new Set(
+      approvalAlerts
+        .map((alert) => alert.data?.scheduleId)
+        .filter((scheduleId) => scheduleId && !tripIds.has(String(scheduleId)))
+    ),
+  ]
+
+  if (missingScheduleIds.length) {
+    const extraTrips = await Promise.all(
+      missingScheduleIds.map((scheduleId) =>
+        api
+          .get(`/schedules/${scheduleId}`)
+          .then((response) => response.data)
+          .catch(() => null)
+      )
+    )
+    trips = trips.concat(extraTrips.filter(Boolean))
+  }
+
+  return {
+    trips: sortDriverTrips(trips),
+    fromDate,
+    toDate,
+    approvalAlerts,
+  }
 }
 
 async function fetchScheduleApprovalsPageData() {

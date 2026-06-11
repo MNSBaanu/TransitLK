@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import api from '../services/api'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
@@ -21,27 +21,84 @@ const cellClass = 'px-3 py-3 align-top text-sm'
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
+function formatAlertTime(iso) {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
 function DriverTrips() {
   const { user, refreshSession } = useAuth()
   const [trips, setTrips] = useState(() => getStalePageData('/my-trips')?.trips || [])
+  const [approvalAlerts, setApprovalAlerts] = useState(
+    () => getStalePageData('/my-trips')?.approvalAlerts || []
+  )
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [savingId, setSavingId] = useState(null)
   const [issueTrip, setIssueTrip] = useState(null)
   const [issueNotes, setIssueNotes] = useState('')
+  const [dismissingAlertId, setDismissingAlertId] = useState(null)
 
   const applyData = useCallback((payload) => {
     setTrips(payload?.trips || [])
+    setApprovalAlerts(payload?.approvalAlerts || [])
     setError('')
   }, [])
 
   const { loading, reload } = useFastPageLoad('/my-trips', { applyData })
+
+  const newTripIds = useMemo(
+    () =>
+      new Set(
+        approvalAlerts
+          .map((alert) => alert.data?.scheduleId)
+          .filter(Boolean)
+          .map(String)
+      ),
+    [approvalAlerts]
+  )
 
   const upcoming = trips.filter((t) => t.status !== 'cancelled' && t.status !== 'completed')
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
+  }
+
+  const dismissApprovalAlert = async (alertId) => {
+    setDismissingAlertId(alertId)
+    try {
+      await api.put(`/notifications/${alertId}/read`)
+      setApprovalAlerts((prev) => prev.filter((alert) => alert._id !== alertId))
+      invalidatePageData('/my-trips')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not dismiss alert')
+    } finally {
+      setDismissingAlertId(null)
+    }
+  }
+
+  const dismissAllApprovalAlerts = async () => {
+    if (!approvalAlerts.length) return
+    setDismissingAlertId('all')
+    try {
+      await Promise.all(
+        approvalAlerts.map((alert) => api.put(`/notifications/${alert._id}/read`))
+      )
+      setApprovalAlerts([])
+      invalidatePageData('/my-trips')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Could not dismiss alerts')
+    } finally {
+      setDismissingAlertId(null)
+    }
   }
 
   const handleStatusChange = async (tripId, status, notes) => {
@@ -122,6 +179,59 @@ function DriverTrips() {
         </div>
       )}
 
+      {approvalAlerts.length > 0 && (
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700">
+                <Icon name="check_circle" size={22} />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-green-900">New trip approvals</h2>
+                <p className="mt-0.5 text-sm text-green-800">
+                  Your depot manager approved {approvalAlerts.length} trip
+                  {approvalAlerts.length !== 1 ? 's' : ''}. Review the details below.
+                </p>
+              </div>
+            </div>
+            {approvalAlerts.length > 1 && (
+              <button
+                type="button"
+                disabled={dismissingAlertId === 'all'}
+                onClick={dismissAllApprovalAlerts}
+                className="shrink-0 rounded-lg border border-green-300 bg-white px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-100 disabled:opacity-60"
+              >
+                Dismiss all
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {approvalAlerts.map((alert) => (
+              <div
+                key={alert._id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-white px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-neutral-900">{alert.title}</p>
+                  <p className="mt-0.5 text-sm text-neutral-700">{alert.message}</p>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    {formatAlertTime(alert.createdAt)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={dismissingAlertId === alert._id || dismissingAlertId === 'all'}
+                  onClick={() => dismissApprovalAlert(alert._id)}
+                  className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-green-800 hover:bg-green-50 disabled:opacity-60"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-outline-variant bg-white p-4">
           <p className="text-xs font-semibold uppercase text-on-surface-variant">Upcoming</p>
@@ -155,17 +265,27 @@ function DriverTrips() {
               const canAcknowledge = canDriverAcknowledgeTrip(trip.status)
               const canReport = canDriverReportIssue(trip.status)
               const canComplete = canDriverCompleteTrip(trip.status)
+              const isNewApproval = newTripIds.has(String(trip._id))
 
               return (
                 <article
                   key={trip._id}
-                  className="rounded-xl border border-outline-variant bg-white p-4 shadow-sm"
+                  className={`rounded-xl border bg-white p-4 shadow-sm ${
+                    isNewApproval ? 'border-green-300 ring-1 ring-green-200' : 'border-outline-variant'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold text-neutral-900">
-                        {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-neutral-900">
+                          {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
+                        </p>
+                        {isNewApproval && (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-800">
+                            New
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-1 text-sm text-on-surface-variant">
                         {formatTripDate(trip.tripDate)}
                       </p>
@@ -253,13 +373,24 @@ function DriverTrips() {
                   const canAcknowledge = canDriverAcknowledgeTrip(trip.status)
                   const canReport = canDriverReportIssue(trip.status)
                   const canComplete = canDriverCompleteTrip(trip.status)
+                  const isNewApproval = newTripIds.has(String(trip._id))
 
                   return (
-                    <tr key={trip._id} className="bg-white">
+                    <tr
+                      key={trip._id}
+                      className={isNewApproval ? 'bg-green-50/60' : 'bg-white'}
+                    >
                       <td className={cellClass}>
-                        <p className="font-semibold text-neutral-900">
-                          {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-neutral-900">
+                            {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
+                          </p>
+                          {isNewApproval && (
+                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-800">
+                              New
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className={`${cellClass} whitespace-nowrap tabular-nums`}>
                         {formatTripDate(trip.tripDate)}
