@@ -1,4 +1,6 @@
 import Icon from '../Icon'
+import DriverIssueIndicator from './DriverIssueIndicator'
+import { isDriverReportedIssue } from '../../utils/scheduleHelpers'
 import {
   ROUTE_COLUMN_CLASS,
   ROUTE_HEADER_CLASS,
@@ -102,6 +104,7 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                       if (!pos) return null
                       const isConflict = conflictIds.has(trip._id)
                       const isSelected = selectedId === trip._id
+                      const driverIssue = isDriverReportedIssue(trip)
                       const tripRouteLabel = formatRouteEndpointsLabel(trip.routeId)
                       const busyEnd = getResourceBusyEndTime(
                         trip.departureTime,
@@ -139,8 +142,11 @@ function ScheduleGantt({ rows, selectedId, conflictPairs, onSelectTrip }) {
                               <span className="min-w-0 flex-1 font-mono text-[11px] font-bold leading-tight tabular-nums whitespace-nowrap">
                                 {formatTimeRange(trip.departureTime, trip.arrivalTime)}
                               </span>
-                              <span className="max-w-[3.5rem] shrink-0 truncate text-[10px] opacity-80">
-                                {trip.driverId?.name?.split(' ')[0] || ''}
+                              <span className="flex max-w-[4rem] shrink-0 items-center gap-0.5">
+                                {driverIssue ? <DriverIssueIndicator size={11} /> : null}
+                                <span className="truncate text-[10px] opacity-80">
+                                  {trip.driverId?.name?.split(' ')[0] || ''}
+                                </span>
                               </span>
                             </div>
                             {trip.busId?.regNumber ? (

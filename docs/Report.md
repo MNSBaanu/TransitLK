@@ -114,7 +114,7 @@ See [`METHODOLOGY.md`](./METHODOLOGY.md) for the full updated justification, spr
 
 ## User manual
 
-<!-- Insert user manual (summary); full manual in Appendix -->
+Flow-based user manual with step tables and interface screenshots (23 figures). See [`UseManual.md`](./UseManual.md) and `docs/images/user-manual/`.
 
 ## ER Diagram
 
@@ -264,7 +264,11 @@ Chosen methodology/ Challenges faced/Time & task management/ Learning outcomes/ 
 
 ## User Manual
 
-<!-- Insert full user manual -->
+The complete user manual is maintained in [`UseManual.md`](./UseManual.md).
+
+When exporting the group report to Word/PDF, paste or attach the full contents of `UseManual.md` here, or reference: *TransitLK User Manual — see project repository `docs/UseManual.md`.*
+
+Technical documentation index: [`Technical-Documentation.md`](./Technical-Documentation.md).
 
 ## User Interfaces
 

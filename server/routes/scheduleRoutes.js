@@ -69,11 +69,7 @@ router
   .route('/:id')
   .get(authorize(...API_ACCESS.schedules), getScheduleById)
   .put(
-    authorize(
-      ROLES.ADMINISTRATOR,
-      ROLES.TRANSPORT_SCHEDULER,
-      ROLES.DEPOT_MANAGER
-    ),
+    authorize(ROLES.ADMINISTRATOR, ROLES.TRANSPORT_SCHEDULER),
     updateSchedule
   )
   .delete(

@@ -1146,6 +1146,30 @@ export function canDriverReportIssue(status) {
   return ['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'].includes(status)
 }
 
+/** Driver issue = delayed trip with an explicit driver report on the schedule record. */
+export function isDriverReportedIssue(trip) {
+  if (!trip || trip.status !== 'delayed') return false
+  return Boolean(trip.driverIssueReportedAt || getDriverIssueNotes(trip))
+}
+
+export function getDriverIssueNotes(trip) {
+  const dedicated = displayTripNote(trip?.driverIssueNotes)?.trim()
+  if (dedicated) return dedicated
+  if (!trip?.driverIssueReportedAt) return ''
+  return displayTripNote(trip?.adjustmentNotes)?.trim() || ''
+}
+
+export function getDriverIssueReportedAt(trip) {
+  if (trip?.driverIssueReportedAt) return trip.driverIssueReportedAt
+  if (!isDriverReportedIssue(trip)) return null
+  const history = trip.adjustmentHistory
+  if (Array.isArray(history) && history.length) {
+    const entry = [...history].reverse().find((e) => e.reason === 'obstruction')
+    if (entry?.at) return entry.at
+  }
+  return trip.updatedAt || null
+}
+
 export function canDriverCompleteTrip(status) {
   return ['on-duty', 'on-time', 'delayed'].includes(status)
 }

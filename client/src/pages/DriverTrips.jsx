@@ -83,9 +83,28 @@ function DriverTrips() {
       setError('Please describe the issue before submitting')
       return
     }
-    await handleStatusChange(issueTrip._id, 'delayed', issueNotes.trim())
-    setIssueTrip(null)
-    setIssueNotes('')
+    const tripId = issueTrip._id
+    const notes = issueNotes.trim()
+    setSavingId(tripId)
+    setError('')
+    try {
+      const { data } = await api.patch(`/schedules/${tripId}/trip-status`, {
+        status: 'delayed',
+        notes,
+      })
+      setTrips((prev) => prev.map((t) => (String(t._id) === String(tripId) ? data : t)))
+      invalidatePageData('/my-trips')
+      invalidatePageData('/schedules')
+      setIssueTrip(null)
+      setIssueNotes('')
+      showToast('Issue reported — scheduler and admin notified')
+      await refreshSession()
+      await reload({ keepContent: true, force: true })
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to report issue')
+    } finally {
+      setSavingId(null)
+    }
   }
 
   return (
@@ -184,14 +203,15 @@ function DriverTrips() {
                       onClick={() => handleAcknowledge(trip._id)}
                       className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      {isSaving ? 'Saving…' : 'Acknowledge'}
+                      {isSaving ? 'Saving…' : 'Start'}
                     </button>
                     <button
                       type="button"
                       disabled={!canReport || isSaving}
                       onClick={() => openIssueModal(trip)}
-                      className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
                     >
+                      <Icon name="report_problem" size={14} />
                       Report issue
                     </button>
                     <button
@@ -217,8 +237,13 @@ function DriverTrips() {
                   <th className={`${labelClass} ${cellClass}`}>Arrival time</th>
                   <th className={`${labelClass} ${cellClass}`}>Assigned bus</th>
                   <th className={`${labelClass} ${cellClass}`}>Current status</th>
-                  <th className={`${labelClass} ${cellClass}`}>Acknowledge trip</th>
-                  <th className={`${labelClass} ${cellClass}`}>Report issue</th>
+                  <th className={`${labelClass} ${cellClass}`}>Start trip</th>
+                  <th className={`${labelClass} ${cellClass}`}>
+                    <span className="inline-flex items-center gap-1">
+                      <Icon name="report_problem" size={14} />
+                      Report issue
+                    </span>
+                  </th>
                   <th className={`${labelClass} ${cellClass}`}>Completed</th>
                 </tr>
               </thead>
@@ -260,7 +285,7 @@ function DriverTrips() {
                           onClick={() => handleAcknowledge(trip._id)}
                           className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          {isSaving ? 'Saving…' : 'Acknowledge'}
+                          {isSaving ? 'Saving…' : 'Start'}
                         </button>
                       </td>
                       <td className={cellClass}>
@@ -268,9 +293,10 @@ function DriverTrips() {
                           type="button"
                           disabled={!canReport || isSaving}
                           onClick={() => openIssueModal(trip)}
-                          className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          Report issue
+                          <Icon name="report_problem" size={14} />
+                          Issue
                         </button>
                       </td>
                       <td className={cellClass}>
@@ -336,8 +362,9 @@ function DriverTrips() {
                 type="button"
                 disabled={Boolean(savingId) || !issueNotes.trim()}
                 onClick={handleReportIssue}
-                className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
               >
+                <Icon name="report_problem" size={16} />
                 {savingId ? 'Submitting…' : 'Submit report'}
               </button>
             </div>

@@ -74,8 +74,11 @@ function ScheduleQuickAdjust({
   const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
 
   const eligibleDrivers = useMemo(
-    () => drivers.filter((d) => isDriverAssignable(d, tripDepartureTime, tripLicenseDate)),
-    [drivers, tripDepartureTime, tripLicenseDate]
+    () =>
+      drivers.filter((d) =>
+        isDriverAssignable(d, tripDepartureTime, tripLicenseDate, currentDriverId || null)
+      ),
+    [drivers, tripDepartureTime, tripLicenseDate, currentDriverId]
   )
 
   const eligibleBuses = useMemo(() => {
@@ -297,10 +300,20 @@ function ScheduleQuickAdjust({
                 <option value="">Select driver</option>
                 {drivers.map((d) => {
                   const isSelected = String(d._id) === currentDriverId
-                  const assignable = isDriverAssignable(d, tripDepartureTime, tripLicenseDate)
+                  const assignable = isDriverAssignable(
+                    d,
+                    tripDepartureTime,
+                    tripLicenseDate,
+                    currentDriverId || null
+                  )
                   const hint = assignable
                     ? ''
-                    : driverUnassignableReason(d, tripDepartureTime, tripLicenseDate)
+                    : driverUnassignableReason(
+                        d,
+                        tripDepartureTime,
+                        tripLicenseDate,
+                        currentDriverId || null
+                      )
                   return (
                     <option key={d._id} value={d._id} disabled={!isSelected && !assignable}>
                       {d.name}
