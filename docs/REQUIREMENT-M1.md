@@ -6,84 +6,117 @@
 
 ## 1. System requirements
 
-Detailed descriptions of the system's functions, services, and operational constraints that define what should be implemented.
+Infrastructure, platform, and environmental constraints that TransitLK (SRMSS) needs to operate correctly. The coursework build runs as a **local MERN application** for development and demonstration; the requirements below also describe the **intended production-ready** deployment model.
 
-### 1.1 Application and deployment
+| # | Category |
+|---|----------|
+| 1.1 | Application deployment environment |
+| 1.2 | Server requirements |
+| 1.3 | Database requirements |
+| 1.4 | Operating system requirements |
+| 1.5 | Browser requirements |
+| 1.6 | Network requirements |
+| 1.7 | Client device requirements |
+| 1.8 | Security infrastructure requirements |
+| 1.9 | Map and external service requirements |
+| 1.10 | Performance support requirements |
+| 1.11 | Maintenance and support requirements |
 
-- SRMSS shall be a web-based application accessible through a browser so depot staff do not install a separate desktop program on each computer.
-- The system shall use a centralized server model so routes, schedules, vehicles, drivers, fuel logs, maintenance records, and reports remain synchronized for all authorised users.
-- The system shall be deployable in a secure hosting environment (cloud, on-premise, or hybrid) to support growth across multiple depots.
+### 1.1 Application deployment environment
 
-### 1.2 Application server
+- SRMSS shall be a **web-based application** accessible through modern browsers without installing a separate desktop client on each workstation.
+- The system shall use a **centralised server model** (Express API + MongoDB) so routes, schedules, fleet, fuel logs, maintenance records, and reports stay synchronised for all authorised users.
+- The architecture shall support **centralised deployment** for consistent data management across depot offices.
+- The system shall be **deployable on cloud, on-premise, or hybrid** hosting when moved beyond the local development environment.
+- For coursework delivery, the system shall run on the developer machine (Node.js server, MongoDB, React/Vite client); live cloud hosting is excluded from the current release.
 
-- The server shall support concurrent use by administrators, transport schedulers, fleet managers, depot managers, and drivers.
-- The server shall handle active sessions, dashboard loading, schedule conflict validation, and report generation under expected load.
-- The server shall support backup and recovery of operational data.
+### 1.2 Server requirements
 
-### 1.3 Data storage
+- The application server shall support **concurrent access** by administrators, transport schedulers, fleet managers, depot managers, and drivers.
+- The server shall provide adequate **processing power, memory, and storage** for API requests, JWT sessions, schedule conflict validation, dashboard aggregation, and report generation.
+- The server shall expose a **REST API** (Express on Node.js 18+) consumed by the React frontend.
+- The server shall support **backup and disaster recovery** procedures for operational data in a production environment.
+- Minimum development setup: Node.js 18+, npm, and a running Express instance (default port 5000).
 
-- The system shall maintain a central store for users, administrators, depots, routes, schedules, buses, drivers, fuel logs, and maintenance records.
-- Related records shall remain linked so reports and screens show consistent information.
-- Invalid or incomplete data shall be rejected before acceptance.
-- Frequently used lookups shall remain efficient as data volume grows.
-- Historical schedules and logs shall be retained for long-term reference.
+### 1.3 Database requirements
 
-### 1.4 Client platform
+- The system shall use **MongoDB** as the central data store for users, depots, routes, schedules, buses, drivers, fuel logs, maintenance records, and notifications.
+- The database shall store **operational and historical** records (e.g. past trips, adjustment history, logs) for reporting and audit.
+- The database shall support **document relationships, indexing, and optimised queries** so list screens and reports remain efficient as data volume grows.
+- The database shall support **backup, restoration, and archival** of depot data in a production environment.
+- Invalid or incomplete records shall be **rejected at the API layer** before persistence.
+
+### 1.4 Operating system requirements
 
 **Server**
 
-- A stable server-grade operating system with security updates, suitable for hosting the application and database.
+- A secure, stable **server-grade operating system** (e.g. Windows Server, Linux) with regular security updates, suitable for hosting Node.js and MongoDB.
 
-**Office users (administrator, transport scheduler, fleet manager, depot manager)**
+**Client**
 
-- A modern desktop or laptop with a current web browser, keyboard, and pointer device.
+- Modern **desktop or mobile operating systems** (Windows, macOS, Android, iOS) that support current web browsers.
+- The OS shall provide networking, authentication integration where required, and access to security updates.
+
+### 1.5 Browser requirements
+
+- The application shall be compatible with **Chrome, Edge, Firefox**, and other modern browsers (current stable versions).
+- Browsers shall support **HTML5, CSS3, and JavaScript** for interactive forms, tables, dashboards, and timetables.
+- **HTTPS** shall be used in production to protect sign-in credentials and operational data.
+- The interface shall display correctly on standard office monitors and smaller mobile screens used by drivers.
+
+### 1.6 Network requirements
+
+- Client devices shall have **reliable and secure connectivity** to the application server during depot operating hours.
+- The network shall provide **sufficient bandwidth** for dashboard refresh, report downloads (PDF/CSV), and map-based route viewing.
+- Communication between client and server shall be **encrypted** (HTTPS/TLS) in production.
+- Network latency shall remain **low enough** for responsive trip saving, conflict checking, and approval workflows.
+
+### 1.7 Client device requirements
+
+**Administrative and planning users** (administrator, transport scheduler, fleet manager, depot manager)
+
+- **Desktop or laptop** with a current web browser, keyboard, and pointer device.
+- Adequate memory and storage for browser-based dashboards and reports.
 
 **Drivers**
 
-- A smartphone or tablet with a mobile browser for viewing assigned trips.
+- **Smartphone or tablet** with a mobile browser for viewing assigned trips (My Trips).
+- Adequate input capability for trip status updates and issue reporting.
 
-### 1.5 Browser
+**Optional**
 
-- The application shall run on modern browsers such as Chrome, Edge, or Firefox.
-- The browser shall support interactive web pages for forms, tables, dashboards, and timetables.
-- Production use shall employ HTTPS to protect sign-in and operational data.
-- The interface shall be usable on office monitors and smaller mobile screens.
+- Printer for hard-copy timetables or reports where required.
+- UPS recommended for local office equipment in on-premise deployments.
 
-### 1.6 Network
+### 1.8 Security infrastructure requirements
 
-- Reliable connectivity between client devices and the hosted system during depot operating hours.
-- Sufficient bandwidth for dashboard refresh, report downloads, and map-based route viewing.
-- Encrypted communication for access from multiple office or remote locations.
-- Low enough latency for responsive saving of trips and conflict checking.
+- **SSL/TLS encryption** shall protect all production traffic between browsers and the API.
+- **Authentication** (email/password, JWT session) shall be required for every user; deactivated accounts shall be denied access.
+- **Role-based access control (RBAC)** shall restrict UI modules and API endpoints by role (superadministrator, administrator, transport scheduler, fleet manager, depot manager, driver).
+- Passwords shall be stored using **secure hashing** (bcrypt).
+- **Audit traceability** shall be supported through schedule adjustment history and operational logs.
+- Server and dependency **security updates** shall be applied regularly in production.
 
-### 1.7 Security
+### 1.9 Map and external service requirements
 
-- SSL/TLS encryption for all production traffic.
-- Sign-in required for every user; deactivated depot staff cannot access the system.
-- Role-based access so each role reaches only permitted modules.
-- Traceability of schedule changes through recorded adjustment history.
-- Regular patching of server and application components.
+- The system shall support integration with **map services and external APIs** (e.g. Google Maps for route planning, stop selection, and distance).
+- Map integration shall be **optional**; manual coordinate and stop entry shall remain available when the map service or API key is unavailable.
+- **Core scheduling, fleet, and record-keeping** shall continue to function without external map services.
+- External links (e.g. fuel price references) shall open in a separate context and shall not block core depot workflows if unreachable.
 
-### 1.8 External map service
+### 1.10 Performance support requirements
 
-- Optional online map service (e.g. Google Maps) for visual route planning and stop selection when internet access is available.
-- Core scheduling and record-keeping shall remain available if maps are unavailable.
+- The system shall handle **simultaneous users** and day-to-day depot activities (planning, approvals, fleet updates, reporting) without unacceptable delay.
+- The architecture shall support **future growth** in users, routes, vehicles, depots, and historical records through modular MERN APIs and MongoDB indexing.
+- The system shall use **validation and conflict-detection** at the server to prevent overlapping bus or driver assignments.
+- List views, dashboards, and exports shall use **efficient queries and client-side filtering** where appropriate to maintain responsiveness.
 
-### 1.9 Maintenance and support
+### 1.11 Maintenance and support requirements
 
-- Application and database updates with limited downtime.
-- Backup, patching, and rollback capability after failed releases.
-- Monitoring of service health, storage, and errors by technical administrators.
-- Architecture that allows future extensions (e.g. live tracking, notifications) without replacing the whole platform.
-
-### 1.10 Hardware
-
-- Server or database hosting with adequate storage and separate backup capability.
-- Office computers for administrative and planning staff.
-- Mobile device for drivers viewing duties.
-- Stable internet or organisational network connection.
-- Power backup (UPS) recommended for local office equipment.
-- Printer optional for timetables and reports where hard copies are required.
+- The system shall support **application updates, database backups, recovery, and rollback** procedures in production.
+- Administrators shall be able to **monitor** service health, storage use, and errors through server and database tooling.
+- The **modular three-tier design** (React client, Express API, MongoDB) shall allow future enhancements—additional modules, depots, notifications, or live tracking—with minimal restructuring of the core platform.
+- Development and testing shall be supported through **version control (GitHub)**, local environment configuration (`.env`), and API verification (e.g. Postman).
 
 ---
 
