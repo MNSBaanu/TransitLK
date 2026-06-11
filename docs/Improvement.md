@@ -1,13 +1,10 @@
 # TransitLK — Future Improvements
+Although TransitLK successfully addresses the core requirements of transport depot management, several enhancements can be introduced to improve its practicality and readiness for real-world deployment.
 
-TransitLK should be extended with a real-time notification system that automatically alerts depot managers, schedulers, fleet managers, and drivers when trips are submitted, approved, rejected, delayed, or when maintenance is due. Notifications should be delivered through an in-app notification centre with unread counts, and supported by email and SMS so staff do not need to refresh pages to discover urgent events.
+Firstly, the system should be deployed on a cloud-based environment using services such as MongoDB Atlas and a hosted API. This would enable multiple depot users to securely access the system from different locations through HTTPS and environment-based configurations.
 
-An in-app messaging module should be added to allow direct communication between users on trip-specific threads and depot-wide broadcasts. This would help schedulers, managers, and drivers coordinate reroutes, delays, and vehicle changes inside TransitLK instead of using separate chat applications.
+Secondly, real-time vehicle tracking can be integrated to enhance operational visibility. By allowing drivers to share their GPS location when a trip begins, depot managers could monitor active buses through the dashboard and respond more effectively to delays or route disruptions.
 
-Driver live location sharing should be introduced so active buses appear on a live operations map during in-progress trips. This would support geofence alerts, estimated arrival times, route deviation warnings, and historical trip playback for performance review.
+Communication within the system can also be improved through the introduction of an in-app messaging feature linked to individual schedules. This would allow schedulers, managers, and other authorised personnel to exchange instructions and updates while maintaining a record of operational communications.
 
-The system should be deployed to a cloud environment with HTTPS, managed MongoDB hosting, and multi-depot data isolation so it can be accessed outside a local developer machine. A mobile-optimised driver application or progressive web app should also be developed with offline support for trip updates in areas with weak connectivity.
-
-An intelligent scheduling assistant should be added to suggest available buses and drivers, generate bulk timetables from templates, and recommend conflict resolutions. Analytics should be expanded with predictive maintenance, on-time performance tracking using live GPS data, and scheduled report delivery to administrators.
-
-A passenger-facing module could provide public route lookup and live bus tracking at stops. Security should be strengthened with two-factor authentication, refresh tokens, full audit logging, and data retention policies to support production use with real operational data.
+Additionally, email or SMS notifications could be implemented to complement the existing in-app notifications for important events such as pending approvals, maintenance reminders, or urgent schedule changes.
