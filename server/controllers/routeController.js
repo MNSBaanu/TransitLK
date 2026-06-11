@@ -36,8 +36,9 @@ const populateRoute = (query) =>
     .populate(depotPopulate)
     .populate('createdBy', 'name email role')
 
+/** Oldest records first so recently added routes appear at the end of the list. */
 const sortRoutes = (query) =>
-  query.sort({ routeNo: 1, createdAt: 1 }).collation({ locale: 'en', numericOrdering: true })
+  query.sort({ createdAt: 1, routeNo: 1 }).collation({ locale: 'en', numericOrdering: true })
 
 async function attachScheduleCounts(routes) {
   const list = Array.isArray(routes) ? routes : []
