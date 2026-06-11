@@ -3,14 +3,18 @@ import Bus from '../models/Bus.js'
 import Schedule from '../models/Schedule.js'
 import Driver from '../models/Driver.js'
 import { detectPeriodConflicts } from '../utils/scheduleHelpers.js'
+import {
+  notificationOwnedBy,
+  notificationRecipientFilter,
+  resolveActorId,
+} from '../utils/notificationRecipients.js'
 
 // @desc    Get all notifications for a user
 // @route   GET /api/notifications
 // @access  Protected
 export const getNotifications = async (req, res) => {
   try {
-    const userId = req.user._id
-    const notifications = await Notification.find({ userId })
+    const notifications = await Notification.find(notificationRecipientFilter(req.user))
       .sort({ createdAt: -1 })
       .limit(50)
     res.json(notifications)
@@ -24,7 +28,7 @@ export const getNotifications = async (req, res) => {
 // @access  Protected
 export const generateNotifications = async (req, res) => {
   try {
-    const userId = req.user._id
+    const userId = resolveActorId(req.user)
     const today = new Date()
     const oneWeekFromNow = new Date(today)
     oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
@@ -164,6 +168,9 @@ export const markAsRead = async (req, res) => {
     if (!notification) {
       return res.status(404).json({ message: 'Notification not found' })
     }
+    if (!notificationOwnedBy(notification, req.user)) {
+      return res.status(403).json({ message: 'Not allowed to update this notification' })
+    }
     notification.read = true
     await notification.save()
     res.json(notification)
@@ -177,8 +184,10 @@ export const markAsRead = async (req, res) => {
 // @access  Protected
 export const markAllAsRead = async (req, res) => {
   try {
-    const userId = req.user._id
-    await Notification.updateMany({ userId, read: false }, { read: true })
+    await Notification.updateMany(
+      { ...notificationRecipientFilter(req.user), read: false },
+      { read: true }
+    )
     res.json({ message: 'All notifications marked as read' })
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -193,6 +202,9 @@ export const deleteNotification = async (req, res) => {
     const notification = await Notification.findById(req.params.id)
     if (!notification) {
       return res.status(404).json({ message: 'Notification not found' })
+    }
+    if (!notificationOwnedBy(notification, req.user)) {
+      return res.status(403).json({ message: 'Not allowed to delete this notification' })
     }
     await notification.deleteOne()
     res.json({ message: 'Notification deleted' })
