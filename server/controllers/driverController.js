@@ -1,5 +1,8 @@
 import Driver from '../models/Driver.js'
-import { attachFleetAssignmentContext } from '../utils/fleetAssignmentHelpers.js'
+import {
+  assertFleetResourceNotLinkedToSchedules,
+  attachFleetAssignmentContext,
+} from '../utils/fleetAssignmentHelpers.js'
 import { sanitizeWorkingHoursInput } from '../utils/timeFormat.js'
 
 // @desc    Create a new driver
@@ -109,9 +112,11 @@ export const deleteDriver = async (req, res) => {
       return res.status(404).json({ message: 'Driver not found' })
     }
 
+    await assertFleetResourceNotLinkedToSchedules('driverId', driver._id, 'driver')
+
     await driver.deleteOne()
     res.json({ message: 'Driver removed successfully' })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(error.statusCode || 500).json({ message: error.message })
   }
 }

@@ -204,6 +204,12 @@ export function isBusAssignable(bus, routeServiceType, minCapacity = 0) {
   return true
 }
 
+export function getFleetDeleteDisabledReason(item, resourceLabel) {
+  const count = Number(item?.scheduleCount) || 0
+  if (count <= 0) return null
+  return `Cannot delete — ${count} schedule${count !== 1 ? 's' : ''} linked to this ${resourceLabel}. Remove those trips first.`
+}
+
 export function busUnassignableReason(bus, routeServiceType, minCapacity = 0) {
   if (!bus) return 'Not found'
   if (bus.status === 'maintenance') return 'Vehicle is under maintenance'
