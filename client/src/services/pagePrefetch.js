@@ -397,7 +397,6 @@ async function fetchDriverTripsPageData() {
     trips: sortDriverTrips(trips),
     fromDate,
     toDate,
-    approvalAlerts,
   }
 }
 
