@@ -55,7 +55,7 @@ A stable internet connection is required. Map-based route planning needs interne
 2. Enter your **email** and **password**.
 3. Click **Sign in**.
 
-You are taken to the home screen for your role. If sign-in fails, check your details or contact your administrator. Deactivated staff accounts cannot access the system.
+You are taken to the home screen for your role. If sign-in fails, check your details or contact your administrator. Deactivated staff accounts cannot access the system. Drivers cannot sign in until the fleet manager has set their portal email and password.
 
 ### 2.3 Signing out
 
@@ -69,7 +69,13 @@ Use the account menu at the top of the screen to sign out when you finish your s
 
 The side menu lists the modules available to your role. Pages you are not permitted to use are hidden or blocked.
 
-### 3.2 Access by role
+### 3.2 Top bar
+
+- **Search** — On **Routes** and **Schedules**, open the search icon to filter routes or trips by name, bus, driver, or time.
+- **Notifications** — The bell icon shows depot alerts (maintenance due, licence expiry, conflicts, delayed trips, driver-reported issues). Click an alert to open the related screen.
+- **Account** — Sign out from the profile menu.
+
+### 3.3 Access by role
 
 | Menu | Super-administrator | Administrator | Transport scheduler | Fleet manager | Depot manager | Driver |
 |------|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -84,7 +90,7 @@ The side menu lists the modules available to your role. Pages you are not permit
 | Analytics | ✓ | ✓ | ✓ | | ✓ | |
 | My trips | | | | | | ✓ |
 
-### 3.3 Home screen after sign-in
+### 3.4 Home screen after sign-in
 
 | Role | Home screen |
 |------|-------------|
@@ -117,8 +123,9 @@ The dashboard is the depot operations overview. Key figures and the trip list re
 | Status | Description |
 |--------|-------------|
 | Scheduled | Approved and awaiting departure |
+| On duty | Driver has started the trip |
 | On-time | Running to plan |
-| Delayed | Behind schedule |
+| Delayed | Behind schedule or driver-reported issue |
 | Completed | Trip finished |
 | Cancelled | Trip will not run |
 
@@ -162,52 +169,66 @@ Only **active** routes can be used when creating new trips.
 
 **Users:** Administrator, Transport scheduler, Depot manager
 
-Plan trips, build timetables, manage approval, and adjust operations.
+Plan trips, build timetables, manage approval, and adjust operations. What you can do depends on your role:
+
+| Action | Administrator | Transport scheduler | Depot manager |
+|--------|:---:|:---:|:---:|
+| Create timetable | ✓ | ✓ | |
+| Adjust live trips | ✓ | ✓ | |
+| Issues (driver reports) | ✓ | ✓ | ✓ |
+| Approve / reject | ✓ | | ✓ |
+| Rejected approvals view | ✓ | ✓ | |
 
 **Views**
 
-- **Daily** — timeline for one date
+- **Daily** — Gantt timeline for one date
 - **Weekly** — trips across the week
 - **Monthly** — calendar overview; select a day for the daily view
 
-Use the date controls to change the period shown.
+Use the date controls and filters (route, driver, search) to change what is shown. The page refreshes key counts automatically during the day.
 
-**Add a single trip**
+**Create a timetable**
 
-1. Open **Schedules** and select the date.
-2. Select **Add schedule**.
-3. Choose route, date, departure and arrival times, bus, and driver.
-4. Optionally select **Repeat for full week** to copy the same trip across the week.
-5. Resolve any conflict messages before saving. New trips are saved as **draft**.
-
-**Create a timetable (bulk)**
-
-1. Select **Create timetable**.
+1. Select **Create Timetable**.
 2. Choose **daily**, **weekly**, or **monthly** period.
-3. Set times, bus, and driver for each route included.
-4. Review conflict feedback and correct overlaps.
-5. Save. Trips are created as **drafts**.
+3. Use the search box inside the drawer to filter routes.
+4. Set times, bus, and driver for each included route.
+5. Review conflict feedback and correct overlaps.
+6. Save. Trips are created as **drafts**.
 
-**Submit for approval** *(Transport scheduler)*
+**Submit for approval** *(Administrator, Transport scheduler)*
 
-1. Open a draft trip or timetable.
+1. Open a draft trip from the timetable or trip details.
 2. Select **Submit for approval**. Status becomes **pending**.
 
-**Approve or reject** *(Depot manager, Administrator)*
+**Approvals** *(Depot manager, Administrator)*
 
-1. Open **Schedules** when pending items are shown.
-2. Confirm the plan is conflict-free.
-3. **Approve** to release for operations, or **Reject** with a reason for the scheduler.
+1. Open **Pending approvals** or **Approvals** from the Schedules header (or go to the Approvals page).
+2. Review pending trips in the list or open trip details.
+3. **Approve** to release for drivers, or **Reject** with a mandatory reason.
 
-**Adjust a trip**
+**Rejected approvals** *(Transport scheduler, Administrator)*
 
-1. Select a trip on the timetable.
+1. Open **Rejected approvals** from the Schedules header.
+2. Review rejection reasons and revise drafts before resubmitting.
+
+**Driver issues** *(Administrator, Transport scheduler, Depot manager)*
+
+1. Select **Issues** on the Schedules page.
+2. Review open driver-reported problems (route, driver, message, time reported).
+3. Select an issue to jump to that trip on the timetable and open trip details.
+
+When a driver reports an issue, the transport scheduler and administrator receive a notification in the top bar.
+
+**Adjust a trip** *(Administrator, Transport scheduler)*
+
+1. Select **Adjust**, then click a trip on the timetable (or open trip details and choose **Adjust this trip**).
 2. Change times, bus, driver, or status as needed.
 3. Choose an adjustment reason: normal, emergency, maintenance, absence, or obstruction.
 4. Add **notes** when required (emergency, maintenance, absence, obstruction).
 5. Save. All changes are stored in adjustment history.
 
-**Remove drafts**
+**Remove drafts** *(Administrator, Transport scheduler)*
 
 Delete draft entries that are no longer needed before approval.
 
@@ -217,24 +238,31 @@ Delete draft entries that are no longer needed before approval.
 
 **Users:** Administrator, Fleet manager
 
-Manage buses and drivers in one workspace (**Buses** and **Drivers** tabs).
+Manage buses and drivers in one workspace (**Fleet** and **Drivers** tabs).
+
+**Summary cards (Fleet tab)**
+
+- Total fleet, in service, in maintenance, and service due soon.
 
 **Buses**
 
 1. Add a bus: registration, capacity, mileage, service type, depot, status.
 2. Edit or delete records when permitted.
-3. Update status manually:
-   - **Available** — ready for use
-   - **In-service** — on the road
+3. Status values:
+   - **Available** — ready for assignment
+   - **In-service** — on an active trip (also set automatically when scheduled)
    - **Maintenance** — off the road
+4. Select **View** under **Maintenance History** to see workshop records for that bus without leaving Fleet.
+5. Newly added buses appear at the end of the list.
 
 **Drivers**
 
-1. Add a driver: name, licence number, contact, working hours, optional licence expiry.
+1. Add a driver: name, licence number, contact, working hours, optional licence expiry, email, and password for My Trips login.
 2. View, edit, or delete records when permitted.
-3. Status (available, on-leave, off-duty) affects trip assignment.
+3. Status (available, on-duty, on-leave, off-duty) affects trip assignment. **On-duty** is applied when the driver has an active trip that day.
+4. Newly added drivers appear at the end of the list.
 
-Drivers with login credentials use **My trips** to view their duties.
+Drivers sign in with the email and password set on their record to use **My trips**.
 
 ---
 
@@ -263,6 +291,8 @@ Record fuel and workshop activity per vehicle.
 - Edit or delete entries when corrections are needed.
 
 Summary cards show fuel volume, spend, job count, and maintenance cost.
+
+A link to official **CEYPETCO** fuel pricing is shown on the Fuel tab and in the fuel log form for reference when recording costs.
 
 ---
 
@@ -334,13 +364,21 @@ Maintain the depot register.
 
 **Users:** Driver
 
-View assigned trips only.
+View and update your own assigned trips only.
 
-1. Sign in with your driver account.
+1. Sign in with the email and password set by the fleet manager.
 2. Open **My trips**.
-3. Review route, date, times, bus, and status for each duty.
+3. For each duty, review route, date, times, bus, and status.
 
-This screen is optimised for mobile use. Drivers cannot change or approve schedules here.
+**Actions on a trip**
+
+| Button | When available | Result |
+|--------|----------------|--------|
+| **Start** | Before or during service | Trip set to **on duty** |
+| **Report issue** | During eligible live status | Opens a form; describe the problem and submit. Scheduler and admin are notified. |
+| **Completed** | After service has started | Trip marked **completed** |
+
+Only **approved** and live trips appear here (not draft or pending). The layout works on mobile browsers. Drivers cannot create, approve, or delete timetables.
 
 ---
 
@@ -353,15 +391,23 @@ This screen is optimised for mobile use. Drivers cannot change or approve schedu
 | 1 | Fleet manager | Register bus and driver; set bus to available |
 | 2 | Transport scheduler | Create active route; assign fleet |
 | 3 | Transport scheduler | Build timetable; resolve conflicts; submit for approval |
-| 4 | Depot manager | Approve timetable |
-| 5 | Driver | View duties on My trips |
+| 4 | Depot manager | Approve timetable via **Pending approvals** |
+| 5 | Driver | View duties on **My trips**; start trip when ready |
+
+### Driver reports an issue
+
+| Step | Role | Action |
+|------|------|--------|
+| 1 | Driver | On **My trips**, select **Report issue**, enter description, submit |
+| 2 | Scheduler / Administrator | Check notification bell or **Issues** on Schedules |
+| 3 | Scheduler / Administrator | Open the trip and **Adjust** if bus, driver, or times must change |
 
 ### Bus breakdown during operations
 
 | Step | Role | Action |
 |------|------|--------|
 | 1 | Fleet manager | Set bus to maintenance; log maintenance if needed |
-| 2 | Scheduler or depot manager | Adjust affected trip; change bus or driver; add reason and notes |
+| 2 | Scheduler or administrator | **Adjust** affected trip; change bus or driver; add reason and notes |
 
 ### Weekly performance review
 
@@ -382,7 +428,9 @@ This screen is optimised for mobile use. Drivers cannot change or approve schedu
 | Licence expiry | Expiry date is recorded; contact fleet staff if a licence needs updating |
 | Maps | Enter locations manually if map search is unavailable |
 | Passwords | Contact your administrator to reset a forgotten password |
-| Trip status | Bus status is updated on the Fleet screen, not automatically when a trip is assigned |
+| Bus / driver status | **In-service** and **on-duty** are updated automatically when trips are active; fleet manager can still set maintenance or leave manually |
+| Driver login | Fleet manager must set email and password on the driver record before the driver can sign in |
+| Depot manager | Can approve/reject and view issues only — cannot create timetables or adjust live trips |
 
 ---
 
@@ -394,6 +442,8 @@ This screen is optimised for mobile use. Drivers cannot change or approve schedu
 | Missing menu item | Your role may not have access; contact your administrator |
 | Cannot delete route | Trips are still linked; update or remove those schedules first |
 | Cannot save schedule | Read conflict messages; check bus status, driver availability, and times |
+| Driver cannot sign in | Fleet manager must set portal email and password on the driver record |
+| Issue not in Issues list | Only driver-reported issues appear; trip must be in **delayed** status with a report on file |
 | Empty dashboard | Add routes, fleet, and schedules first |
 | Export fails | Confirm the date range contains data; try again or contact support |
 | Page will not load | Check your internet connection; contact your administrator if the problem continues |
@@ -412,6 +462,8 @@ This screen is optimised for mobile use. Drivers cannot change or approve schedu
 | Depot | Transport station operating routes and fleet |
 | Service type | Express, ordinary, or semi-luxury classification |
 | Adjustment history | Log of changes to a trip, including reason and notes |
+| On duty | Driver has started the assigned trip |
+| Driver issue | Problem reported by a driver from My trips; visible under **Issues** on Schedules |
 
 ---
 
