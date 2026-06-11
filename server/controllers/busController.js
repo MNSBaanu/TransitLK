@@ -1,6 +1,7 @@
 import Bus from '../models/Bus.js'
 import Maintenance from '../models/Maintenance.js'
 import {
+  assertFleetResourceNotLinkedToSchedules,
   attachFleetAssignmentContext,
   cancelActiveSchedulesForBus,
 } from '../utils/fleetAssignmentHelpers.js'
@@ -157,9 +158,11 @@ export const deleteBus = async (req, res) => {
       return res.status(404).json({ message: 'Bus not found' })
     }
 
+    await assertFleetResourceNotLinkedToSchedules('busId', bus._id, 'bus')
+
     await bus.deleteOne()
     res.json({ message: 'Bus removed successfully' })
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(error.statusCode || 500).json({ message: error.message })
   }
 }

@@ -16,6 +16,7 @@ import {
   formatServiceType,
   formatWorkingHours,
   formatWorkingHoursDisplay,
+  getFleetDeleteDisabledReason,
   parseWorkingHours,
 } from '../utils/fleetHelpers'
 import {
@@ -558,6 +559,10 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(null)
   const [viewMaintenanceBus, setViewMaintenanceBus] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteBlockedMessage, setDeleteBlockedMessage] = useState(null)
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
 
@@ -571,11 +576,30 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this vehicle?')) return
-    await api.delete(`/buses/${id}`)
-    invalidatePageData('/buses')
-    onRefresh({ keepContent: true, force: true })
+  const handleDeleteRequest = (bus) => {
+    const blocked = getFleetDeleteDisabledReason(bus, 'bus')
+    if (blocked) {
+      setDeleteBlockedMessage(blocked)
+      return
+    }
+    setDeleteError('')
+    setDeleteTarget(bus)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await api.delete(`/buses/${deleteTarget._id}`)
+      setDeleteTarget(null)
+      invalidatePageData('/buses')
+      onRefresh({ keepContent: true, force: true })
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Could not delete bus')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const inServiceBuses = buses.filter((b) => b.status === 'in-service')
@@ -659,7 +683,9 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
               <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
               <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
-            ) : paginated.map((bus, index) => (
+            ) : paginated.map((bus, index) => {
+              const deleteDisabledReason = getFleetDeleteDisabledReason(bus, 'bus')
+              return (
               <tr key={bus._id} className="align-top hover:bg-surface-container-low transition-colors">
                 <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
@@ -689,14 +715,24 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="Edit">
                       <Icon name="edit" size={16} />
                     </button>
-                    <button onClick={() => handleDelete(bus._id)}
-                      className="rounded-lg p-1.5 text-red-400 hover:bg-red-50" title="Delete">
+                    <button
+                      type="button"
+                      onClick={() => !deleteDisabledReason && handleDeleteRequest(bus)}
+                      disabled={Boolean(deleteDisabledReason)}
+                      title={deleteDisabledReason || 'Delete bus'}
+                      aria-label={deleteDisabledReason ? 'Delete bus (disabled)' : 'Delete bus'}
+                      className={`rounded-lg p-1.5 ${
+                        deleteDisabledReason
+                          ? 'cursor-not-allowed text-red-300 opacity-50'
+                          : 'text-red-400 hover:bg-red-50'
+                      }`}
+                    >
                       <Icon name="delete" size={16} />
                     </button>
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
@@ -743,6 +779,38 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteBlockedMessage)}
+        title="Cannot delete bus"
+        message={deleteBlockedMessage || ''}
+        cancelLabel="Close"
+        variant="danger"
+        alertOnly
+        onCancel={() => setDeleteBlockedMessage(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete this bus?"
+        message={
+          deleteError
+            ? deleteError
+            : deleteTarget
+              ? `${deleteTarget.regNumber} will be permanently removed. This cannot be undone.`
+              : 'This bus will be permanently removed. This cannot be undone.'
+        }
+        confirmLabel="Delete bus"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => {
+          if (deleting) return
+          setDeleteTarget(null)
+          setDeleteError('')
+        }}
+      />
 
       <div id="fleet-add-trigger" className="hidden" />
     </>
@@ -993,8 +1061,19 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [deleteBlockedMessage, setDeleteBlockedMessage] = useState(null)
 
   useEffect(() => { if (addTrigger) setModal('add') }, [addTrigger])
+
+  const handleDeleteRequest = (driver) => {
+    const blocked = getFleetDeleteDisabledReason(driver, 'driver')
+    if (blocked) {
+      setDeleteBlockedMessage(blocked)
+      return
+    }
+    setDeleteError('')
+    setDeleteTarget(driver)
+  }
 
   const filtered = sortOldestFirst(
     drivers.filter((d) => {
@@ -1137,7 +1216,9 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
               <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
               <tr><td colSpan={11} className="py-10 text-center text-on-surface-variant">No drivers found</td></tr>
-            ) : paginated.map((d, index) => (
+            ) : paginated.map((d, index) => {
+              const deleteDisabledReason = getFleetDeleteDisabledReason(d, 'driver')
+              return (
               <tr key={d._id} className="align-top hover:bg-surface-container-low transition-colors">
                 <td className="whitespace-nowrap px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-blue-700">{driverId(d)}</td>
@@ -1170,14 +1251,24 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="Edit">
                       <Icon name="edit" size={16} />
                     </button>
-                    <button onClick={() => { setDeleteError(''); setDeleteTarget(d) }}
-                      className="rounded-lg p-1.5 text-red-400 hover:bg-red-50" title="Delete">
+                    <button
+                      type="button"
+                      onClick={() => !deleteDisabledReason && handleDeleteRequest(d)}
+                      disabled={Boolean(deleteDisabledReason)}
+                      title={deleteDisabledReason || 'Delete driver'}
+                      aria-label={deleteDisabledReason ? 'Delete driver (disabled)' : 'Delete driver'}
+                      className={`rounded-lg p-1.5 ${
+                        deleteDisabledReason
+                          ? 'cursor-not-allowed text-red-300 opacity-50'
+                          : 'text-red-400 hover:bg-red-50'
+                      }`}
+                    >
                       <Icon name="delete" size={16} />
                     </button>
                   </div>
                 </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
@@ -1261,6 +1352,16 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteBlockedMessage)}
+        title="Cannot delete driver"
+        message={deleteBlockedMessage || ''}
+        cancelLabel="Close"
+        variant="danger"
+        alertOnly
+        onCancel={() => setDeleteBlockedMessage(null)}
+      />
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
