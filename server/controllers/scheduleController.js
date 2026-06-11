@@ -37,6 +37,7 @@ import {
   requireUserDepot,
 } from '../utils/depotAccess.js'
 import { notifyDriverIssueReport } from '../utils/notifyDriverIssue.js'
+import { notifyDriverTripApproved } from '../utils/notifyTripApproved.js'
 
 const routePopulate = {
   path: 'routeId',
@@ -821,6 +822,11 @@ export const approveSchedule = async (req, res) => {
     await schedule.save()
     await syncBusServiceType(schedule.busId, route?.serviceType)
     await syncBusStatusForBusId(schedule.busId)
+    try {
+      await notifyDriverTripApproved({ schedule })
+    } catch (notifyError) {
+      console.error('Failed to notify driver of trip approval:', notifyError)
+    }
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {

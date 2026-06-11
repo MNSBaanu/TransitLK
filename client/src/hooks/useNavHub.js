@@ -30,7 +30,7 @@ function mapPriorityToType(priority) {
   }
 }
 
-export function useNavHub() {
+export function useNavHub({ skipNotifications = false } = {}) {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [messages, setMessages] = useState([])
@@ -46,6 +46,12 @@ export function useNavHub() {
   }, [])
 
   useEffect(() => {
+    if (skipNotifications) {
+      setNotifications([])
+      setLoadingAlerts(false)
+      return undefined
+    }
+
     let cancelled = false
 
     async function loadAlerts() {
@@ -93,7 +99,7 @@ export function useNavHub() {
       cancelled = true
       clearInterval(interval)
     }
-  }, [])
+  }, [skipNotifications])
 
   const notificationsWithRead = useMemo(
     () =>
