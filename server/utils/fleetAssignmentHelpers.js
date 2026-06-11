@@ -192,6 +192,35 @@ function indexSchedulesByField(schedules, field) {
   return grouped
 }
 
+async function loadScheduleCountsByResource(resourceIds, resourceField) {
+  if (!resourceIds.length) return new Map()
+
+  const counts = await Schedule.aggregate([
+    { $match: { [resourceField]: { $in: resourceIds } } },
+    { $group: { _id: `$${resourceField}`, count: { $sum: 1 } } },
+  ])
+
+  return new Map(counts.map((entry) => [String(entry._id), entry.count]))
+}
+
+/** Block fleet resource deletion when any schedule still references it */
+export async function assertFleetResourceNotLinkedToSchedules(
+  resourceField,
+  resourceId,
+  resourceLabel
+) {
+  if (!resourceId) return
+
+  const linkedSchedules = await Schedule.countDocuments({ [resourceField]: resourceId })
+  if (linkedSchedules > 0) {
+    const error = new Error(
+      `Cannot delete ${resourceLabel} because ${linkedSchedules} schedule(s) are linked to it. Remove those schedules first.`
+    )
+    error.statusCode = 409
+    throw error
+  }
+}
+
 /** Load today's schedule assignments from MongoDB for fleet list rows */
 async function loadFleetContextFromDb(resourceIds, resourceField, today = new Date()) {
   if (!resourceIds.length) {
@@ -232,11 +261,10 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
 
   const resourceIds = items.map((item) => item._id)
   const today = new Date()
-  const { schedulesByResourceId } = await loadFleetContextFromDb(
-    resourceIds,
-    resourceField,
-    today
-  )
+  const [scheduleCountsByResourceId, { schedulesByResourceId }] = await Promise.all([
+    loadScheduleCountsByResource(resourceIds, resourceField),
+    loadFleetContextFromDb(resourceIds, resourceField, today),
+  ])
 
   if (resourceField === 'busId') {
     await syncBusStatusesFromTodaySchedules(resourceIds, schedulesByResourceId)
@@ -253,6 +281,7 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
     doc.currentSchedule = currentPick
       ? serializeCurrentSchedule(currentPick.schedule, currentPick.phase)
       : null
+    doc.scheduleCount = scheduleCountsByResourceId.get(key) || 0
 
     if (resourceField === 'busId') {
       doc.status = deriveBusStatusFromTrips(doc.status, todayTrips)
