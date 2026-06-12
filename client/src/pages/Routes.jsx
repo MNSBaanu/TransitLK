@@ -31,6 +31,7 @@ import {
   ModuleStats,
   ModuleToast,
 } from '../components/layout/ModuleLayout'
+import CsvImportButtons from '../components/import/CsvImportButtons'
 const emptyForm = {
   routeNo: '',
   routeName: '',
@@ -542,9 +543,18 @@ function RoutesPage() {
             title="Route Management"
             subtitle="Plan routes, assign fleet from the list, and manage operational status."
             action={
-              <ModulePrimaryButton icon="add" onClick={() => openEditor(null)}>
-                Add route
-              </ModulePrimaryButton>
+              <div className="flex flex-wrap items-center gap-2">
+                <CsvImportButtons
+                  type="routes"
+                  onSuccess={() => {
+                    invalidatePageData('/routes')
+                    loadRoutes({ keepContent: true, force: true })
+                  }}
+                />
+                <ModulePrimaryButton icon="add" onClick={() => openEditor(null)}>
+                  Add route
+                </ModulePrimaryButton>
+              </div>
             }
           />
           <ModuleStats

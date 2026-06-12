@@ -13,6 +13,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import FieldError from '../components/FieldError'
 import ThemeTimeInput from '../components/ThemeTimeInput'
 import { ModuleHeader, ModulePrimaryButton, ModuleStats } from '../components/layout/ModuleLayout'
+import CsvImportButtons from '../components/import/CsvImportButtons'
 import {
   depotIdValue,
   formatServiceType,
@@ -1490,6 +1491,13 @@ function Buses() {
         subtitle="Manage your district vehicles and active driver roster."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <CsvImportButtons
+              type={tab === 'drivers' ? 'drivers' : 'vehicles'}
+              onSuccess={() => {
+                invalidatePageData('/buses')
+                reload({ keepContent: true, force: true })
+              }}
+            />
             {tab === 'drivers' ? (
               <ModulePrimaryButton icon="person_add" onClick={() => setShowAddDriver(true)}>
                 Add New Driver
