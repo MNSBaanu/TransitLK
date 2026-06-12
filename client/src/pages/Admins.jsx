@@ -190,9 +190,6 @@ function AdminModal({ admin, depots, onClose, onSave }) {
             </select>
             <FieldError message={fieldErrors.depotId} />
           </label>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
-            Access: {accessModulesForRole(form.role).join(' · ')}
-          </div>
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
