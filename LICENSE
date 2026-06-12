@@ -1,0 +1,30 @@
+Copyright (c) 2026 Baanu and Irfa. All rights reserved.
+
+TransitLK — Smart Route Management and Scheduling System (SRMSS)
+Academic coursework project (CS6003 – Advanced Software Engineering)
+
+This repository is published for academic assessment and portfolio reference only.
+The authors retain full ownership of all source code, documentation, and related
+materials.
+
+You may NOT, without prior written permission from the copyright holders:
+
+- Use this software for commercial purposes
+- Copy, redistribute, or republish any part of this project
+- Modify this software and distribute the modified version
+- Sublicense or sell access to this software
+- Remove or alter copyright or authorship notices
+
+Limited permission is granted to:
+
+- View the source code in this public repository
+- Clone the repository for local evaluation, coursework marking, or academic review
+- Run the application locally for the purposes above
+
+Any other use requires explicit written consent from Baanu and Irfa.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+OTHER LIABILITY ARISING FROM USE OF THIS SOFTWARE.
+
+For permission requests, contact the repository owners via GitHub.
