@@ -7,6 +7,8 @@ import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
+import { useAuth } from '../context/AuthContext'
+import { ROLES } from '../config/roles'
 import ConfirmDialog from '../components/ConfirmDialog'
 import FieldError from '../components/FieldError'
 import ThemeTimeInput from '../components/ThemeTimeInput'
@@ -32,14 +34,14 @@ import {
   maintenanceStatusClass,
 } from '../utils/maintenanceHelpers'
 
-function busFormState(bus) {
+function busFormState(bus, currentUser) {
   if (!bus) {
     return {
       regNumber: '',
       capacity: '',
       mileage: '',
       status: 'available',
-      depotId: '',
+      depotId: currentUser?.depotId?._id || currentUser?.depotId || '',
       serviceType: 'ordinary',
     }
   }
@@ -304,21 +306,24 @@ function MaintenanceAlertsPanel({ open, onClose, buses, onGoToMaintenance }) {
 
 // ── Modal ────────────────────────────────────────────────────────────────────
 function BusModal({ bus, onClose, onSave }) {
-  const [form, setForm] = useState(() => busFormState(bus))
-  const [mataleDepot, setMataleDepot] = useState(null)
+  const { user } = useAuth()
+  const isSuperadmin = user?.role === ROLES.SUPERADMINISTRATOR
+  const creatorDepotId = user?.depotId?._id || user?.depotId || ''
+  const creatorDepotName = bus?.depotId?.depotName || user?.depotId?.depotName || 'Assigned depot'
+
+  const [form, setForm] = useState(() => busFormState(bus, user))
+  const [depots, setDepots] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
 
   useEffect(() => {
-    api.get('/depots').then(({ data }) => {
-      const depot = data.find((d) => d.depotName === 'Matale Depot')
-      if (depot) {
-        setMataleDepot(depot)
-        setForm((prev) => ({ ...prev, depotId: depot._id }))
-      }
-    }).catch(() => {})
-  }, [])
+    if (isSuperadmin) {
+      api.get('/depots').then(({ data }) => {
+        setDepots(data)
+      }).catch(() => {})
+    }
+  }, [isSuperadmin])
 
   const handle = (e) => {
     const { name, value } = e.target
@@ -401,9 +406,27 @@ function BusModal({ bus, onClose, onSave }) {
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Depot</label>
-            <div className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-neutral-700">
-              {mataleDepot ? mataleDepot.depotName : 'Loading...'}
-            </div>
+            {isSuperadmin ? (
+              <select
+                name="depotId"
+                value={form.depotId}
+                onChange={handle}
+                required
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.depotId)}`}
+              >
+                <option value="">Select depot</option>
+                {depots.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.depotName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-neutral-700">
+                {creatorDepotName}
+              </div>
+            )}
+            <FieldError message={fieldErrors.depotId} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
@@ -817,7 +840,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   )
 }
 
-function driverFormState(driver) {
+function driverFormState(driver, currentUser) {
   const hours = parseWorkingHours(driver?.workingHours)
   return {
     name: driver?.name || '',
@@ -828,17 +851,32 @@ function driverFormState(driver) {
     contactNo: driver?.contactNo || '',
     workingHoursStart: hours.start,
     workingHoursEnd: hours.end,
+    depotId: driver?.depotId?._id || driver?.depotId || currentUser?.depotId?._id || currentUser?.depotId || '',
   }
 }
 
 // ── Driver Personnel Tab ──────────────────────────────────────────────────────
 function DriverModal({ driver, onClose, onSave }) {
+  const { user } = useAuth()
+  const isSuperadmin = user?.role === ROLES.SUPERADMINISTRATOR
+  const creatorDepotId = user?.depotId?._id || user?.depotId || ''
+  const creatorDepotName = driver?.depotId?.depotName || user?.depotId?.depotName || 'Assigned depot'
+
   const isEdit = Boolean(driver)
-  const [form, setForm] = useState(() => driverFormState(driver))
+  const [form, setForm] = useState(() => driverFormState(driver, user))
+  const [depots, setDepots] = useState([])
   const [resetPassword, setResetPassword] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
+
+  useEffect(() => {
+    if (isSuperadmin) {
+      api.get('/depots').then(({ data }) => {
+        setDepots(data)
+      }).catch(() => {})
+    }
+  }, [isSuperadmin])
 
   const handle = (e) => {
     const { name, value } = e.target
@@ -982,6 +1020,30 @@ function DriverModal({ driver, onClose, onSave }) {
               <FieldError message={fieldErrors.password} />
             </div>
           )}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-neutral-600 font-medium text-neutral-600">Depot</label>
+            {isSuperadmin ? (
+              <select
+                name="depotId"
+                value={form.depotId}
+                onChange={handle}
+                required
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.depotId)}`}
+              >
+                <option value="">Select depot</option>
+                {depots.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    {d.depotName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="w-full rounded-lg border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-neutral-700">
+                {creatorDepotName}
+              </div>
+            )}
+            <FieldError message={fieldErrors.depotId} />
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-neutral-600">Working Hours</label>
             <p className="mb-2 text-[11px] text-neutral-500">Daily shift window (e.g. 06:00 – 18:00)</p>

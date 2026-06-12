@@ -4,6 +4,12 @@ import {
   attachFleetAssignmentContext,
 } from '../utils/fleetAssignmentHelpers.js'
 import { sanitizeWorkingHoursInput } from '../utils/timeFormat.js'
+import {
+  isSuperadministrator,
+  requireUserDepot,
+  assertDepotAccess,
+  resolveWriteDepotId,
+} from '../utils/depotAccess.js'
 
 // @desc    Create a new driver
 // @route   POST /api/drivers
@@ -23,6 +29,8 @@ export const createDriver = async (req, res) => {
       }
     }
 
+    const assignedDepotId = resolveWriteDepotId(req.user, depotId)
+
     const driver = new Driver({
       name,
       licenseNo,
@@ -32,7 +40,7 @@ export const createDriver = async (req, res) => {
       workingHours: sanitizeWorkingHoursInput(workingHours),
       licenseExpiry: licenseExpiry || undefined,
       status,
-      depotId,
+      depotId: assignedDepotId,
     })
     await driver.save()
     res.status(201).json(driver)
@@ -47,7 +55,14 @@ export const getAllDrivers = async (req, res) => {
   try {
     const { depotId, light } = req.query
     const isLight = light === '1' || light === 'true'
-    const filter = depotId ? { depotId } : {}
+    const filter = {}
+    
+    if (depotId) {
+      filter.depotId = depotId
+    } else if (!isSuperadministrator(req.user)) {
+      filter.depotId = requireUserDepot(req.user)
+    }
+
     const drivers = await Driver.find(filter)
       .populate('depotId', 'depotName location')
       .sort({ createdAt: -1 })
@@ -73,6 +88,7 @@ export const getDriverById = async (req, res) => {
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' })
     }
+    assertDepotAccess(req.user, driver.depotId, 'Not allowed to access drivers outside your depot')
     res.json(driver)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -87,10 +103,16 @@ export const updateDriver = async (req, res) => {
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' })
     }
+    assertDepotAccess(req.user, driver.depotId, 'Not allowed to manage drivers outside your depot')
 
     const updates = { ...req.body }
     if (Object.prototype.hasOwnProperty.call(updates, 'workingHours')) {
       updates.workingHours = sanitizeWorkingHoursInput(updates.workingHours)
+    }
+    if (updates.depotId === '') {
+      updates.depotId = undefined
+    } else if (updates.depotId !== undefined) {
+      updates.depotId = resolveWriteDepotId(req.user, updates.depotId)
     }
 
     const updated = await Driver.findByIdAndUpdate(req.params.id, updates, {
@@ -111,6 +133,7 @@ export const deleteDriver = async (req, res) => {
     if (!driver) {
       return res.status(404).json({ message: 'Driver not found' })
     }
+    assertDepotAccess(req.user, driver.depotId, 'Not allowed to manage drivers outside your depot')
 
     await assertFleetResourceNotLinkedToSchedules('driverId', driver._id, 'driver')
 
