@@ -9,6 +9,7 @@ import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import FieldError from '../components/FieldError'
 import { ModuleHeader, ModulePrimaryButton, ModuleSecondaryButton } from '../components/layout/ModuleLayout'
+import CsvImportButtons from '../components/import/CsvImportButtons'
 import {
   fieldBorderClass,
   hasErrors,
@@ -873,9 +874,17 @@ function Maintenance() {
         }
         action={
           tab !== 'report' ? (
-            <ModulePrimaryButton icon="add_circle" onClick={() => setLogModal(true)}>
-              Log New Activity
-            </ModulePrimaryButton>
+            <div className="flex flex-wrap items-center gap-2">
+              {tab === 'maintenance' && (
+                <CsvImportButtons
+                  type="maintenance"
+                  onSuccess={() => refreshMaintenance()}
+                />
+              )}
+              <ModulePrimaryButton icon="add_circle" onClick={() => setLogModal(true)}>
+                Log New Activity
+              </ModulePrimaryButton>
+            </div>
           ) : null
         }
       />
