@@ -1,4 +1,5 @@
-# TransitLK
+# TransitLK 
+### Academic Project - ASE
 
 Smart Route Management and Scheduling System (SRMSS) for Sri Lankan public transport depots, route planning, timetables, fleet and driver management, maintenance, fuel logging, and role-based schedule approvals.
 
@@ -6,8 +7,6 @@ Smart Route Management and Scheduling System (SRMSS) for Sri Lankan public trans
 ![License](https://img.shields.io/badge/license-All%20Rights%20Reserved-red)
 
 **Repository:** https://github.com/MNSBaanu/TransitLK
-
-**Authors:** Baanu & Irfa [Academic project] 
 
 ## Features
 
