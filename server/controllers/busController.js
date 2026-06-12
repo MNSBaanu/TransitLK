@@ -10,6 +10,12 @@ import {
   ensureMaintenanceRecordForBus,
   syncBusMaintenanceFields,
 } from '../utils/busMaintenanceSync.js'
+import {
+  isSuperadministrator,
+  requireUserDepot,
+  assertDepotAccess,
+  resolveWriteDepotId,
+} from '../utils/depotAccess.js'
 
 // @desc    Create a new bus
 // @route   POST /api/buses
@@ -22,12 +28,14 @@ export const createBus = async (req, res) => {
       return res.status(400).json({ message: 'Bus with this registration number already exists' })
     }
 
+    const assignedDepotId = resolveWriteDepotId(req.user, depotId)
+
     const bus = await Bus.create({
       regNumber,
       capacity,
       mileage,
       status,
-      depotId: depotId || undefined,
+      depotId: assignedDepotId,
       serviceType,
     })
     res.status(201).json(bus)
@@ -44,7 +52,12 @@ export const getAllBuses = async (req, res) => {
     const isLight = light === '1' || light === 'true'
     const filter = {}
     if (status) filter.status = status
-    if (depotId) filter.depotId = depotId
+    
+    if (depotId) {
+      filter.depotId = depotId
+    } else if (!isSuperadministrator(req.user)) {
+      filter.depotId = requireUserDepot(req.user)
+    }
 
     const buses = await Bus.find(filter)
       .populate('depotId', 'depotName location')
@@ -105,6 +118,7 @@ export const getBusById = async (req, res) => {
     if (!bus) {
       return res.status(404).json({ message: 'Bus not found' })
     }
+    assertDepotAccess(req.user, bus.depotId, 'Not allowed to access buses outside your depot')
     res.json(bus)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -119,9 +133,14 @@ export const updateBus = async (req, res) => {
     if (!bus) {
       return res.status(404).json({ message: 'Bus not found' })
     }
+    assertDepotAccess(req.user, bus.depotId, 'Not allowed to manage buses outside your depot')
 
     const updateData = { ...req.body }
-    if (updateData.depotId === '') updateData.depotId = undefined
+    if (updateData.depotId === '') {
+      updateData.depotId = undefined
+    } else if (updateData.depotId !== undefined) {
+      updateData.depotId = resolveWriteDepotId(req.user, updateData.depotId)
+    }
 
     if (updateData.status === 'maintenance' && bus.status !== 'maintenance') {
       await cancelActiveSchedulesForBus(
@@ -157,6 +176,7 @@ export const deleteBus = async (req, res) => {
     if (!bus) {
       return res.status(404).json({ message: 'Bus not found' })
     }
+    assertDepotAccess(req.user, bus.depotId, 'Not allowed to manage buses outside your depot')
 
     await assertFleetResourceNotLinkedToSchedules('busId', bus._id, 'bus')
 

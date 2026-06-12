@@ -4,6 +4,7 @@ import Maintenance from '../models/Maintenance.js'
 import Schedule from '../models/Schedule.js'
 import Route from '../models/Route.js'
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from '../utils/scheduleHelpers.js'
+import { isSuperadministrator, requireUserDepot } from '../utils/depotAccess.js'
 
 function formatRouteLabel(route = {}) {
   const start = String(route.startPoint || '').trim()
@@ -129,9 +130,29 @@ export const getDashboardSummary = async (req, res) => {
     const todayStart = startOfDay(new Date())
     const todayEnd = endOfDay(new Date())
 
+    const isSuper = isSuperadministrator(req.user)
+    const userDepotId = !isSuper ? requireUserDepot(req.user) : null
+
+    const busFilter = userDepotId ? { depotId: userDepotId } : {}
+    const driverFilter = userDepotId ? { depotId: userDepotId } : {}
+    const routeFilter = userDepotId ? { depotId: userDepotId, status: 'active' } : { status: 'active' }
+
+    let scheduleFilter = {}
+    if (userDepotId) {
+      const routes = await Route.find({ depotId: userDepotId }).select('_id')
+      const routeIds = routes.map((r) => r._id)
+      scheduleFilter = { routeId: { $in: routeIds } }
+    }
+
+    const [allBuses, allDrivers] = await Promise.all([
+      Bus.find(busFilter).lean(),
+      Driver.find(driverFilter).lean(),
+    ])
+
+    const busIds = allBuses.map((b) => b._id)
+    const maintFilter = userDepotId ? { bus_id: { $in: busIds } } : {}
+
     const [
-      allBuses,
-      allDrivers,
       maintenanceRecords,
       totalRoutes,
       totalOperational,
@@ -139,13 +160,12 @@ export const getDashboardSummary = async (req, res) => {
       todaySchedules,
       monthSchedules,
     ] = await Promise.all([
-      Bus.find({}).lean(),
-      Driver.find({}).lean(),
-      Maintenance.find({}).populate('bus_id', 'regNumber status').sort({ service_date: -1 }).lean(),
-      Route.countDocuments({ status: 'active' }),
-      Schedule.countDocuments({ status: { $in: operationalStatuses } }),
-      Schedule.countDocuments({ status: 'completed' }),
+      Maintenance.find(maintFilter).populate('bus_id', 'regNumber status').sort({ service_date: -1 }).lean(),
+      Route.countDocuments(routeFilter),
+      Schedule.countDocuments({ ...scheduleFilter, status: { $in: operationalStatuses } }),
+      Schedule.countDocuments({ ...scheduleFilter, status: 'completed' }),
       Schedule.find({
+        ...scheduleFilter,
         tripDate: { $gte: todayStart, $lte: todayEnd },
       })
         .populate('routeId', 'routeName startPoint endPoint status')
@@ -154,6 +174,7 @@ export const getDashboardSummary = async (req, res) => {
         .sort({ departureTime: 1, status: 1 })
         .lean(),
       Schedule.find({
+        ...scheduleFilter,
         tripDate: { $gte: monthStart, $lte: monthEnd },
         status: { $ne: 'cancelled' },
       })

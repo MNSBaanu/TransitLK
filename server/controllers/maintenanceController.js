@@ -3,6 +3,11 @@ import Bus from '../models/Bus.js'
 import { cancelActiveSchedulesForBus } from '../utils/fleetAssignmentHelpers.js'
 import { syncBusMaintenanceFields } from '../utils/busMaintenanceSync.js'
 import {
+  isSuperadministrator,
+  requireUserDepot,
+  assertDepotAccess,
+} from '../utils/depotAccess.js'
+import {
   computeMaintenanceDuration,
   finalizeMaintenanceFields,
   sanitizeMaintenanceBody,
@@ -17,7 +22,11 @@ import { buildFuelMaintenanceReportSpreadsheet } from '../utils/excelExport.js'
 // @access  Protected
 export const getFuelMaintenanceReport = async (req, res) => {
   try {
-    const data = await buildFuelMaintenanceReport(req.query)
+    const query = { ...req.query }
+    if (!isSuperadministrator(req.user)) {
+      query.depotId = requireUserDepot(req.user)
+    }
+    const data = await buildFuelMaintenanceReport(query)
     res.json(data)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -29,7 +38,11 @@ export const getFuelMaintenanceReport = async (req, res) => {
 // @access  Protected
 export const exportFuelMaintenanceReportCsv = async (req, res) => {
   try {
-    const data = await buildFuelMaintenanceReport(req.query)
+    const query = { ...req.query }
+    if (!isSuperadministrator(req.user)) {
+      query.depotId = requireUserDepot(req.user)
+    }
+    const data = await buildFuelMaintenanceReport(query)
     const filename = `transitlk-fuel-maintenance-${data.period.mode}-${data.period.from}-${data.period.to}`
     res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.xls"`)
@@ -44,7 +57,11 @@ export const exportFuelMaintenanceReportCsv = async (req, res) => {
 // @access  Protected
 export const exportFuelMaintenanceReportPdf = async (req, res) => {
   try {
-    const data = await buildFuelMaintenanceReport(req.query)
+    const query = { ...req.query }
+    if (!isSuperadministrator(req.user)) {
+      query.depotId = requireUserDepot(req.user)
+    }
+    const data = await buildFuelMaintenanceReport(query)
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',
@@ -75,6 +92,7 @@ export const createMaintenance = async (req, res) => {
     if (!bus) {
       return res.status(404).json({ message: 'Bus not found' })
     }
+    assertDepotAccess(req.user, bus.depotId, 'Not allowed to schedule maintenance for buses outside your depot')
 
     const record = await Maintenance.create(payload)
 
@@ -107,7 +125,19 @@ export const getAllMaintenance = async (req, res) => {
     const { bus_id, from, to } = req.query
     const filter = {}
 
-    if (bus_id) filter.bus_id = bus_id
+    if (bus_id) {
+      const bus = await Bus.findById(bus_id)
+      if (!bus) {
+        return res.status(404).json({ message: 'Bus not found' })
+      }
+      assertDepotAccess(req.user, bus.depotId, 'Not allowed to view maintenance records for buses outside your depot')
+      filter.bus_id = bus_id
+    } else if (!isSuperadministrator(req.user)) {
+      const userDepotId = requireUserDepot(req.user)
+      const buses = await Bus.find({ depotId: userDepotId }).select('_id')
+      filter.bus_id = { $in: buses.map((b) => b._id) }
+    }
+
     if (from || to) {
       filter.service_date = {}
       if (from) filter.service_date.$gte = new Date(from)
@@ -128,10 +158,11 @@ export const getAllMaintenance = async (req, res) => {
 // @access  Protected
 export const getMaintenanceById = async (req, res) => {
   try {
-    const record = await Maintenance.findById(req.params.id).populate('bus_id', 'regNumber status')
+    const record = await Maintenance.findById(req.params.id).populate('bus_id', 'regNumber status depotId')
     if (!record) {
       return res.status(404).json({ message: 'Maintenance record not found' })
     }
+    assertDepotAccess(req.user, record.bus_id?.depotId, 'Not allowed to access maintenance records outside your depot')
     res.json(attachMaintenancePresentation(record))
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -143,9 +174,16 @@ export const getMaintenanceById = async (req, res) => {
 // @access  Protected
 export const updateMaintenance = async (req, res) => {
   try {
-    const record = await Maintenance.findById(req.params.id)
+    const record = await Maintenance.findById(req.params.id).populate('bus_id', 'regNumber status depotId')
     if (!record) {
       return res.status(404).json({ message: 'Maintenance record not found' })
+    }
+    assertDepotAccess(req.user, record.bus_id?.depotId, 'Not allowed to manage maintenance records outside your depot')
+
+    if (req.body.bus_id && String(req.body.bus_id) !== String(record.bus_id?._id)) {
+      const newBus = await Bus.findById(req.body.bus_id)
+      if (!newBus) return res.status(404).json({ message: 'New bus not found' })
+      assertDepotAccess(req.user, newBus.depotId, 'Not allowed to assign maintenance to a bus outside your depot')
     }
 
     const previousBusId = record.bus_id
@@ -185,10 +223,11 @@ export const updateMaintenance = async (req, res) => {
 // @access  Protected
 export const deleteMaintenance = async (req, res) => {
   try {
-    const record = await Maintenance.findById(req.params.id)
+    const record = await Maintenance.findById(req.params.id).populate('bus_id', 'regNumber status depotId')
     if (!record) {
       return res.status(404).json({ message: 'Maintenance record not found' })
     }
+    assertDepotAccess(req.user, record.bus_id?.depotId, 'Not allowed to manage maintenance records outside your depot')
 
     const busId = record.bus_id
     await record.deleteOne()
