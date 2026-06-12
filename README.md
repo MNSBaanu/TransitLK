@@ -63,8 +63,6 @@ The Vite dev server proxies `/api` to the backend. Verify the API with `GET http
 
 The application expects a populated MongoDB database with depot users and reference data. Provision your own database for local development. The UI supports **CSV import** (sample templates via the API) for vehicles, drivers, routes, users, and maintenance records once an authorised account exists.
 
-> Demo credentials and a pre-seeded database are provided separately for coursework assessment — they are not stored in this repository.
-
 ## Roles
 
 | Role | Main modules |
@@ -83,20 +81,6 @@ client/          React (Vite) frontend
 server/          Express API, Mongoose models, services
 render.yaml      Optional Render.com deployment for the API
 ```
-
-Local coursework documentation, diagrams, and Postman collections are kept out of this public repository.
-
-## Deployment (optional)
-
-[`render.yaml`](render.yaml) defines a Render web service for the API. Set `MONGO_URI`, `JWT_SECRET`, and `CLIENT_URL` in the host dashboard. Build and host the client separately (e.g. static hosting) with `CLIENT_URL` pointing to that origin.
-
-## Security (public repository)
-
-- **Never commit** `.env` files, API keys, or database connection strings.
-- Use a strong, unique `JWT_SECRET` in every environment.
-- Restrict your Google Maps API key by HTTP referrer or IP.
-- Do not expose MongoDB to the public internet without authentication and network rules.
-- If a secret is ever committed, rotate it immediately and purge it from Git history.
 
 ## License & use
 
