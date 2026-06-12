@@ -38,10 +38,10 @@ export const CSV_TEMPLATES = {
     ],
     sampleRows: [
       {
-        name: 'Roshan Perera',
+        name: 'Sample Driver',
         licenseNo: 'B4521987',
-        email: 'roshan@transitlk.com',
-        password: 'ChangeMe123',
+        email: 'driver.sample@transitlk.lk',
+        password: '',
         contactNo: '0771234567',
         workingHours: '05:00-18:00',
         licenseExpiry: '2028-12-31',
