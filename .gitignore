@@ -25,6 +25,7 @@ docs/
 testing/
 Testing/
 .cursor/
+.vscode/
 
 # OS files
 .DS_Store
