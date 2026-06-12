@@ -19,6 +19,14 @@ npm-debug.log*
 # Local DB setup scripts (not shipped with the app)
 server/scripts
 
+# Local project docs, diagrams, tests, and IDE config
+diagrams/
+docs/
+testing/
+Testing/
+.cursor/
+.vscode/
+
 # OS files
 .DS_Store
 Thumbs.db

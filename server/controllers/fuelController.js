@@ -1,5 +1,10 @@
 import FuelLog from '../models/FuelLog.js'
 import Bus from '../models/Bus.js'
+import {
+  isSuperadministrator,
+  requireUserDepot,
+  assertDepotAccess,
+} from '../utils/depotAccess.js'
 
 // @desc    Create a fuel log
 // @route   POST /api/fuel
@@ -12,6 +17,7 @@ export const createFuelLog = async (req, res) => {
     if (!bus) {
       return res.status(404).json({ message: 'Bus not found' })
     }
+    assertDepotAccess(req.user, bus.depotId, 'Not allowed to log fuel for buses outside your depot')
 
     const fuelLog = await FuelLog.create({ bus_id, fuel_date, liters, amount })
     res.status(201).json(fuelLog)
@@ -28,7 +34,19 @@ export const getAllFuelLogs = async (req, res) => {
     const { bus_id, from, to } = req.query
     const filter = {}
 
-    if (bus_id) filter.bus_id = bus_id
+    if (bus_id) {
+      const bus = await Bus.findById(bus_id)
+      if (!bus) {
+        return res.status(404).json({ message: 'Bus not found' })
+      }
+      assertDepotAccess(req.user, bus.depotId, 'Not allowed to view fuel logs for buses outside your depot')
+      filter.bus_id = bus_id
+    } else if (!isSuperadministrator(req.user)) {
+      const userDepotId = requireUserDepot(req.user)
+      const buses = await Bus.find({ depotId: userDepotId }).select('_id')
+      filter.bus_id = { $in: buses.map((b) => b._id) }
+    }
+
     if (from || to) {
       filter.fuel_date = {}
       if (from) filter.fuel_date.$gte = new Date(from)
@@ -47,10 +65,11 @@ export const getAllFuelLogs = async (req, res) => {
 // @access  Protected
 export const getFuelLogById = async (req, res) => {
   try {
-    const log = await FuelLog.findById(req.params.id).populate('bus_id', 'regNumber')
+    const log = await FuelLog.findById(req.params.id).populate('bus_id', 'regNumber depotId')
     if (!log) {
       return res.status(404).json({ message: 'Fuel log not found' })
     }
+    assertDepotAccess(req.user, log.bus_id?.depotId, 'Not allowed to access fuel logs outside your depot')
     res.json(log)
   } catch (error) {
     res.status(500).json({ message: error.message })
@@ -62,9 +81,16 @@ export const getFuelLogById = async (req, res) => {
 // @access  Protected
 export const updateFuelLog = async (req, res) => {
   try {
-    const log = await FuelLog.findById(req.params.id)
+    const log = await FuelLog.findById(req.params.id).populate('bus_id', 'regNumber depotId')
     if (!log) {
       return res.status(404).json({ message: 'Fuel log not found' })
+    }
+    assertDepotAccess(req.user, log.bus_id?.depotId, 'Not allowed to manage fuel logs outside your depot')
+
+    if (req.body.bus_id && String(req.body.bus_id) !== String(log.bus_id?._id)) {
+      const newBus = await Bus.findById(req.body.bus_id)
+      if (!newBus) return res.status(404).json({ message: 'New bus not found' })
+      assertDepotAccess(req.user, newBus.depotId, 'Not allowed to assign fuel logs to a bus outside your depot')
     }
 
     const updated = await FuelLog.findByIdAndUpdate(req.params.id, req.body, {
@@ -82,10 +108,11 @@ export const updateFuelLog = async (req, res) => {
 // @access  Protected
 export const deleteFuelLog = async (req, res) => {
   try {
-    const log = await FuelLog.findById(req.params.id)
+    const log = await FuelLog.findById(req.params.id).populate('bus_id', 'regNumber depotId')
     if (!log) {
       return res.status(404).json({ message: 'Fuel log not found' })
     }
+    assertDepotAccess(req.user, log.bus_id?.depotId, 'Not allowed to manage fuel logs outside your depot')
 
     await log.deleteOne()
     res.json({ message: 'Fuel log removed successfully' })
@@ -102,7 +129,19 @@ export const getFuelSummary = async (req, res) => {
     const { bus_id, from, to } = req.query
     const match = {}
 
-    if (bus_id) match.bus_id = bus_id
+    if (bus_id) {
+      const bus = await Bus.findById(bus_id)
+      if (!bus) {
+        return res.status(404).json({ message: 'Bus not found' })
+      }
+      assertDepotAccess(req.user, bus.depotId, 'Not allowed to view fuel summary for buses outside your depot')
+      match.bus_id = bus_id
+    } else if (!isSuperadministrator(req.user)) {
+      const userDepotId = requireUserDepot(req.user)
+      const buses = await Bus.find({ depotId: userDepotId }).select('_id')
+      match.bus_id = { $in: buses.map((b) => b._id) }
+    }
+
     if (from || to) {
       match.fuel_date = {}
       if (from) match.fuel_date.$gte = new Date(from)

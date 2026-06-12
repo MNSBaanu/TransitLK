@@ -1,6 +1,7 @@
 import FuelLog from '../models/FuelLog.js'
 import Maintenance from '../models/Maintenance.js'
 import Schedule from '../models/Schedule.js'
+import Bus from '../models/Bus.js'
 import { parseReportRange } from './reportAnalytics.js'
 
 function round1(n) {
@@ -138,17 +139,33 @@ function buildInsights({
 }
 
 export async function buildFuelMaintenanceReport(query = {}) {
-  const { from, to, period = 'monthly' } = query
+  const { from, to, period = 'monthly', depotId } = query
   const { start, end, mode } = parseReportRange({ from, to, period })
 
+  let busIds = null
+  if (depotId) {
+    const buses = await Bus.find({ depotId }).select('_id')
+    busIds = buses.map((b) => b._id)
+  }
+
+  const fuelFilter = { fuel_date: { $gte: start, $lte: end } }
+  const maintFilter = { service_date: { $gte: start, $lte: end } }
+  const scheduleFilter = { tripDate: { $gte: start, $lte: end } }
+
+  if (busIds) {
+    fuelFilter.bus_id = { $in: busIds }
+    maintFilter.bus_id = { $in: busIds }
+    scheduleFilter.busId = { $in: busIds }
+  }
+
   const [fuelLogs, maintenanceRecords, schedules] = await Promise.all([
-    FuelLog.find({ fuel_date: { $gte: start, $lte: end } })
+    FuelLog.find(fuelFilter)
       .populate('bus_id', 'regNumber')
       .sort({ fuel_date: -1 }),
-    Maintenance.find({ service_date: { $gte: start, $lte: end } })
+    Maintenance.find(maintFilter)
       .populate('bus_id', 'regNumber')
       .sort({ service_date: -1 }),
-    Schedule.find({ tripDate: { $gte: start, $lte: end } })
+    Schedule.find(scheduleFilter)
       .populate('routeId', 'routeName distance')
       .populate('busId', 'regNumber'),
   ])

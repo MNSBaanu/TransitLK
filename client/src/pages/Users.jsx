@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import FieldError from '../components/FieldError'
 import { fieldBorderClass, hasErrors, validateUserForm } from '../utils/formValidation'
+import CsvImportButtons from '../components/import/CsvImportButtons'
 
 const EMPTY_FORM = {
   name: '',
@@ -318,6 +319,12 @@ function Users() {
     )
   }, [accounts, search])
 
+  const importDepotId = useMemo(() => {
+    const own = user?.depotId?._id || user?.depotId
+    if (own) return own
+    return depots[0]?._id || ''
+  }, [user, depots])
+
   const stats = useMemo(() => {
     const staff = accounts.filter((a) => a.accountType === 'user')
     const admins = accounts.filter((a) => a.accountType === 'admin')
@@ -369,9 +376,22 @@ function Users() {
             : 'Manage staff who can sign in to the depot workspace and which modules they can use.'
         }
         action={
-          <ModulePrimaryButton icon="person_add" onClick={() => setModal('add')}>
-            {isSuperadmin ? 'Add account' : 'Add staff user'}
-          </ModulePrimaryButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <CsvImportButtons
+              type="users"
+              depotId={importDepotId || undefined}
+              disabled={isSuperadmin && !importDepotId}
+              onSuccess={() => {
+                invalidatePageData('/users')
+                reload({ keepContent: true, force: true })
+                setToast('CSV import finished')
+                setTimeout(() => setToast(''), 2500)
+              }}
+            />
+            <ModulePrimaryButton icon="person_add" onClick={() => setModal('add')}>
+              {isSuperadmin ? 'Add account' : 'Add staff user'}
+            </ModulePrimaryButton>
+          </div>
         }
       />
 
