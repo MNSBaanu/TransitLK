@@ -28,6 +28,10 @@ scripts/
 .cursor/
 .vscode/
 
+# Database dumps (marker submission — Drive only)
+transitlk-dump/
+transitlk-dump.zip
+
 # OS files
 .DS_Store
 Thumbs.db
