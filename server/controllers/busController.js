@@ -1,5 +1,6 @@
 import Bus from '../models/Bus.js'
 import Maintenance from '../models/Maintenance.js'
+import Schedule from '../models/Schedule.js'
 import {
   assertFleetResourceNotLinkedToSchedules,
   attachFleetAssignmentContext,
@@ -191,12 +192,14 @@ export const deleteBus = async (req, res) => {
 
     if (bus.status === 'in-service') {
       return res.status(409).json({
-        message: 'Cannot delete bus because it is currently in service. Remove assigned trips first.',
+        message: 'Cannot delete bus while it is in service. Complete or remove assigned trips first.',
       })
     }
 
     await assertFleetResourceNotLinkedToSchedules('busId', bus._id, 'bus')
 
+    await Schedule.deleteMany({ busId: bus._id })
+    await Maintenance.deleteMany({ bus_id: bus._id })
     await bus.deleteOne()
     res.json({ message: 'Bus removed successfully' })
   } catch (error) {

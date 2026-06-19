@@ -6,6 +6,7 @@ import {
   startOfDay,
   endOfDay,
   timeToMinutes,
+  scheduleFilterBlockingRouteRemoval,
 } from './scheduleHelpers.js'
 import { formatRouteEndpointsLabel } from './routeHelpers.js'
 
@@ -188,14 +189,14 @@ async function loadScheduleCountsByResource(resourceIds, resourceField) {
   if (!resourceIds.length) return new Map()
 
   const counts = await Schedule.aggregate([
-    { $match: { [resourceField]: { $in: resourceIds } } },
+    { $match: scheduleFilterBlockingRouteRemoval({ [resourceField]: { $in: resourceIds } }) },
     { $group: { _id: `$${resourceField}`, count: { $sum: 1 } } },
   ])
 
   return new Map(counts.map((entry) => [String(entry._id), entry.count]))
 }
 
-/** Block fleet resource deletion when any schedule still references it */
+/** Block fleet resource deletion when any active (non-completed) schedule still references it */
 export async function assertFleetResourceNotLinkedToSchedules(
   resourceField,
   resourceId,
@@ -203,10 +204,12 @@ export async function assertFleetResourceNotLinkedToSchedules(
 ) {
   if (!resourceId) return
 
-  const linkedSchedules = await Schedule.countDocuments({ [resourceField]: resourceId })
+  const linkedSchedules = await Schedule.countDocuments(
+    scheduleFilterBlockingRouteRemoval({ [resourceField]: resourceId })
+  )
   if (linkedSchedules > 0) {
     const error = new Error(
-      `Cannot delete ${resourceLabel} because ${linkedSchedules} schedule(s) are linked to it. Remove those schedules first.`
+      `Cannot delete ${resourceLabel} because ${linkedSchedules} active trip(s) are linked to it. Complete or remove those trips first.`
     )
     error.statusCode = 409
     throw error
