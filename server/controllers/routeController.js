@@ -11,6 +11,11 @@ import {
 } from '../utils/routeHelpers.js'
 import { scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
 import {
+  getRouteIdsWithActiveTrips,
+  resolveRouteOperationalStatus,
+  syncRouteStatusForRouteId,
+} from '../utils/routeStatusSync.js'
+import {
   defaultMinCapacityForService,
   getDriverLicenseInvalidReason,
   isBusAssignableForRoute,
@@ -53,9 +58,21 @@ async function attachScheduleCounts(routes) {
   const countMap = new Map(counts.map((entry) => [String(entry._id), entry.count]))
 
   return list.map((route) => {
-    const plain = route.toObject ? route.toObject() : { ...route }
-    return { ...plain, scheduleCount: countMap.get(String(route._id)) || 0 }
+    const activeTrips = countMap.get(String(route._id)) || 0
+    const plain = resolveRouteOperationalStatus(route, activeTrips)
+    return { ...plain, scheduleCount: activeTrips }
   })
+}
+
+function appendFilterClause(filter, clause) {
+  if (!clause || !Object.keys(clause).length) return
+  if (!Object.keys(filter).length) {
+    Object.assign(filter, clause)
+    return
+  }
+  const existing = { ...filter }
+  Object.keys(filter).forEach((key) => delete filter[key])
+  filter.$and = [existing, clause]
 }
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -78,7 +95,7 @@ async function summarizeRouteDistance(filter) {
   return { avgDistance, distanceRouteCount: count }
 }
 
-const buildRouteFilter = (req, { search = '', status = '', serviceType = '' } = {}) => {
+const buildRouteFilter = async (req, { search = '', status = '', serviceType = '' } = {}) => {
   const filter = {}
   if (!isSuperadministrator(req.user)) {
     filter.depotId = requireUserDepot(req.user)
@@ -87,21 +104,43 @@ const buildRouteFilter = (req, { search = '', status = '', serviceType = '' } = 
   const trimmedSearch = search.trim()
   if (trimmedSearch) {
     const regex = new RegExp(escapeRegex(trimmedSearch), 'i')
-    filter.$or = [
-      { routeNo: regex },
-      { routeName: regex },
-      { startPoint: regex },
-      { endPoint: regex },
-      { viaDescription: regex },
-      { stops: regex },
-    ]
+    appendFilterClause(filter, {
+      $or: [
+        { routeNo: regex },
+        { routeName: regex },
+        { startPoint: regex },
+        { endPoint: regex },
+        { viaDescription: regex },
+        { stops: regex },
+      ],
+    })
   }
 
-  if (status && ROUTE_STATUS_FILTERS.has(status)) {
-    filter.status = status
+  if (status === 'assigned') {
+    const activeRouteIds = await getRouteIdsWithActiveTrips()
+    appendFilterClause(filter, {
+      $or: [
+        { status: 'assigned' },
+        { status: 'active', busId: { $ne: null }, driverId: { $ne: null } },
+        ...(activeRouteIds.length ? [{ _id: { $in: activeRouteIds } }] : []),
+      ],
+    })
+  } else if (status === 'active') {
+    const activeRouteIds = await getRouteIdsWithActiveTrips()
+    const clause = {
+      status: 'active',
+      $or: [{ busId: null }, { driverId: null }],
+    }
+    if (activeRouteIds.length) {
+      clause._id = { $nin: activeRouteIds }
+    }
+    appendFilterClause(filter, clause)
+  } else if (status && ROUTE_STATUS_FILTERS.has(status)) {
+    appendFilterClause(filter, { status })
   }
+
   if (serviceType && ROUTE_SERVICE_FILTERS.has(serviceType)) {
-    filter.serviceType = serviceType
+    appendFilterClause(filter, { serviceType })
   }
 
   return filter
@@ -250,7 +289,7 @@ export const getRoutes = async (req, res) => {
       Boolean(search) ||
       Boolean(status) ||
       Boolean(serviceType)
-    const filter = buildRouteFilter(req, { search, status, serviceType })
+    const filter = await buildRouteFilter(req, { search, status, serviceType })
 
     if (summaryOnly) {
       const routes = await sortRoutes(
@@ -428,9 +467,11 @@ export const updateRoute = async (req, res) => {
 
     await Route.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
     await syncAssignedBusServiceType(nextBusId, serviceType)
+    await syncRouteStatusForRouteId(req.params.id)
 
     const populated = await populateRoute(Route.findById(req.params.id))
-    res.json(populated)
+    const [withCounts] = await attachScheduleCounts([populated])
+    res.json(withCounts)
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Route number already exists for this depot' })
