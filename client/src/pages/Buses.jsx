@@ -2,7 +2,6 @@
 // Module: Fleet & Personnel — Vehicle Management
 
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import api from '../services/api'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
@@ -140,6 +139,9 @@ function formatLicenseExpiryCell(licenseExpiry, { compact = false } = {}) {
 
 const ITEMS_PER_PAGE = 8
 const MILEAGE_SERVICE_THRESHOLD = 150_000
+const MAINTENANCE_INTERVAL_DAYS = 28
+
+const MAINTENANCE_ALERT_ACTION_TITLES = new Set(['Maintenance needed', 'Service overdue'])
 
 /** Oldest records first so recently added fleet/drivers appear at the end of the list. */
 function sortOldestFirst(items) {
@@ -153,15 +155,21 @@ function sortOldestFirst(items) {
   })
 }
 
-function getBusesNeedingMaintenanceSoon(buses) {
+function getServiceDueDate(lastMaintenanceDate) {
+  if (!lastMaintenanceDate) return null
+  const due = new Date(lastMaintenanceDate)
+  due.setDate(due.getDate() + MAINTENANCE_INTERVAL_DAYS)
+  due.setHours(0, 0, 0, 0)
+  return due
+}
+
+function getBusesOverdueForService(buses) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const oneWeekFromNow = new Date(today)
-  oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
   return buses.filter((b) => {
-    if (!b.nextMaintenanceDate || b.status === 'maintenance') return false
-    const nextDate = new Date(b.nextMaintenanceDate)
-    return nextDate <= oneWeekFromNow
+    if (b.status === 'maintenance') return false
+    const dueDate = getServiceDueDate(b.lastMaintenanceDate)
+    return dueDate && today >= dueDate
   })
 }
 
@@ -184,22 +192,21 @@ function buildFleetMaintenanceAlerts(buses) {
       })
     }
 
-    if (bus.nextMaintenanceDate) {
-      const nextDate = new Date(bus.nextMaintenanceDate)
-      const oneWeekFromNow = new Date(today)
-      oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7)
-      if (nextDate <= oneWeekFromNow) {
-        const daysUntil = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24))
-        const isOverdue = daysUntil < 0
+    if (bus.lastMaintenanceDate) {
+      const dueDate = getServiceDueDate(bus.lastMaintenanceDate)
+      if (dueDate && today >= dueDate) {
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24))
+        const lastServiceLabel = formatMaintenanceDate(bus.lastMaintenanceDate)
         alerts.push({
-          id: `due-soon-${bus._id}`,
-          severity: isOverdue ? 'urgent' : 'warning',
-          title: isOverdue ? 'Service overdue' : 'Service due soon',
+          id: `overdue-${bus._id}`,
+          severity: 'urgent',
+          title: 'Service overdue',
           busReg: bus.regNumber,
-          description: isOverdue
-            ? `Overdue by ${Math.abs(daysUntil)} days · ${nextDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
-            : `Due in ${daysUntil} days · ${nextDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
           busId: bus._id,
+          description:
+            daysOverdue === 0
+              ? `Last service ${lastServiceLabel} · 4-week interval due`
+              : `Last service ${lastServiceLabel} · overdue by ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''}`,
         })
       }
     }
@@ -221,7 +228,6 @@ function MaintenanceAlertsPanel({
   open,
   onClose,
   buses,
-  onGoToMaintenance,
   onRefresh,
   canMarkInMaintenance,
 }) {
@@ -295,7 +301,7 @@ function MaintenanceAlertsPanel({
                       <p className="mt-0.5 text-xs opacity-90">{alert.description}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
-                      {alert.title === 'Maintenance needed' && alert.busId && canMarkInMaintenance && (
+                      {alert.busId && canMarkInMaintenance && MAINTENANCE_ALERT_ACTION_TITLES.has(alert.title) && (
                         <button
                           type="button"
                           onClick={() => handleMarkInMaintenance(alert.busId)}
@@ -303,15 +309,6 @@ function MaintenanceAlertsPanel({
                           className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-60"
                         >
                           {markingId === alert.busId ? 'Updating...' : 'Added to maintenance'}
-                        </button>
-                      )}
-                      {alert.busId && alert.title !== 'Maintenance needed' && (
-                        <button
-                          type="button"
-                          onClick={() => onGoToMaintenance(alert.busId)}
-                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
-                        >
-                          Log service
                         </button>
                       )}
                     </div>
@@ -661,7 +658,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
   const availableBuses = buses.filter((b) => b.status === 'available')
   const maintenanceBuses = buses.filter((b) => b.status === 'maintenance')
 
-  const busesNeedingMaintenance = getBusesNeedingMaintenanceSoon(buses)
+  const busesOverdueForService = getBusesOverdueForService(buses)
 
   const fleetStatItems = [
     {
@@ -685,9 +682,9 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
       icon: 'build',
     },
     {
-      label: 'Service due soon',
-      value: busesNeedingMaintenance.length,
-      hint: busesNeedingMaintenance.length ? 'Within the next 7 days' : 'No upcoming service',
+      label: 'Service overdue',
+      value: busesOverdueForService.length,
+      hint: busesOverdueForService.length ? 'Past 4-week service interval' : 'All services up to date',
       icon: 'schedule',
     },
   ]
@@ -719,52 +716,56 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-outline-variant">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-max text-sm">
           <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
             <tr>
-              <th className="w-12 px-4 py-3 text-left">#</th>
-              <th className="px-4 py-3 text-left">Registration</th>
-              <th className="px-4 py-3 text-left">Type</th>
-              <th className="px-4 py-3 text-left">Capacity</th>
-              <th className="px-4 py-3 text-left">Mileage</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">Current Route</th>
-              <th className="min-w-[14rem] px-4 py-3 text-left">Maintenance History</th>
-              <th className="px-4 py-3 text-left">Actions</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">#</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Registration</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Type</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Capacity</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Mileage</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Service Date</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Status</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Current Route</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Maintenance History</th>
+              <th className="whitespace-nowrap px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant bg-white">
             {loading && buses.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">Loading...</td></tr>
             ) : paginated.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
+              <tr><td colSpan={10} className="py-10 text-center text-on-surface-variant">No vehicles found</td></tr>
             ) : paginated.map((bus, index) => {
               const deleteDisabledReason = getFleetDeleteDisabledReason(bus, 'bus')
               return (
-              <tr key={bus._id} className="align-top hover:bg-surface-container-low transition-colors">
-                <td className="px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
-                <td className="px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
-                <td className="px-4 py-3 text-neutral-500 capitalize">{bus.serviceType || '—'}</td>
-                <td className="px-4 py-3 text-neutral-700">{bus.capacity} Pax</td>
-                <td className="px-4 py-3 text-neutral-700">{bus.mileage?.toLocaleString()} km</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[bus.status] || 'bg-gray-100 text-gray-600'}`}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              <tr key={bus._id} className="align-middle hover:bg-surface-container-low transition-colors">
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-500 tabular-nums">{(page - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-semibold text-blue-700">{bus.regNumber}</td>
+                <td className="whitespace-nowrap px-4 py-3 capitalize text-neutral-500">{bus.serviceType || '—'}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-700">{bus.capacity} Pax</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-700">{bus.mileage?.toLocaleString()} km</td>
+                <td className="whitespace-nowrap px-4 py-3 text-neutral-700">
+                  {formatMaintenanceDate(bus.lastMaintenanceDate)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[bus.status] || 'bg-gray-100 text-gray-600'}`}>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
                     {bus.status}
                   </span>
                 </td>
-                <td className="px-4 py-3">{formatCurrentRouteCell(bus.currentRoute)}</td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">{formatCurrentRouteCell(bus.currentRoute)}</td>
+                <td className="whitespace-nowrap px-4 py-3">
                   <button
                     type="button"
                     onClick={() => setViewMaintenanceBus(bus)}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
                   >
                     <Icon name="visibility" size={14} />
                     View
                   </button>
                 </td>
-                <td className="px-4 py-3">
+                <td className="whitespace-nowrap px-4 py-3">
                   <div className="flex items-center gap-1">
                     <button onClick={() => setModal(bus)}
                       className="rounded-lg p-1.5 text-on-surface-variant hover:bg-surface-container" title="Edit">
@@ -772,8 +773,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => !deleteDisabledReason && handleDeleteRequest(bus)}
-                      disabled={Boolean(deleteDisabledReason)}
+                      onClick={() => handleDeleteRequest(bus)}
                       title={deleteDisabledReason || 'Delete bus'}
                       aria-label={deleteDisabledReason ? 'Delete bus (disabled)' : 'Delete bus'}
                       className={`rounded-lg p-1.5 ${
@@ -1484,7 +1484,6 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Buses() {
-  const navigate = useNavigate()
   const { user } = useAuth()
   const canMarkInMaintenance =
     user?.role === ROLES.ADMINISTRATOR || user?.role === ROLES.FLEET_MANAGER
@@ -1492,10 +1491,13 @@ function Buses() {
   const staleLacksFleetContext =
     (stale?.buses || []).some(
       (bus) =>
-        !Object.prototype.hasOwnProperty.call(bus, 'currentRoute')
+        !Object.prototype.hasOwnProperty.call(bus, 'currentRoute') ||
+        !Object.prototype.hasOwnProperty.call(bus, 'scheduleCount')
     ) ||
     (stale?.drivers || []).some(
-      (driver) => !Object.prototype.hasOwnProperty.call(driver, 'currentRoute')
+      (driver) =>
+        !Object.prototype.hasOwnProperty.call(driver, 'currentRoute') ||
+        !Object.prototype.hasOwnProperty.call(driver, 'scheduleCount')
     )
   const [buses, setBuses] = useState(() => stale?.buses || [])
   const [drivers, setDrivers] = useState(() => stale?.drivers || [])
@@ -1607,10 +1609,6 @@ function Buses() {
         buses={buses}
         canMarkInMaintenance={canMarkInMaintenance}
         onRefresh={reload}
-        onGoToMaintenance={(busId) => {
-          setShowMaintenanceAlerts(false)
-          navigate(`/maintenance?busId=${busId}`)
-        }}
       />
     </div>
   )
