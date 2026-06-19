@@ -1,5 +1,6 @@
 import Bus from '../models/Bus.js'
 import Maintenance from '../models/Maintenance.js'
+import Schedule from '../models/Schedule.js'
 import {
   assertFleetResourceNotLinkedToSchedules,
   attachFleetAssignmentContext,
@@ -8,6 +9,7 @@ import {
 import {
   computeNextMaintenanceDate,
   ensureMaintenanceRecordForBus,
+  recordMaintenanceCompletedForBus,
   syncBusMaintenanceFields,
 } from '../utils/busMaintenanceSync.js'
 import {
@@ -136,6 +138,10 @@ export const updateBus = async (req, res) => {
     assertDepotAccess(req.user, bus.depotId, 'Not allowed to manage buses outside your depot')
 
     const updateData = { ...req.body }
+    const maintenanceDone =
+      updateData.maintenanceDone === true || updateData.maintenanceDone === 'true'
+    delete updateData.maintenanceDone
+
     if (updateData.depotId === '') {
       updateData.depotId = undefined
     } else if (updateData.depotId !== undefined) {
@@ -158,11 +164,17 @@ export const updateBus = async (req, res) => {
       runValidators: true,
     })
 
-    if (updateData.status === 'maintenance' || updateData.status === 'available') {
+    if (maintenanceDone) {
+      await recordMaintenanceCompletedForBus(bus._id)
+    } else if (updateData.status === 'maintenance' || updateData.status === 'available') {
       await syncBusMaintenanceFields(bus._id)
     }
 
-    res.json(updated)
+    const result = maintenanceDone
+      ? await Bus.findById(bus._id).populate('depotId', 'depotName location')
+      : updated
+
+    res.json(result)
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
@@ -178,8 +190,16 @@ export const deleteBus = async (req, res) => {
     }
     assertDepotAccess(req.user, bus.depotId, 'Not allowed to manage buses outside your depot')
 
+    if (bus.status === 'in-service') {
+      return res.status(409).json({
+        message: 'Cannot delete bus while it is in service. Complete or remove assigned trips first.',
+      })
+    }
+
     await assertFleetResourceNotLinkedToSchedules('busId', bus._id, 'bus')
 
+    await Schedule.deleteMany({ busId: bus._id })
+    await Maintenance.deleteMany({ bus_id: bus._id })
     await bus.deleteOne()
     res.json({ message: 'Bus removed successfully' })
   } catch (error) {

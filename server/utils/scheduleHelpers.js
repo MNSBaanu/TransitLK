@@ -218,6 +218,16 @@ export function isDriverVisibleStatus(status) {
   return DRIVER_VISIBLE_STATUSES.includes(status)
 }
 
+/** Completed/cancelled trips no longer block route delete or deactivation */
+export const SCHEDULE_STATUSES_ALLOWING_ROUTE_REMOVAL = ['completed', 'cancelled']
+
+export function scheduleFilterBlockingRouteRemoval(extra = {}) {
+  return {
+    ...extra,
+    status: { $nin: SCHEDULE_STATUSES_ALLOWING_ROUTE_REMOVAL },
+  }
+}
+
 export function reasonToStatus(reason, currentStatus = 'scheduled') {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'

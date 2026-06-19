@@ -1,5 +1,6 @@
 import Bus from '../models/Bus.js'
 import Maintenance from '../models/Maintenance.js'
+import { syncBusStatusFromMaintenance } from './maintenanceHelpers.js'
 
 export const MAINTENANCE_INTERVAL_DAYS = 28
 
@@ -28,6 +29,43 @@ export async function syncBusMaintenanceFields(busId) {
     { lastMaintenanceDate, nextMaintenanceDate },
     { new: true }
   )
+}
+
+/** Record a completed service from fleet edit and refresh bus maintenance dates */
+export async function recordMaintenanceCompletedForBus(
+  busId,
+  description = 'Routine service completed from fleet'
+) {
+  if (!busId) return null
+
+  const now = new Date()
+  const activeRecord = await Maintenance.findOne({
+    bus_id: busId,
+    status: { $in: ['scheduled', 'in-progress'] },
+  }).sort({ service_date: -1 })
+
+  if (activeRecord) {
+    activeRecord.status = 'completed'
+    activeRecord.service_date = now
+    activeRecord.completedAt = now
+    if (!activeRecord.startedAt) activeRecord.startedAt = now
+    await activeRecord.save()
+  } else {
+    await Maintenance.create({
+      bus_id: busId,
+      service_date: now,
+      description,
+      cost: 0,
+      status: 'completed',
+      startedAt: now,
+      completedAt: now,
+    })
+  }
+
+  await syncBusMaintenanceFields(busId)
+  await syncBusStatusFromMaintenance(busId)
+
+  return Bus.findById(busId)
 }
 
 /** Ensure a maintenance log exists when fleet marks a bus as in maintenance */

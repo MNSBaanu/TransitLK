@@ -206,8 +206,21 @@ export function isBusAssignable(bus, routeServiceType, minCapacity = 0) {
 
 export function getFleetDeleteDisabledReason(item, resourceLabel) {
   const count = Number(item?.scheduleCount) || 0
-  if (count <= 0) return null
-  return `Cannot delete — ${count} schedule${count !== 1 ? 's' : ''} linked to this ${resourceLabel}. Remove those trips first.`
+
+  if (resourceLabel === 'bus') {
+    if (item?.status === 'in-service') {
+      return 'Cannot delete — this bus is in service. Complete or remove assigned trips first.'
+    }
+    if (count > 0) {
+      return `Cannot delete — ${count} active trip${count !== 1 ? 's' : ''} assigned to this bus. Complete or remove those trips first.`
+    }
+    return null
+  }
+
+  if (count > 0) {
+    return `Cannot delete — ${count} active trip${count !== 1 ? 's' : ''} assigned to this ${resourceLabel}. Complete or remove those trips first.`
+  }
+  return null
 }
 
 export function busUnassignableReason(bus, routeServiceType, minCapacity = 0) {

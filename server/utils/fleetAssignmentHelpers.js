@@ -6,10 +6,19 @@ import {
   startOfDay,
   endOfDay,
   timeToMinutes,
+  scheduleFilterBlockingRouteRemoval,
 } from './scheduleHelpers.js'
 import { formatRouteEndpointsLabel } from './routeHelpers.js'
 
-const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
+const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft', 'completed']
+const BUS_IN_SERVICE_TRIP_STATUSES = [
+  'pending',
+  'approved',
+  'scheduled',
+  'on-duty',
+  'on-time',
+  'delayed',
+]
 const SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE = [
   'draft',
   'pending',
@@ -44,28 +53,19 @@ export async function cancelActiveSchedulesForBus(
   return { cancelledCount: result.modifiedCount }
 }
 
-function hasActiveTripToday(trips) {
-  return trips.some((trip) => !INACTIVE_SCHEDULE_STATUSES.includes(trip.status))
-}
-
-function deriveBusStatusFromTrips(busStatus, todayTrips) {
-  if (busStatus === 'maintenance') return 'maintenance'
-  return hasActiveTripToday(todayTrips) ? 'in-service' : 'available'
-}
-
 /** Keep bus.status aligned with whether it has an active trip today */
-export async function syncBusStatusForBusId(busId, today = new Date()) {
+export async function syncBusStatusForBusId(busId) {
   if (!busId) return
 
   const bus = await Bus.findById(busId).select('status')
   if (!bus || bus.status === 'maintenance') return
 
-  const dayStart = startOfDay(today)
-  const dayEnd = endOfDay(today)
+  const dayStart = startOfDay(new Date())
+  const dayEnd = endOfDay(new Date())
   const activeTripCount = await Schedule.countDocuments({
     busId,
     tripDate: { $gte: dayStart, $lte: dayEnd },
-    status: { $nin: INACTIVE_SCHEDULE_STATUSES },
+    status: { $in: BUS_IN_SERVICE_TRIP_STATUSES },
   })
 
   const nextStatus = activeTripCount > 0 ? 'in-service' : 'available'
@@ -75,6 +75,22 @@ export async function syncBusStatusForBusId(busId, today = new Date()) {
 }
 
 const DRIVER_ON_DUTY_TRIP_STATUSES = ['on-duty', 'on-time', 'delayed']
+
+function resolveFleetBusStatus(storedStatus, todayTrips) {
+  if (storedStatus === 'maintenance') return 'maintenance'
+  const hasActiveTrip = todayTrips.some((trip) =>
+    BUS_IN_SERVICE_TRIP_STATUSES.includes(trip.status)
+  )
+  return hasActiveTrip ? 'in-service' : 'available'
+}
+
+function resolveFleetDriverStatus(storedStatus, todayTrips) {
+  if (storedStatus === 'on-leave' || storedStatus === 'off-duty') return storedStatus
+  const hasOnDutyTrip = todayTrips.some((trip) =>
+    DRIVER_ON_DUTY_TRIP_STATUSES.includes(trip.status)
+  )
+  return hasOnDutyTrip ? 'on-duty' : 'available'
+}
 
 /** Keep driver.status aligned with active trips today */
 export async function syncDriverStatusForDriverId(driverId, today = new Date()) {
@@ -95,29 +111,6 @@ export async function syncDriverStatusForDriverId(driverId, today = new Date()) 
   if (driver.status !== nextStatus) {
     await Driver.findByIdAndUpdate(driverId, { status: nextStatus })
   }
-}
-
-async function syncBusStatusesFromTodaySchedules(busIds, schedulesByBusId) {
-  if (!busIds.length) return
-
-  const buses = await Bus.find({ _id: { $in: busIds } }).select('_id status').lean()
-  const bulkOps = []
-
-  for (const bus of buses) {
-    if (bus.status === 'maintenance') continue
-    const todayTrips = schedulesByBusId.get(String(bus._id)) || []
-    const nextStatus = deriveBusStatusFromTrips(bus.status, todayTrips)
-    if (bus.status !== nextStatus) {
-      bulkOps.push({
-        updateOne: {
-          filter: { _id: bus._id },
-          update: { $set: { status: nextStatus } },
-        },
-      })
-    }
-  }
-
-  if (bulkOps.length) await Bus.bulkWrite(bulkOps)
 }
 
 export function serializeRouteRef(route) {
@@ -196,14 +189,14 @@ async function loadScheduleCountsByResource(resourceIds, resourceField) {
   if (!resourceIds.length) return new Map()
 
   const counts = await Schedule.aggregate([
-    { $match: { [resourceField]: { $in: resourceIds } } },
+    { $match: scheduleFilterBlockingRouteRemoval({ [resourceField]: { $in: resourceIds } }) },
     { $group: { _id: `$${resourceField}`, count: { $sum: 1 } } },
   ])
 
   return new Map(counts.map((entry) => [String(entry._id), entry.count]))
 }
 
-/** Block fleet resource deletion when any schedule still references it */
+/** Block fleet resource deletion when any active (non-completed) schedule still references it */
 export async function assertFleetResourceNotLinkedToSchedules(
   resourceField,
   resourceId,
@@ -211,10 +204,12 @@ export async function assertFleetResourceNotLinkedToSchedules(
 ) {
   if (!resourceId) return
 
-  const linkedSchedules = await Schedule.countDocuments({ [resourceField]: resourceId })
+  const linkedSchedules = await Schedule.countDocuments(
+    scheduleFilterBlockingRouteRemoval({ [resourceField]: resourceId })
+  )
   if (linkedSchedules > 0) {
     const error = new Error(
-      `Cannot delete ${resourceLabel} because ${linkedSchedules} schedule(s) are linked to it. Remove those schedules first.`
+      `Cannot delete ${resourceLabel} because ${linkedSchedules} active trip(s) are linked to it. Complete or remove those trips first.`
     )
     error.statusCode = 409
     throw error
@@ -266,10 +261,6 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
     loadFleetContextFromDb(resourceIds, resourceField, today),
   ])
 
-  if (resourceField === 'busId') {
-    await syncBusStatusesFromTodaySchedules(resourceIds, schedulesByResourceId)
-  }
-
   return items.map((item) => {
     const doc = typeof item.toObject === 'function' ? item.toObject() : { ...item }
     const key = String(item._id)
@@ -284,7 +275,9 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
     doc.scheduleCount = scheduleCountsByResourceId.get(key) || 0
 
     if (resourceField === 'busId') {
-      doc.status = deriveBusStatusFromTrips(doc.status, todayTrips)
+      doc.status = resolveFleetBusStatus(doc.status, todayTrips)
+    } else if (resourceField === 'driverId') {
+      doc.status = resolveFleetDriverStatus(doc.status, todayTrips)
     }
 
     return doc

@@ -68,6 +68,7 @@ function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
 
     setSaving(true)
     try {
+      const hasFleet = Boolean(busId && driverId)
       const payload = {
         routeNo: route.routeNo,
         routeName: route.routeName,
@@ -76,7 +77,11 @@ function RouteFleetAssignModal({ route, buses, drivers, onClose, onSaved }) {
         endPoint: route.endPoint,
         stops: route.stops || [],
         serviceType: route.serviceType,
-        status: route.status || 'active',
+        status: hasFleet
+          ? 'assigned'
+          : route.status === 'assigned'
+            ? 'active'
+            : route.status || 'active',
         busId: busId || null,
         driverId: driverId || null,
       }
