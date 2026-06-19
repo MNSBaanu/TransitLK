@@ -9,6 +9,7 @@ import {
   finalizeRouteFields,
   isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
+import { scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
 import {
   defaultMinCapacityForService,
   getDriverLicenseInvalidReason,
@@ -46,7 +47,7 @@ async function attachScheduleCounts(routes) {
 
   const ids = list.map((route) => route._id)
   const counts = await Schedule.aggregate([
-    { $match: { routeId: { $in: ids } } },
+    { $match: scheduleFilterBlockingRouteRemoval({ routeId: { $in: ids } }) },
     { $group: { _id: '$routeId', count: { $sum: 1 } } },
   ])
   const countMap = new Map(counts.map((entry) => [String(entry._id), entry.count]))
@@ -196,10 +197,12 @@ const assertRouteStatusTransition = async (existing, nextStatus) => {
   }
 
   if (existing.status === 'active' && nextStatus === 'inactive') {
-    const linkedSchedules = await Schedule.countDocuments({ routeId: existing._id })
+    const linkedSchedules = await Schedule.countDocuments(
+      scheduleFilterBlockingRouteRemoval({ routeId: existing._id })
+    )
     if (linkedSchedules > 0) {
       const error = new Error(
-        `Cannot deactivate route while ${linkedSchedules} schedule(s) are linked. Remove or reassign those schedules first.`
+        `Cannot deactivate route while ${linkedSchedules} active schedule(s) are linked. Complete or remove those trips first.`
       )
       error.statusCode = 409
       throw error
@@ -408,13 +411,16 @@ export const deleteRoute = async (req, res) => {
     }
     assertDepotAccess(req.user, route.depotId, 'Not allowed to manage this route')
 
-    const linkedSchedules = await Schedule.countDocuments({ routeId: route._id })
+    const linkedSchedules = await Schedule.countDocuments(
+      scheduleFilterBlockingRouteRemoval({ routeId: route._id })
+    )
     if (linkedSchedules > 0) {
       return res.status(409).json({
-        message: `Cannot delete route because ${linkedSchedules} schedule(s) are linked to it. Remove those schedules first.`,
+        message: `Cannot delete route because ${linkedSchedules} active trip(s) are linked to it. Complete or remove those trips first.`,
       })
     }
 
+    await Schedule.deleteMany({ routeId: route._id })
     await route.deleteOne()
     res.json({ message: 'Route removed', id: route._id })
   } catch (error) {
