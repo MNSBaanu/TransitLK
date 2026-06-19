@@ -670,6 +670,7 @@ export const updateSchedule = async (req, res) => {
 
     const nextStatus = data.status ?? existing.status
     const isCancellation = nextStatus === 'cancelled'
+    const isTerminalUpdate = isCancellation || nextStatus === 'completed'
 
     if (data.routeId) {
       await getAccessibleRoute(req.user, routeId)
@@ -679,7 +680,7 @@ export const updateSchedule = async (req, res) => {
       ? await getAccessibleRoute(req.user, routeId)
       : scopedRoute
 
-    if (!isCancellation) {
+    if (!isTerminalUpdate) {
       await validateAssignment({
         busId,
         driverId,

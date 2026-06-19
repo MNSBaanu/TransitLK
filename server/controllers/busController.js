@@ -8,6 +8,7 @@ import {
 import {
   computeNextMaintenanceDate,
   ensureMaintenanceRecordForBus,
+  recordMaintenanceCompletedForBus,
   syncBusMaintenanceFields,
 } from '../utils/busMaintenanceSync.js'
 import {
@@ -136,6 +137,10 @@ export const updateBus = async (req, res) => {
     assertDepotAccess(req.user, bus.depotId, 'Not allowed to manage buses outside your depot')
 
     const updateData = { ...req.body }
+    const maintenanceDone =
+      updateData.maintenanceDone === true || updateData.maintenanceDone === 'true'
+    delete updateData.maintenanceDone
+
     if (updateData.depotId === '') {
       updateData.depotId = undefined
     } else if (updateData.depotId !== undefined) {
@@ -158,11 +163,17 @@ export const updateBus = async (req, res) => {
       runValidators: true,
     })
 
-    if (updateData.status === 'maintenance' || updateData.status === 'available') {
+    if (maintenanceDone) {
+      await recordMaintenanceCompletedForBus(bus._id)
+    } else if (updateData.status === 'maintenance' || updateData.status === 'available') {
       await syncBusMaintenanceFields(bus._id)
     }
 
-    res.json(updated)
+    const result = maintenanceDone
+      ? await Bus.findById(bus._id).populate('depotId', 'depotName location')
+      : updated
+
+    res.json(result)
   } catch (error) {
     res.status(500).json({ message: error.message })
   }
