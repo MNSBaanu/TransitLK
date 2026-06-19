@@ -19,13 +19,18 @@ npm-debug.log*
 # Local DB setup scripts (not shipped with the app)
 server/scripts
 
-# Local project docs, diagrams, tests, and IDE config
+# Local project docs, diagrams, tests, marker pack, and IDE config
 diagrams/
 docs/
 testing/
 Testing/
+scripts/
 .cursor/
 .vscode/
+
+# Database dumps (marker submission — Drive only)
+transitlk-dump/
+transitlk-dump.zip
 
 # OS files
 .DS_Store
