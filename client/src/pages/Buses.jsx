@@ -773,8 +773,7 @@ function FleetTab({ buses, loading, onRefresh, addTrigger, onAddClose }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => !deleteDisabledReason && handleDeleteRequest(bus)}
-                      disabled={Boolean(deleteDisabledReason)}
+                      onClick={() => handleDeleteRequest(bus)}
                       title={deleteDisabledReason || 'Delete bus'}
                       aria-label={deleteDisabledReason ? 'Delete bus (disabled)' : 'Delete bus'}
                       className={`rounded-lg p-1.5 ${
@@ -1492,10 +1491,13 @@ function Buses() {
   const staleLacksFleetContext =
     (stale?.buses || []).some(
       (bus) =>
-        !Object.prototype.hasOwnProperty.call(bus, 'currentRoute')
+        !Object.prototype.hasOwnProperty.call(bus, 'currentRoute') ||
+        !Object.prototype.hasOwnProperty.call(bus, 'scheduleCount')
     ) ||
     (stale?.drivers || []).some(
-      (driver) => !Object.prototype.hasOwnProperty.call(driver, 'currentRoute')
+      (driver) =>
+        !Object.prototype.hasOwnProperty.call(driver, 'currentRoute') ||
+        !Object.prototype.hasOwnProperty.call(driver, 'scheduleCount')
     )
   const [buses, setBuses] = useState(() => stale?.buses || [])
   const [drivers, setDrivers] = useState(() => stale?.drivers || [])

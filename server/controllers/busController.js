@@ -178,6 +178,12 @@ export const deleteBus = async (req, res) => {
     }
     assertDepotAccess(req.user, bus.depotId, 'Not allowed to manage buses outside your depot')
 
+    if (bus.status === 'in-service') {
+      return res.status(409).json({
+        message: 'Cannot delete bus because it is currently in service. Remove assigned trips first.',
+      })
+    }
+
     await assertFleetResourceNotLinkedToSchedules('busId', bus._id, 'bus')
 
     await bus.deleteOne()
