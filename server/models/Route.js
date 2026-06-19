@@ -84,7 +84,7 @@ const routeSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['active', 'inactive', 'draft'],
+      enum: ['active', 'inactive', 'draft', 'assigned'],
       default: 'active',
     },
     createdBy: {

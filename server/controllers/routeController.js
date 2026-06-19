@@ -11,6 +11,11 @@ import {
 } from '../utils/routeHelpers.js'
 import { scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
 import {
+  getRouteIdsWithActiveTrips,
+  resolveRouteOperationalStatus,
+  syncRouteStatusForRouteId,
+} from '../utils/routeStatusSync.js'
+import {
   defaultMinCapacityForService,
   getDriverLicenseInvalidReason,
   isBusAssignableForRoute,
@@ -53,14 +58,26 @@ async function attachScheduleCounts(routes) {
   const countMap = new Map(counts.map((entry) => [String(entry._id), entry.count]))
 
   return list.map((route) => {
-    const plain = route.toObject ? route.toObject() : { ...route }
-    return { ...plain, scheduleCount: countMap.get(String(route._id)) || 0 }
+    const activeTrips = countMap.get(String(route._id)) || 0
+    const plain = resolveRouteOperationalStatus(route, activeTrips)
+    return { ...plain, scheduleCount: activeTrips }
   })
+}
+
+function appendFilterClause(filter, clause) {
+  if (!clause || !Object.keys(clause).length) return
+  if (!Object.keys(filter).length) {
+    Object.assign(filter, clause)
+    return
+  }
+  const existing = { ...filter }
+  Object.keys(filter).forEach((key) => delete filter[key])
+  filter.$and = [existing, clause]
 }
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const ROUTE_STATUS_FILTERS = new Set(['active', 'inactive', 'draft'])
+const ROUTE_STATUS_FILTERS = new Set(['active', 'inactive', 'draft', 'assigned'])
 const ROUTE_SERVICE_FILTERS = new Set(['express', 'ordinary', 'semi-luxury'])
 
 async function summarizeRouteDistance(filter) {
@@ -78,7 +95,7 @@ async function summarizeRouteDistance(filter) {
   return { avgDistance, distanceRouteCount: count }
 }
 
-const buildRouteFilter = (req, { search = '', status = '', serviceType = '' } = {}) => {
+const buildRouteFilter = async (req, { search = '', status = '', serviceType = '' } = {}) => {
   const filter = {}
   if (!isSuperadministrator(req.user)) {
     filter.depotId = requireUserDepot(req.user)
@@ -87,21 +104,43 @@ const buildRouteFilter = (req, { search = '', status = '', serviceType = '' } = 
   const trimmedSearch = search.trim()
   if (trimmedSearch) {
     const regex = new RegExp(escapeRegex(trimmedSearch), 'i')
-    filter.$or = [
-      { routeNo: regex },
-      { routeName: regex },
-      { startPoint: regex },
-      { endPoint: regex },
-      { viaDescription: regex },
-      { stops: regex },
-    ]
+    appendFilterClause(filter, {
+      $or: [
+        { routeNo: regex },
+        { routeName: regex },
+        { startPoint: regex },
+        { endPoint: regex },
+        { viaDescription: regex },
+        { stops: regex },
+      ],
+    })
   }
 
-  if (status && ROUTE_STATUS_FILTERS.has(status)) {
-    filter.status = status
+  if (status === 'assigned') {
+    const activeRouteIds = await getRouteIdsWithActiveTrips()
+    appendFilterClause(filter, {
+      $or: [
+        { status: 'assigned' },
+        { status: 'active', busId: { $ne: null }, driverId: { $ne: null } },
+        ...(activeRouteIds.length ? [{ _id: { $in: activeRouteIds } }] : []),
+      ],
+    })
+  } else if (status === 'active') {
+    const activeRouteIds = await getRouteIdsWithActiveTrips()
+    const clause = {
+      status: 'active',
+      $or: [{ busId: null }, { driverId: null }],
+    }
+    if (activeRouteIds.length) {
+      clause._id = { $nin: activeRouteIds }
+    }
+    appendFilterClause(filter, clause)
+  } else if (status && ROUTE_STATUS_FILTERS.has(status)) {
+    appendFilterClause(filter, { status })
   }
+
   if (serviceType && ROUTE_SERVICE_FILTERS.has(serviceType)) {
-    filter.serviceType = serviceType
+    appendFilterClause(filter, { serviceType })
   }
 
   return filter
@@ -188,15 +227,21 @@ const prepareRouteData = (body) => {
 const assertRouteStatusTransition = async (existing, nextStatus) => {
   if (!nextStatus || nextStatus === existing.status) return
 
-  if (existing.status === 'active' && nextStatus === 'draft') {
+  if (
+    (existing.status === 'active' || existing.status === 'assigned') &&
+    nextStatus === 'draft'
+  ) {
     const error = new Error(
-      'An active route cannot be moved back to draft. Set it to inactive to pause operations.'
+      'An active or assigned route cannot be moved back to draft. Set it to inactive to pause operations.'
     )
     error.statusCode = 400
     throw error
   }
 
-  if (existing.status === 'active' && nextStatus === 'inactive') {
+  if (
+    (existing.status === 'active' || existing.status === 'assigned') &&
+    nextStatus === 'inactive'
+  ) {
     const linkedSchedules = await Schedule.countDocuments(
       scheduleFilterBlockingRouteRemoval({ routeId: existing._id })
     )
@@ -207,6 +252,22 @@ const assertRouteStatusTransition = async (existing, nextStatus) => {
       error.statusCode = 409
       throw error
     }
+  }
+}
+
+function applyFleetRouteStatus(data, existing, nextBusId, nextDriverId) {
+  const hasFleet = Boolean(nextBusId && nextDriverId)
+  const requested = data.status
+
+  if (hasFleet) {
+    if (!requested || requested === 'active') {
+      data.status = 'assigned'
+    }
+    return
+  }
+
+  if (existing.status === 'assigned' && requested !== 'inactive' && requested !== 'draft') {
+    data.status = requested ?? 'active'
   }
 }
 
@@ -228,7 +289,7 @@ export const getRoutes = async (req, res) => {
       Boolean(search) ||
       Boolean(status) ||
       Boolean(serviceType)
-    const filter = buildRouteFilter(req, { search, status, serviceType })
+    const filter = await buildRouteFilter(req, { search, status, serviceType })
 
     if (summaryOnly) {
       const routes = await sortRoutes(
@@ -329,9 +390,19 @@ export const createRoute = async (req, res) => {
       return res.status(400).json({ message: 'Select a bus when a driver is assigned' })
     }
 
+    if (data.status === 'assigned' && (!busId || !driverId)) {
+      return res.status(400).json({
+        message: 'Assigned status requires both a bus and a driver',
+      })
+    }
+
     const serviceType = data.serviceType || 'ordinary'
     await validateBusAssignment(busId, serviceType, depotId)
     await validateDriverAssignment(driverId, depotId)
+
+    if (busId && driverId && data.status !== 'draft' && data.status !== 'inactive') {
+      data.status = 'assigned'
+    }
 
     const route = await Route.create({
       ...data,
@@ -382,16 +453,25 @@ export const updateRoute = async (req, res) => {
     if (nextBusId) await validateBusAssignment(nextBusId, serviceType, depotId)
     if (nextDriverId) await validateDriverAssignment(nextDriverId, depotId)
 
+    applyFleetRouteStatus(data, existing, nextBusId, nextDriverId)
+
     const nextStatus = data.status ?? existing.status
+    if (nextStatus === 'assigned' && (!nextBusId || !nextDriverId)) {
+      return res.status(400).json({
+        message: 'Assigned status requires both a bus and a driver',
+      })
+    }
     await assertRouteStatusTransition(existing, nextStatus)
 
     data.depotId = depotId
 
     await Route.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true })
     await syncAssignedBusServiceType(nextBusId, serviceType)
+    await syncRouteStatusForRouteId(req.params.id)
 
     const populated = await populateRoute(Route.findById(req.params.id))
-    res.json(populated)
+    const [withCounts] = await attachScheduleCounts([populated])
+    res.json(withCounts)
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Route number already exists for this depot' })

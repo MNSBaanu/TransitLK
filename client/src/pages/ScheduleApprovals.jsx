@@ -296,6 +296,7 @@ function ScheduleApprovals() {
       invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
+      invalidatePageData('/routes')
       showToast('Schedule approved — driver can view the trip in My trips')
       await reload({ keepContent: true, force: true })
     } catch (err) {
@@ -323,6 +324,7 @@ function ScheduleApprovals() {
       invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
+      invalidatePageData('/routes')
       showToast('Returned to scheduler')
       await reload({ keepContent: true, force: true })
     } catch (err) {
@@ -351,6 +353,7 @@ function ScheduleApprovals() {
       invalidatePageData('/schedules/approvals')
       invalidatePageData('/reports')
       invalidatePageData('/buses')
+      invalidatePageData('/routes')
       showToast('Trip resubmitted for approval')
       await reload({ keepContent: true, force: true })
     } catch (err) {

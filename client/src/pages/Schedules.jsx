@@ -160,6 +160,7 @@ function SchedulesPage() {
     invalidatePageData('/schedules')
     invalidatePageData('/reports')
     invalidatePageData('/buses')
+    invalidatePageData('/routes')
   }, [])
 
   const canSeeDriverIssues =

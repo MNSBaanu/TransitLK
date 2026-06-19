@@ -30,6 +30,7 @@ import {
 } from '../utils/fleetHelpers.js'
 import { resolveScheduleTimes } from '../utils/timeFormat.js'
 import { syncBusStatusForBusId, syncDriverStatusForDriverId } from '../utils/fleetAssignmentHelpers.js'
+import { syncRouteStatusForRouteId } from '../utils/routeStatusSync.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -566,7 +567,7 @@ export const createSchedule = async (req, res) => {
     } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
 
     const route = await getAccessibleRoute(req.user, routeId)
-    if (route.status && route.status !== 'active') {
+    if (route.status && !['active', 'assigned'].includes(route.status)) {
       return res.status(400).json({
         message: `Route "${route.routeName}" is ${route.status} and cannot be scheduled`,
       })
@@ -618,6 +619,7 @@ export const createSchedule = async (req, res) => {
 
     await syncBusServiceType(busId, route.serviceType)
     await syncBusStatusForBusId(busId)
+    await syncRouteStatusForRouteId(routeId)
 
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.status(201).json(populated)
@@ -707,6 +709,7 @@ export const updateSchedule = async (req, res) => {
     }
 
     const previousBusId = existing.busId
+    const previousRouteId = existing.routeId
 
     appendAdjustmentHistory(existing, data, req.user?.id)
     Object.assign(existing, data)
@@ -719,6 +722,10 @@ export const updateSchedule = async (req, res) => {
     await syncBusStatusForBusId(busId)
     if (previousBusId && String(previousBusId) !== String(busId)) {
       await syncBusStatusForBusId(previousBusId)
+    }
+    await syncRouteStatusForRouteId(routeId)
+    if (previousRouteId && String(previousRouteId) !== String(routeId)) {
+      await syncRouteStatusForRouteId(previousRouteId)
     }
     const populated = await populateSchedule(Schedule.findById(req.params.id))
     res.json(populated)
@@ -734,8 +741,10 @@ export const deleteSchedule = async (req, res) => {
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
     await assertScheduleAccess(req.user, schedule)
     const busId = schedule.busId
+    const routeId = schedule.routeId
     await schedule.deleteOne()
     await syncBusStatusForBusId(busId)
+    await syncRouteStatusForRouteId(routeId)
     res.json({ message: 'Schedule removed', id: schedule._id })
   } catch (error) {
     const status = error.statusCode || 500
@@ -773,6 +782,7 @@ export const submitSchedule = async (req, res) => {
     schedule.rejectedAt = undefined
     schedule.approvedAt = undefined
     await schedule.save()
+    await syncRouteStatusForRouteId(schedule.routeId)
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
@@ -823,6 +833,7 @@ export const approveSchedule = async (req, res) => {
     await schedule.save()
     await syncBusServiceType(schedule.busId, route?.serviceType)
     await syncBusStatusForBusId(schedule.busId)
+    await syncRouteStatusForRouteId(schedule.routeId)
     try {
       await notifyDriverTripApproved({ schedule })
     } catch (notifyError) {
@@ -852,6 +863,7 @@ export const rejectSchedule = async (req, res) => {
     schedule.rejectedAt = new Date()
     schedule.approvedAt = undefined
     await schedule.save()
+    await syncRouteStatusForRouteId(schedule.routeId)
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
   } catch (error) {
@@ -918,6 +930,7 @@ export const updateDriverTripStatus = async (req, res) => {
       await schedule.save()
       await syncBusStatusForBusId(schedule.busId)
       await syncDriverStatusForDriverId(schedule.driverId, schedule.tripDate)
+      await syncRouteStatusForRouteId(schedule.routeId)
       try {
         await notifyDriverIssueReport({ schedule, notes })
       } catch (notifyError) {
@@ -942,6 +955,7 @@ export const updateDriverTripStatus = async (req, res) => {
     await schedule.save()
     await syncBusStatusForBusId(schedule.busId)
     await syncDriverStatusForDriverId(schedule.driverId, schedule.tripDate)
+    await syncRouteStatusForRouteId(schedule.routeId)
 
     if (status === 'delayed') {
       try {

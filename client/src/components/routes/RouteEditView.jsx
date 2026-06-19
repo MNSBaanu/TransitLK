@@ -54,6 +54,7 @@ function RouteEditView({
                 <select name="status" value={form.status} onChange={onFormChange} className={inputClass}>
                   {canUseDraft && <option value="draft">Draft</option>}
                   <option value="active">Active</option>
+                  {isEditing && <option value="assigned">Assigned</option>}
                   <option value="inactive">Inactive</option>
                 </select>
               </label>
