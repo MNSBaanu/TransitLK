@@ -31,7 +31,7 @@ import { CSV_TEMPLATES, IMPORT_TYPES } from '../utils/csvImportTemplates.js'
 const BUS_STATUSES = new Set(['available', 'in-service', 'maintenance'])
 const BUS_SERVICE_TYPES = new Set(['express', 'ordinary', 'semi-luxury'])
 const DRIVER_STATUSES = new Set(['available', 'on-duty', 'on-leave', 'off-duty'])
-const ROUTE_STATUSES = new Set(['active', 'inactive', 'draft'])
+const ROUTE_STATUSES = new Set(['active', 'inactive', 'draft', 'assigned'])
 const MAINTENANCE_STATUSES = new Set(['scheduled', 'in-progress', 'completed', 'cancelled'])
 
 function emptyRow(row, headers) {

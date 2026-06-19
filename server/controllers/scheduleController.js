@@ -566,7 +566,7 @@ export const createSchedule = async (req, res) => {
     } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
 
     const route = await getAccessibleRoute(req.user, routeId)
-    if (route.status && route.status !== 'active') {
+    if (route.status && !['active', 'assigned'].includes(route.status)) {
       return res.status(400).json({
         message: `Route "${route.routeName}" is ${route.status} and cannot be scheduled`,
       })

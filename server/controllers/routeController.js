@@ -60,7 +60,7 @@ async function attachScheduleCounts(routes) {
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-const ROUTE_STATUS_FILTERS = new Set(['active', 'inactive', 'draft'])
+const ROUTE_STATUS_FILTERS = new Set(['active', 'inactive', 'draft', 'assigned'])
 const ROUTE_SERVICE_FILTERS = new Set(['express', 'ordinary', 'semi-luxury'])
 
 async function summarizeRouteDistance(filter) {
@@ -188,15 +188,21 @@ const prepareRouteData = (body) => {
 const assertRouteStatusTransition = async (existing, nextStatus) => {
   if (!nextStatus || nextStatus === existing.status) return
 
-  if (existing.status === 'active' && nextStatus === 'draft') {
+  if (
+    (existing.status === 'active' || existing.status === 'assigned') &&
+    nextStatus === 'draft'
+  ) {
     const error = new Error(
-      'An active route cannot be moved back to draft. Set it to inactive to pause operations.'
+      'An active or assigned route cannot be moved back to draft. Set it to inactive to pause operations.'
     )
     error.statusCode = 400
     throw error
   }
 
-  if (existing.status === 'active' && nextStatus === 'inactive') {
+  if (
+    (existing.status === 'active' || existing.status === 'assigned') &&
+    nextStatus === 'inactive'
+  ) {
     const linkedSchedules = await Schedule.countDocuments(
       scheduleFilterBlockingRouteRemoval({ routeId: existing._id })
     )
@@ -207,6 +213,22 @@ const assertRouteStatusTransition = async (existing, nextStatus) => {
       error.statusCode = 409
       throw error
     }
+  }
+}
+
+function applyFleetRouteStatus(data, existing, nextBusId, nextDriverId) {
+  const hasFleet = Boolean(nextBusId && nextDriverId)
+  const requested = data.status
+
+  if (hasFleet) {
+    if (!requested || requested === 'active') {
+      data.status = 'assigned'
+    }
+    return
+  }
+
+  if (existing.status === 'assigned' && requested !== 'inactive' && requested !== 'draft') {
+    data.status = requested ?? 'active'
   }
 }
 
@@ -329,9 +351,19 @@ export const createRoute = async (req, res) => {
       return res.status(400).json({ message: 'Select a bus when a driver is assigned' })
     }
 
+    if (data.status === 'assigned' && (!busId || !driverId)) {
+      return res.status(400).json({
+        message: 'Assigned status requires both a bus and a driver',
+      })
+    }
+
     const serviceType = data.serviceType || 'ordinary'
     await validateBusAssignment(busId, serviceType, depotId)
     await validateDriverAssignment(driverId, depotId)
+
+    if (busId && driverId && data.status !== 'draft' && data.status !== 'inactive') {
+      data.status = 'assigned'
+    }
 
     const route = await Route.create({
       ...data,
@@ -382,7 +414,14 @@ export const updateRoute = async (req, res) => {
     if (nextBusId) await validateBusAssignment(nextBusId, serviceType, depotId)
     if (nextDriverId) await validateDriverAssignment(nextDriverId, depotId)
 
+    applyFleetRouteStatus(data, existing, nextBusId, nextDriverId)
+
     const nextStatus = data.status ?? existing.status
+    if (nextStatus === 'assigned' && (!nextBusId || !nextDriverId)) {
+      return res.status(400).json({
+        message: 'Assigned status requires both a bus and a driver',
+      })
+    }
     await assertRouteStatusTransition(existing, nextStatus)
 
     data.depotId = depotId

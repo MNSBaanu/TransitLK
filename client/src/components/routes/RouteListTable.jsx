@@ -16,6 +16,7 @@ function routeCode(route) {
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'active', label: 'Active' },
+  { value: 'assigned', label: 'Assigned' },
   { value: 'draft', label: 'Draft' },
   { value: 'inactive', label: 'Inactive' },
 ]
