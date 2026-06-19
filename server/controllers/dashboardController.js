@@ -39,20 +39,7 @@ function buildMaintenanceAlerts(allBuses, maintenanceRecords, schedules) {
       ? now - new Date(lastService.service_date).getTime()
       : Number.POSITIVE_INFINITY
 
-    if (bus.status === 'maintenance') {
-      alerts.push({
-        _id: `in-maint-${busId}`,
-        type: 'in_maintenance',
-        severity: 'info',
-        title: 'IN MAINTENANCE',
-        busReg: bus.regNumber,
-        busStatus: bus.status,
-        description: lastService?.description || 'Vehicle is currently undergoing maintenance.',
-        service_date: lastService?.service_date || null,
-        cost: lastService?.cost || null,
-      })
-      continue
-    }
+    if (bus.status === 'maintenance') continue
 
     if (!isOperational(bus.status)) continue
 
