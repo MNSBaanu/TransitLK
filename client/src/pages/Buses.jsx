@@ -171,16 +171,7 @@ function buildFleetMaintenanceAlerts(buses) {
   const alerts = []
 
   for (const bus of buses) {
-    if (bus.status === 'maintenance') {
-      alerts.push({
-        id: `in-maint-${bus._id}`,
-        severity: 'info',
-        title: 'In maintenance',
-        busReg: bus.regNumber,
-        description: 'Vehicle is currently undergoing maintenance.',
-      })
-      continue
-    }
+    if (bus.status === 'maintenance') continue
 
     if ((bus.mileage || 0) >= MILEAGE_SERVICE_THRESHOLD) {
       alerts.push({
@@ -188,6 +179,7 @@ function buildFleetMaintenanceAlerts(buses) {
         severity: 'urgent',
         title: 'Maintenance needed',
         busReg: bus.regNumber,
+        busId: bus._id,
         description: `High mileage (${(bus.mileage || 0).toLocaleString()} km) — service required`,
       })
     }
@@ -225,10 +217,34 @@ const ALERT_SEVERITY_STYLES = {
   info: 'border-blue-200 bg-blue-50 text-blue-900',
 }
 
-function MaintenanceAlertsPanel({ open, onClose, buses, onGoToMaintenance }) {
-  if (!open) return null
+function MaintenanceAlertsPanel({
+  open,
+  onClose,
+  buses,
+  onGoToMaintenance,
+  onRefresh,
+  canMarkInMaintenance,
+}) {
+  const [markingId, setMarkingId] = useState(null)
+  const [markError, setMarkError] = useState('')
 
   const alerts = buildFleetMaintenanceAlerts(buses)
+
+  const handleMarkInMaintenance = async (busId) => {
+    setMarkingId(busId)
+    setMarkError('')
+    try {
+      await api.put(`/buses/${busId}`, { status: 'maintenance' })
+      invalidatePageData('/buses')
+      await onRefresh?.({ keepContent: true, force: true })
+    } catch (err) {
+      setMarkError(err.response?.data?.message || 'Could not update fleet status')
+    } finally {
+      setMarkingId(null)
+    }
+  }
+
+  if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -254,6 +270,9 @@ function MaintenanceAlertsPanel({ open, onClose, buses, onGoToMaintenance }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {markError && (
+            <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{markError}</p>
+          )}
           {alerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Icon name="check_circle" size={40} className="text-green-500" />
@@ -275,15 +294,27 @@ function MaintenanceAlertsPanel({ open, onClose, buses, onGoToMaintenance }) {
                       <p className="mt-1 text-sm font-bold">{alert.busReg}</p>
                       <p className="mt-0.5 text-xs opacity-90">{alert.description}</p>
                     </div>
-                    {alert.busId && (
-                      <button
-                        type="button"
-                        onClick={() => onGoToMaintenance(alert.busId)}
-                        className="shrink-0 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
-                      >
-                        Log service
-                      </button>
-                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      {alert.title === 'Maintenance needed' && alert.busId && canMarkInMaintenance && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkInMaintenance(alert.busId)}
+                          disabled={markingId === alert.busId}
+                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 disabled:opacity-60"
+                        >
+                          {markingId === alert.busId ? 'Updating...' : 'Added to maintenance'}
+                        </button>
+                      )}
+                      {alert.busId && alert.title !== 'Maintenance needed' && (
+                        <button
+                          type="button"
+                          onClick={() => onGoToMaintenance(alert.busId)}
+                          className="rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
+                        >
+                          Log service
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1454,6 +1485,9 @@ function DriversTab({ drivers, loading, onRefresh, addTrigger, onAddClose }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 function Buses() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const canMarkInMaintenance =
+    user?.role === ROLES.ADMINISTRATOR || user?.role === ROLES.FLEET_MANAGER
   const stale = getStalePageData('/buses')
   const staleLacksFleetContext =
     (stale?.buses || []).some(
@@ -1571,6 +1605,8 @@ function Buses() {
         open={showMaintenanceAlerts}
         onClose={() => setShowMaintenanceAlerts(false)}
         buses={buses}
+        canMarkInMaintenance={canMarkInMaintenance}
+        onRefresh={reload}
         onGoToMaintenance={(busId) => {
           setShowMaintenanceAlerts(false)
           navigate(`/maintenance?busId=${busId}`)
