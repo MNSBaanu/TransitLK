@@ -341,6 +341,7 @@ function BusModal({ bus, onClose, onSave }) {
   const creatorDepotName = bus?.depotId?.depotName || user?.depotId?.depotName || 'Assigned depot'
 
   const [form, setForm] = useState(() => busFormState(bus, user))
+  const [maintenanceDone, setMaintenanceDone] = useState(false)
   const [depots, setDepots] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -360,6 +361,23 @@ function BusModal({ bus, onClose, onSave }) {
     setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
   }
 
+  const buildBusPayload = () => {
+    const payload = {
+      regNumber: form.regNumber.trim(),
+      capacity: Number(form.capacity),
+      status: form.status,
+      serviceType: form.serviceType,
+      depotId: form.depotId || undefined,
+    }
+    if (form.mileage !== '' && form.mileage != null) {
+      payload.mileage = Number(form.mileage)
+    }
+    if (bus && maintenanceDone) {
+      payload.maintenanceDone = true
+    }
+    return payload
+  }
+
   const submit = async (e) => {
     e.preventDefault()
     const errors = validateBusForm(form)
@@ -369,10 +387,12 @@ function BusModal({ bus, onClose, onSave }) {
     setSaving(true)
     setError('')
     try {
+      const payload = buildBusPayload()
       if (bus) {
-        await api.put(`/buses/${bus._id}`, form)
+        await api.put(`/buses/${bus._id}`, payload)
+        if (maintenanceDone) invalidatePageData('/maintenance')
       } else {
-        await api.post('/buses', form)
+        await api.post('/buses', payload)
       }
       onSave()
     } catch (err) {
@@ -457,6 +477,24 @@ function BusModal({ bus, onClose, onSave }) {
             )}
             <FieldError message={fieldErrors.depotId} />
           </div>
+          {bus && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-outline-variant bg-surface-container-low px-3 py-3">
+              <input
+                type="checkbox"
+                checked={maintenanceDone}
+                onChange={(e) => setMaintenanceDone(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-outline-variant text-neutral-900 focus:ring-neutral-900"
+              />
+              <div>
+                <span className="text-sm font-medium text-neutral-900">Maintenance done</span>
+                <p className="mt-0.5 text-xs text-on-surface-variant">
+                  {bus.lastMaintenanceDate
+                    ? `Last service ${formatMaintenanceDate(bus.lastMaintenanceDate)} — saves today as the new service date.`
+                    : 'Records today as the service date and starts the 4-week maintenance interval.'}
+                </p>
+              </div>
+            </label>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}
               className="rounded-lg border border-outline-variant px-4 py-2 text-sm font-medium hover:bg-surface-container">

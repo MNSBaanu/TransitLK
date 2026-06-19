@@ -44,15 +44,6 @@ export async function cancelActiveSchedulesForBus(
   return { cancelledCount: result.modifiedCount }
 }
 
-function hasActiveTripToday(trips) {
-  return trips.some((trip) => !INACTIVE_SCHEDULE_STATUSES.includes(trip.status))
-}
-
-function deriveBusStatusFromTrips(busStatus, todayTrips) {
-  if (busStatus === 'maintenance') return 'maintenance'
-  return hasActiveTripToday(todayTrips) ? 'in-service' : 'available'
-}
-
 /** Keep bus.status aligned with whether it has an active trip today */
 export async function syncBusStatusForBusId(busId, today = new Date()) {
   if (!busId) return
@@ -95,29 +86,6 @@ export async function syncDriverStatusForDriverId(driverId, today = new Date()) 
   if (driver.status !== nextStatus) {
     await Driver.findByIdAndUpdate(driverId, { status: nextStatus })
   }
-}
-
-async function syncBusStatusesFromTodaySchedules(busIds, schedulesByBusId) {
-  if (!busIds.length) return
-
-  const buses = await Bus.find({ _id: { $in: busIds } }).select('_id status').lean()
-  const bulkOps = []
-
-  for (const bus of buses) {
-    if (bus.status === 'maintenance') continue
-    const todayTrips = schedulesByBusId.get(String(bus._id)) || []
-    const nextStatus = deriveBusStatusFromTrips(bus.status, todayTrips)
-    if (bus.status !== nextStatus) {
-      bulkOps.push({
-        updateOne: {
-          filter: { _id: bus._id },
-          update: { $set: { status: nextStatus } },
-        },
-      })
-    }
-  }
-
-  if (bulkOps.length) await Bus.bulkWrite(bulkOps)
 }
 
 export function serializeRouteRef(route) {
@@ -266,10 +234,6 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
     loadFleetContextFromDb(resourceIds, resourceField, today),
   ])
 
-  if (resourceField === 'busId') {
-    await syncBusStatusesFromTodaySchedules(resourceIds, schedulesByResourceId)
-  }
-
   return items.map((item) => {
     const doc = typeof item.toObject === 'function' ? item.toObject() : { ...item }
     const key = String(item._id)
@@ -282,10 +246,6 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
       ? serializeCurrentSchedule(currentPick.schedule, currentPick.phase)
       : null
     doc.scheduleCount = scheduleCountsByResourceId.get(key) || 0
-
-    if (resourceField === 'busId') {
-      doc.status = deriveBusStatusFromTrips(doc.status, todayTrips)
-    }
 
     return doc
   })
