@@ -9,7 +9,15 @@ import {
 } from './scheduleHelpers.js'
 import { formatRouteEndpointsLabel } from './routeHelpers.js'
 
-const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft']
+const INACTIVE_SCHEDULE_STATUSES = ['cancelled', 'draft', 'completed']
+const BUS_IN_SERVICE_TRIP_STATUSES = [
+  'pending',
+  'approved',
+  'scheduled',
+  'on-duty',
+  'on-time',
+  'delayed',
+]
 const SCHEDULE_STATUSES_TO_CANCEL_ON_MAINTENANCE = [
   'draft',
   'pending',
@@ -45,18 +53,18 @@ export async function cancelActiveSchedulesForBus(
 }
 
 /** Keep bus.status aligned with whether it has an active trip today */
-export async function syncBusStatusForBusId(busId, today = new Date()) {
+export async function syncBusStatusForBusId(busId) {
   if (!busId) return
 
   const bus = await Bus.findById(busId).select('status')
   if (!bus || bus.status === 'maintenance') return
 
-  const dayStart = startOfDay(today)
-  const dayEnd = endOfDay(today)
+  const dayStart = startOfDay(new Date())
+  const dayEnd = endOfDay(new Date())
   const activeTripCount = await Schedule.countDocuments({
     busId,
     tripDate: { $gte: dayStart, $lte: dayEnd },
-    status: { $nin: INACTIVE_SCHEDULE_STATUSES },
+    status: { $in: BUS_IN_SERVICE_TRIP_STATUSES },
   })
 
   const nextStatus = activeTripCount > 0 ? 'in-service' : 'available'
@@ -66,6 +74,22 @@ export async function syncBusStatusForBusId(busId, today = new Date()) {
 }
 
 const DRIVER_ON_DUTY_TRIP_STATUSES = ['on-duty', 'on-time', 'delayed']
+
+function resolveFleetBusStatus(storedStatus, todayTrips) {
+  if (storedStatus === 'maintenance') return 'maintenance'
+  const hasActiveTrip = todayTrips.some((trip) =>
+    BUS_IN_SERVICE_TRIP_STATUSES.includes(trip.status)
+  )
+  return hasActiveTrip ? 'in-service' : 'available'
+}
+
+function resolveFleetDriverStatus(storedStatus, todayTrips) {
+  if (storedStatus === 'on-leave' || storedStatus === 'off-duty') return storedStatus
+  const hasOnDutyTrip = todayTrips.some((trip) =>
+    DRIVER_ON_DUTY_TRIP_STATUSES.includes(trip.status)
+  )
+  return hasOnDutyTrip ? 'on-duty' : 'available'
+}
 
 /** Keep driver.status aligned with active trips today */
 export async function syncDriverStatusForDriverId(driverId, today = new Date()) {
@@ -246,6 +270,12 @@ export async function attachFleetAssignmentContext(items, { resourceField }) {
       ? serializeCurrentSchedule(currentPick.schedule, currentPick.phase)
       : null
     doc.scheduleCount = scheduleCountsByResourceId.get(key) || 0
+
+    if (resourceField === 'busId') {
+      doc.status = resolveFleetBusStatus(doc.status, todayTrips)
+    } else if (resourceField === 'driverId') {
+      doc.status = resolveFleetDriverStatus(doc.status, todayTrips)
+    }
 
     return doc
   })
