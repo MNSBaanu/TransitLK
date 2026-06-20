@@ -228,6 +228,15 @@ export function scheduleFilterBlockingRouteRemoval(extra = {}) {
   }
 }
 
+/** Trips that keep a route assigned: today or future only (past trips are ignored). */
+export function scheduleFilterBlockingRouteAssignment(extra = {}, now = new Date()) {
+  const todayStart = startOfDay(now)
+  return {
+    ...scheduleFilterBlockingRouteRemoval(extra),
+    tripDate: { $gte: todayStart },
+  }
+}
+
 export function reasonToStatus(reason, currentStatus = 'scheduled') {
   if (reason === 'emergency') return 'delayed'
   if (reason === 'maintenance' && currentStatus === 'scheduled') return 'cancelled'
