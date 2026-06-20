@@ -14,6 +14,8 @@ import {
   approveSchedule,
   rejectSchedule,
   updateDriverTripStatus,
+  updateDriverLiveLocation,
+  getLiveTripLocations,
 } from '../controllers/scheduleController.js'
 import protect from '../middleware/authMiddleware.js'
 import { authorize } from '../middleware/authorizeMiddleware.js'
@@ -63,6 +65,18 @@ router.patch(
   '/:id/trip-status',
   authorize(ROLES.DRIVER),
   updateDriverTripStatus
+)
+
+router.patch(
+  '/:id/live-location',
+  authorize(ROLES.DRIVER),
+  updateDriverLiveLocation
+)
+
+router.get(
+  '/live-locations',
+  authorize(ROLES.ADMINISTRATOR, ROLES.DEPOT_MANAGER),
+  getLiveTripLocations
 )
 
 router

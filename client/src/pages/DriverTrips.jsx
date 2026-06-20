@@ -1,23 +1,19 @@
 import { useCallback, useState } from 'react'
 import api from '../services/api'
 import Icon from '../components/Icon'
+import DriverTripCard from '../components/driver/DriverTripCard'
+import useDriverLiveLocationSharing from '../hooks/useDriverLiveLocationSharing'
 import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
 import { formatServiceType } from '../utils/fleetHelpers'
 import {
-  canDriverAcknowledgeTrip,
-  canDriverCompleteTrip,
-  canDriverReportIssue,
   formatRouteEndpointsLabel,
   formatScheduleStatusLabel,
   formatTripDate,
-  scheduleStatusClass,
 } from '../utils/scheduleHelpers'
 import { ModuleHeader, ModuleCard, ModuleToast } from '../components/layout/ModuleLayout'
 
-const labelClass = 'text-[10px] font-bold uppercase tracking-wide text-on-surface-variant'
-const cellClass = 'px-3 py-3 align-top text-sm'
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
@@ -37,11 +33,33 @@ function DriverTrips() {
 
   const { loading, reload } = useFastPageLoad('/my-trips', { applyData })
 
+  const handleTripUpdate = useCallback((updated) => {
+    setTrips((prev) => prev.map((t) => (String(t._id) === String(updated._id) ? updated : t)))
+  }, [])
+
+  const { geoError: liveGeoError, sharingBusy, setSharing } = useDriverLiveLocationSharing(
+    trips,
+    handleTripUpdate
+  )
+
   const upcoming = trips.filter((t) => t.status !== 'cancelled' && t.status !== 'completed')
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
+  }
+
+  const handleSharingToggle = async (tripId, enabled) => {
+    try {
+      await setSharing(tripId, enabled)
+      showToast(
+        enabled
+          ? 'Live location sharing enabled for this trip'
+          : 'Live location sharing stopped for this trip'
+      )
+    } catch {
+      // hook sets geo error
+    }
   }
 
   const handleStatusChange = async (tripId, status, notes) => {
@@ -54,7 +72,11 @@ function DriverTrips() {
       invalidatePageData('/schedules')
       invalidatePageData('/buses')
       invalidatePageData('/routes')
-      showToast(`Trip updated — ${formatScheduleStatusLabel(status)}`)
+      showToast(
+        status === 'on-duty'
+          ? 'Trip started — open Trip location below to share live GPS with depot'
+          : `Trip updated — ${formatScheduleStatusLabel(status)}`
+      )
       await refreshSession()
       await reload({ keepContent: true, force: true })
     } catch (err) {
@@ -65,7 +87,6 @@ function DriverTrips() {
   }
 
   const handleAcknowledge = (tripId) => handleStatusChange(tripId, 'on-duty')
-
   const handleComplete = (tripId) => handleStatusChange(tripId, 'completed')
 
   const openIssueModal = (trip) => {
@@ -117,12 +138,18 @@ function DriverTrips() {
 
       <ModuleHeader
         title="My assigned trips"
-        subtitle={`Welcome, ${user?.name || 'Driver'} — approved trips only appear here after the depot manager releases your schedule.`}
+        subtitle={`Welcome, ${user?.name || 'Driver'} — each trip includes route map and live location sharing after you start.`}
       />
 
       {error && !issueTrip && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {liveGeoError && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {liveGeoError}
         </div>
       )}
 
@@ -152,174 +179,20 @@ function DriverTrips() {
             your schedule.
           </p>
         ) : (
-          <>
-          <div className="space-y-3 p-4 md:hidden">
-            {trips.map((trip) => {
-              const isSaving = savingId === trip._id
-              const canAcknowledge = canDriverAcknowledgeTrip(trip.status)
-              const canReport = canDriverReportIssue(trip.status)
-              const canComplete = canDriverCompleteTrip(trip.status)
-
-              return (
-                <article
-                  key={trip._id}
-                  className="rounded-xl border border-outline-variant bg-white p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-neutral-900">
-                        {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
-                      </p>
-                      <p className="mt-1 text-sm text-on-surface-variant">
-                        {formatTripDate(trip.tripDate)}
-                      </p>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(trip.status)}`}
-                    >
-                      {formatScheduleStatusLabel(trip.status)}
-                    </span>
-                  </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
-                        Departure
-                      </dt>
-                      <dd className="font-medium tabular-nums">{trip.departureTime || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
-                        Arrival
-                      </dt>
-                      <dd className="font-medium tabular-nums">{trip.arrivalTime || '—'}</dd>
-                    </div>
-                    <div className="col-span-2">
-                      <dt className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
-                        Bus
-                      </dt>
-                      <dd className="font-medium">{trip.busId?.regNumber || '—'}</dd>
-                    </div>
-                  </dl>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={!canAcknowledge || isSaving}
-                      onClick={() => handleAcknowledge(trip._id)}
-                      className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {isSaving ? 'Saving…' : 'Start'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canReport || isSaving}
-                      onClick={() => openIssueModal(trip)}
-                      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <Icon name="report_problem" size={14} />
-                      Report issue
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canComplete || isSaving}
-                      onClick={() => handleComplete(trip._id)}
-                      className="w-full rounded-lg bg-slate-700 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Mark completed
-                    </button>
-                  </div>
-                </article>
-              )
-            })}
+          <div className="space-y-4 p-4">
+            {trips.map((trip) => (
+              <DriverTripCard
+                key={trip._id}
+                trip={trip}
+                isSaving={savingId === trip._id}
+                sharingBusy={sharingBusy}
+                onSharingToggle={handleSharingToggle}
+                onAcknowledge={handleAcknowledge}
+                onReportIssue={openIssueModal}
+                onComplete={handleComplete}
+              />
+            ))}
           </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1100px]">
-              <thead>
-                <tr className="border-b border-outline-variant text-left">
-                  <th className={`${labelClass} ${cellClass}`}>Route</th>
-                  <th className={`${labelClass} ${cellClass}`}>Trip date</th>
-                  <th className={`${labelClass} ${cellClass}`}>Departure time</th>
-                  <th className={`${labelClass} ${cellClass}`}>Arrival time</th>
-                  <th className={`${labelClass} ${cellClass}`}>Assigned bus</th>
-                  <th className={`${labelClass} ${cellClass}`}>Current status</th>
-                  <th className={`${labelClass} ${cellClass}`}>Start trip</th>
-                  <th className={`${labelClass} ${cellClass}`}>
-                    <span className="inline-flex items-center gap-1">
-                      <Icon name="report_problem" size={14} />
-                      Report issue
-                    </span>
-                  </th>
-                  <th className={`${labelClass} ${cellClass}`}>Completed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant">
-                {trips.map((trip) => {
-                  const isSaving = savingId === trip._id
-                  const canAcknowledge = canDriverAcknowledgeTrip(trip.status)
-                  const canReport = canDriverReportIssue(trip.status)
-                  const canComplete = canDriverCompleteTrip(trip.status)
-
-                  return (
-                    <tr key={trip._id} className="bg-white">
-                      <td className={cellClass}>
-                        <p className="font-semibold text-neutral-900">
-                          {formatRouteEndpointsLabel(trip.routeId) || 'Route'}
-                        </p>
-                      </td>
-                      <td className={`${cellClass} whitespace-nowrap tabular-nums`}>
-                        {formatTripDate(trip.tripDate)}
-                      </td>
-                      <td className={`${cellClass} whitespace-nowrap tabular-nums`}>
-                        {trip.departureTime || '—'}
-                      </td>
-                      <td className={`${cellClass} whitespace-nowrap tabular-nums`}>
-                        {trip.arrivalTime || '—'}
-                      </td>
-                      <td className={cellClass}>{trip.busId?.regNumber || '—'}</td>
-                      <td className={cellClass}>
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${scheduleStatusClass(trip.status)}`}
-                        >
-                          {formatScheduleStatusLabel(trip.status)}
-                        </span>
-                      </td>
-                      <td className={cellClass}>
-                        <button
-                          type="button"
-                          disabled={!canAcknowledge || isSaving}
-                          onClick={() => handleAcknowledge(trip._id)}
-                          className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          {isSaving ? 'Saving…' : 'Start'}
-                        </button>
-                      </td>
-                      <td className={cellClass}>
-                        <button
-                          type="button"
-                          disabled={!canReport || isSaving}
-                          onClick={() => openIssueModal(trip)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Icon name="report_problem" size={14} />
-                          Issue
-                        </button>
-                      </td>
-                      <td className={cellClass}>
-                        <button
-                          type="button"
-                          disabled={!canComplete || isSaving}
-                          onClick={() => handleComplete(trip._id)}
-                          className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          Completed
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          </>
         )}
       </ModuleCard>
 
@@ -350,9 +223,7 @@ function DriverTrips() {
                 placeholder="e.g. Traffic delay, vehicle fault, road obstruction…"
               />
             </label>
-            {error && (
-              <p className="mt-2 text-sm text-red-600">{error}</p>
-            )}
+            {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
             <div className="mt-5 flex justify-end gap-3">
               <button
                 type="button"
