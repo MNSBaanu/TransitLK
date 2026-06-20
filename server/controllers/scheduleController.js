@@ -17,6 +17,7 @@ import {
   parseTimetableMeta,
   validateTimeRange,
   validateTimetableRows,
+  validateTripDepartureNotPast,
   requiresAdjustmentNotes,
   reasonToStatus,
   DRIVER_VISIBLE_STATUSES,
@@ -327,6 +328,19 @@ async function analyzeTimetableConflicts({ dates, rows }) {
   for (const dateStr of dates) {
     const proposedForDay = included.map((r) => toConflictTrip(r))
 
+    for (const trip of proposedForDay) {
+      const pastErr = validateTripDepartureNotPast(dateStr, trip.departureTime)
+      if (pastErr) {
+        mergeTimetableIssue(issues, trip, dateStr, [
+          {
+            type: 'past',
+            message: pastErr,
+            _dedupeKey: `past|${dateStr}|${trip.routeId}|${trip.departureTime}`,
+          },
+        ])
+      }
+    }
+
     const existingForDay = existing.filter((e) => isSameCalendarDay(e.tripDate, dateStr))
 
     for (let i = 0; i < proposedForDay.length; i++) {
@@ -575,6 +589,11 @@ export const createSchedule = async (req, res) => {
 
     const normalizedTripDate = normalizeTripDate(tripDate)
 
+    const pastErr = validateTripDepartureNotPast(normalizedTripDate, normalizedDepartureTime)
+    if (pastErr) {
+      return res.status(400).json({ message: pastErr })
+    }
+
     await validateAssignment({
       busId,
       driverId,
@@ -683,6 +702,11 @@ export const updateSchedule = async (req, res) => {
       : scopedRoute
 
     if (!isTerminalUpdate) {
+      const pastErr = validateTripDepartureNotPast(normalizedTripDate, normalizedDepartureTime)
+      if (pastErr) {
+        return res.status(400).json({ message: pastErr })
+      }
+
       await validateAssignment({
         busId,
         driverId,
@@ -986,6 +1010,14 @@ export const checkScheduleConflicts = async (req, res) => {
       departureTime: normalizedDepartureTime,
       arrivalTime: normalizedArrivalTime,
     } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
+    const normalizedTripDate = normalizeTripDate(tripDate)
+    const pastErr = validateTripDepartureNotPast(normalizedTripDate, normalizedDepartureTime)
+    if (pastErr) {
+      return res.json({
+        hasConflict: true,
+        conflicts: [{ type: 'past', message: pastErr }],
+      })
+    }
     const route = routeId ? await getAccessibleRoute(req.user, routeId) : null
     const availabilityIssues = []
     try {
@@ -996,7 +1028,7 @@ export const checkScheduleConflicts = async (req, res) => {
         arrivalTime: normalizedArrivalTime,
         routeId,
         routeDepotId: route?.depotId,
-        tripDate: normalizeTripDate(tripDate),
+        tripDate: normalizedTripDate,
         scheduleId: excludeId || undefined,
       })
     } catch (err) {
@@ -1023,8 +1055,8 @@ export const checkScheduleConflicts = async (req, res) => {
   }
 }
 
-function timetableValidationResult(rows) {
-  const validationErrors = validateTimetableRows(rows)
+function timetableValidationResult(rows, dates = null) {
+  const validationErrors = validateTimetableRows(rows, dates)
   if (!validationErrors.length) return null
   return {
     hasConflict: true,
@@ -1046,7 +1078,7 @@ export const checkTimetableConflicts = async (req, res) => {
     if (!Array.isArray(dates) || !Array.isArray(rows)) {
       return res.status(400).json({ message: 'dates and rows arrays are required' })
     }
-    const validationBlock = timetableValidationResult(rows)
+    const validationBlock = timetableValidationResult(rows, dates)
     if (validationBlock) {
       return res.json(validationBlock)
     }

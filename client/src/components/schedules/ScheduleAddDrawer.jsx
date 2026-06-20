@@ -1,5 +1,6 @@
 import Icon from '../Icon'
-import { formatTimeRange, formatRouteStopsLabel, validateTimeRange } from '../../utils/scheduleHelpers'
+import { formatTimeRange, formatRouteStopsLabel, minimumDepartureTimeForDate, validateTimeRange } from '../../utils/scheduleHelpers'
+import ScheduleTimeInput from './ScheduleTimeInput'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
@@ -24,6 +25,7 @@ function ScheduleAddDrawer({
   if (!open) return null
 
   const timeError = validateTimeRange(form.departureTime, form.arrivalTime)
+  const minDepartureTime = minimumDepartureTimeForDate(form.tripDate)
   const hasConflict = conflictPreview?.hasConflict || Boolean(timeError)
   const conflictMessages = [
     ...(timeError ? [timeError] : []),
@@ -122,22 +124,25 @@ function ScheduleAddDrawer({
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className={`${labelClass} mb-1 block`}>Departure</span>
-                <input
+                <ScheduleTimeInput
                   name="departureTime"
-                  type="time"
                   value={form.departureTime}
-                  onChange={onChange}
+                  onChange={(next) =>
+                    onChange({ target: { name: 'departureTime', value: next } })
+                  }
+                  minTime={minDepartureTime}
                   required
                   className={inputClass}
                 />
               </label>
               <label className="block">
                 <span className={`${labelClass} mb-1 block`}>Arrival</span>
-                <input
+                <ScheduleTimeInput
                   name="arrivalTime"
-                  type="time"
                   value={form.arrivalTime}
-                  onChange={onChange}
+                  onChange={(next) =>
+                    onChange({ target: { name: 'arrivalTime', value: next } })
+                  }
                   required
                   className={inputClass}
                 />

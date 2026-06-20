@@ -48,7 +48,10 @@ import {
   groupTimetableConflictsByRoute,
   reasonToStatus,
   requiresAdjustmentNotes,
+  clampDepartureTime,
+  minimumDepartureTimeForDates,
   validateTimetableRows,
+  validateTripDepartureNotPast,
   isTimetableReady,
   scheduleCode,
   toDateInputValue,
@@ -417,7 +420,10 @@ function SchedulesPage() {
     return included * getTimetableDates(timetablePeriod, timetableAnchor).length
   }, [timetableRows, timetablePeriod, timetableAnchor])
 
-  const timetableReady = useMemo(() => isTimetableReady(timetableRows), [timetableRows])
+  const timetableReady = useMemo(
+    () => isTimetableReady(timetableRows, getTimetableDates(timetablePeriod, timetableAnchor)),
+    [timetableRows, timetablePeriod, timetableAnchor]
+  )
 
   useEffect(() => {
     if (!showTimetable) return undefined
@@ -479,7 +485,8 @@ function SchedulesPage() {
   const timetableConflicts = useMemo(() => {
     if (!showTimetable) return null
 
-    const validationErrors = validateTimetableRows(timetableRows)
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+    const validationErrors = validateTimetableRows(timetableRows, dates)
     if (validationErrors.length) {
       return {
         hasConflict: true,
@@ -500,7 +507,6 @@ function SchedulesPage() {
       return { hasConflict: false, issues: [], conflictCount: 0 }
     }
 
-    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
     return detectTimetableConflicts(dates, included, timetableRangeSchedules)
   }, [showTimetable, timetableRows, timetablePeriod, timetableAnchor, timetableRangeSchedules])
 
@@ -522,6 +528,13 @@ function SchedulesPage() {
         setAdjustConflict({ hasConflict: true, conflicts: [{ message: timeErr }] })
       }, 0)
       return () => window.clearTimeout(errorTimer)
+    }
+    const pastErr = validateTripDepartureNotPast(tripDateKey(selected), adjustForm.departureTime)
+    if (pastErr) {
+      const pastTimer = window.setTimeout(() => {
+        setAdjustConflict({ hasConflict: true, conflicts: [{ message: pastErr }] })
+      }, 0)
+      return () => window.clearTimeout(pastTimer)
     }
     const timer = setTimeout(async () => {
       try {
@@ -667,9 +680,15 @@ function SchedulesPage() {
   }
 
   const handleTimetableRowChange = (tripRowId, field, value) => {
+    let nextValue = value
+    if (field === 'departureTime') {
+      const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+      const minTime = minimumDepartureTimeForDates(dates)
+      nextValue = clampDepartureTime(value, minTime)
+    }
     setTimetableRows((rows) => {
       const next = rows.map((r) =>
-        String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: value } : r
+        String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: nextValue } : r
       )
       if (field === 'departureTime' || field === 'arrivalTime') {
         const source = next.find((r) => String(r.tripRowId) === String(tripRowId))
@@ -816,15 +835,15 @@ function SchedulesPage() {
 
   const handleCreateTimetable = async (e) => {
     e.preventDefault()
-    const validationErrors = validateTimetableRows(timetableRows)
+    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
+    const validationErrors = validateTimetableRows(timetableRows, dates)
     if (validationErrors.length) {
       setError(
-        `Cannot create timetable: every included route needs a bus and driver. ${validationErrors.join('. ')}`
+        `Cannot create timetable: ${validationErrors.join('. ')}`
       )
       return
     }
 
-    const dates = getTimetableDates(timetablePeriod, timetableAnchor)
     const included = timetableRows.filter((r) => r.included)
 
     try {
@@ -990,6 +1009,11 @@ function SchedulesPage() {
     const timeErr = validateTimeRange(adjustForm.departureTime, adjustForm.arrivalTime)
     if (timeErr) {
       setError(timeErr)
+      return
+    }
+    const pastErr = validateTripDepartureNotPast(tripDateKey(selected), adjustForm.departureTime)
+    if (pastErr) {
+      setError(pastErr)
       return
     }
     if (requiresAdjustmentNotes(adjustForm.reason) && !adjustForm.notes?.trim()) {
