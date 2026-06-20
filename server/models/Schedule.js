@@ -87,6 +87,19 @@ const scheduleSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    /** Driver opt-in live GPS sharing while trip is active (on-duty / on-time / delayed). */
+    liveLocationSharing: {
+      type: Boolean,
+      default: false,
+    },
+    liveLocation: {
+      lat: { type: Number },
+      lng: { type: Number },
+      accuracy: { type: Number },
+      heading: { type: Number },
+      speed: { type: Number },
+      updatedAt: { type: Date },
+    },
     adjustmentHistory: [
       {
         at: { type: Date, default: Date.now },

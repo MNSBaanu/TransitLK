@@ -1,4 +1,5 @@
 import Icon from '../Icon'
+import ScheduleTripLocationPanel from './ScheduleTripLocationPanel'
 import {
   ADJUSTMENT_REASON_LABELS,
   displayTripNote,
@@ -168,6 +169,8 @@ function ScheduleTripDetails({
             </p>
           ) : null}
         </div>
+
+        <ScheduleTripLocationPanel trip={selected} />
 
         {Array.isArray(selected.adjustmentHistory) && selected.adjustmentHistory.length > 0 && (
           <div className={`mt-4 ${sectionClass} p-4`}>

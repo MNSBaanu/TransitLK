@@ -898,6 +898,17 @@ export const rejectSchedule = async (req, res) => {
 
 const DRIVER_TRIP_STATUS_TARGETS = new Set(['on-duty', 'on-time', 'delayed', 'completed'])
 const DRIVER_TRIP_STATUS_SOURCES = new Set(['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'])
+const LIVE_TRACKING_STATUSES = ['on-duty', 'on-time', 'delayed']
+const LIVE_LOCATION_STALE_MS = 5 * 60 * 1000
+
+function clearLiveLocation(schedule) {
+  schedule.liveLocationSharing = false
+  schedule.liveLocation = undefined
+}
+
+function isLiveTrackingStatus(status) {
+  return LIVE_TRACKING_STATUSES.includes(status)
+}
 
 export const updateDriverTripStatus = async (req, res) => {
   try {
@@ -937,6 +948,7 @@ export const updateDriverTripStatus = async (req, res) => {
     } else if (status === 'completed') {
       schedule.driverIssueReportedAt = null
       schedule.driverIssueNotes = ''
+      clearLiveLocation(schedule)
     } else if (status === 'on-duty') {
       notes = notes || 'Driver started trip — on duty'
     } else if (status === 'on-time') {
@@ -992,6 +1004,82 @@ export const updateDriverTripStatus = async (req, res) => {
 
     const populated = await populateSchedule(Schedule.findById(schedule._id))
     res.json(populated)
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).json({ message: error.message })
+  }
+}
+
+export const updateDriverLiveLocation = async (req, res) => {
+  try {
+    if (!isDriver(req.user)) {
+      return res.status(403).json({ message: 'Only drivers can share live location' })
+    }
+
+    const schedule = await Schedule.findById(req.params.id)
+    if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
+
+    if (!isLiveTrackingStatus(schedule.status)) {
+      return res.status(400).json({
+        message: 'Live location is only available after the trip has started',
+      })
+    }
+
+    const { sharing, lat, lng, accuracy, heading, speed } = req.body
+
+    if (sharing !== undefined) {
+      schedule.liveLocationSharing = Boolean(sharing)
+      if (!schedule.liveLocationSharing) {
+        schedule.liveLocation = undefined
+      }
+    }
+
+    if (lat != null && lng != null) {
+      if (!schedule.liveLocationSharing) {
+        return res.status(400).json({ message: 'Enable live location sharing first' })
+      }
+      const parsedLat = Number(lat)
+      const parsedLng = Number(lng)
+      if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+        return res.status(400).json({ message: 'Valid lat and lng are required' })
+      }
+      schedule.liveLocation = {
+        lat: parsedLat,
+        lng: parsedLng,
+        accuracy: accuracy != null ? Number(accuracy) : undefined,
+        heading: heading != null ? Number(heading) : undefined,
+        speed: speed != null ? Number(speed) : undefined,
+        updatedAt: new Date(),
+      }
+    } else if (sharing === undefined) {
+      return res.status(400).json({ message: 'Provide sharing toggle or location coordinates' })
+    }
+
+    await schedule.save()
+    const populated = await populateSchedule(Schedule.findById(schedule._id))
+    res.json(populated)
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).json({ message: error.message })
+  }
+}
+
+export const getLiveTripLocations = async (req, res) => {
+  try {
+    const scopedRouteIds = await getScopedRouteIds(req.user)
+    const staleBefore = new Date(Date.now() - LIVE_LOCATION_STALE_MS)
+    const filter = {
+      liveLocationSharing: true,
+      status: { $in: LIVE_TRACKING_STATUSES },
+      'liveLocation.updatedAt': { $gte: staleBefore },
+    }
+    if (scopedRouteIds) filter.routeId = { $in: scopedRouteIds }
+
+    const schedules = await populateSchedule(
+      Schedule.find(filter).sort({ 'liveLocation.updatedAt': -1 })
+    )
+    res.json(schedules)
   } catch (error) {
     const statusCode = error.statusCode || 500
     res.status(statusCode).json({ message: error.message })
