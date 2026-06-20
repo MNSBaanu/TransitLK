@@ -151,6 +151,7 @@ export function sameAssignedResource(left, right) {
 export function toConflictTrip(trip = {}) {
   return {
     tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
+    scheduleId: normalizeResourceId(trip.scheduleId),
     routeId: normalizeResourceId(trip.routeId),
     routeName: trip.routeName || trip.routeId?.routeName,
     busId: normalizeResourceId(trip.busId),

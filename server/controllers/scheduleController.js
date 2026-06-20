@@ -373,6 +373,7 @@ async function analyzeTimetableConflicts({ dates, rows }) {
 
       const conflicts = []
       for (const ex of existingForDay) {
+        if (trip.scheduleId && sameAssignedResource(trip.scheduleId, ex._id)) continue
         compareTripOverlap(trip, ex, conflicts, {
           tripDate: dateStr,
           otherLabel: ex.routeId?.routeName || 'existing schedule',

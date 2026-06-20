@@ -68,15 +68,6 @@ export function clampDepartureTime(departureTime, minDepartureTime) {
   return dep < min ? minDepartureTime : departureTime
 }
 
-/** Apply the same departure/arrival window to every timetable row */
-export function applySharedTripTimes(rows, { departureTime, arrivalTime }) {
-  return (rows || []).map((row) => ({
-    ...row,
-    ...(departureTime != null ? { departureTime } : {}),
-    ...(arrivalTime != null ? { arrivalTime } : {}),
-  }))
-}
-
 function approvalRecencyTime(trip, kind) {
   if (kind === 'pending') {
     return new Date(trip.receivedAt || trip.submittedAt || trip.updatedAt || trip.createdAt || 0).getTime()
@@ -189,6 +180,7 @@ export function sameAssignedResource(left, right) {
 export function toConflictTrip(trip = {}) {
   return {
     tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
+    scheduleId: normalizeResourceId(trip.scheduleId),
     routeId: normalizeResourceId(trip.routeId),
     routeName: trip.routeName || trip.routeId?.routeName,
     busId: normalizeResourceId(trip.busId),
@@ -430,6 +422,10 @@ export function newTimetableId() {
 
 export function createTimetableRowFromRoute(route, existing = null) {
   const tripRowId = existing?._id ? `sched-${existing._id}` : newTripRowId()
+  const times =
+    existing?.departureTime && existing?.arrivalTime
+      ? { departureTime: existing.departureTime, arrivalTime: existing.arrivalTime }
+      : defaultTripTimes()
   return {
     tripRowId,
     scheduleId: existing?._id || null,
@@ -442,7 +438,7 @@ export function createTimetableRowFromRoute(route, existing = null) {
     stops: route.stops?.length ? [...route.stops] : [],
     viaDescription: route.viaDescription || '',
     included: false,
-    ...defaultTripTimes(),
+    ...times,
     busId: String(
       existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''
     ),
@@ -486,11 +482,15 @@ export function duplicateTimetableRow(route, siblingRows = []) {
     ...createTimetableRowFromRoute(route, null),
     departureTime,
     arrivalTime,
-    included: true,
+    included: false,
     busId: '',
     driverId: '',
     remarks: '',
   }
+}
+
+function appendAdditionalTripRow(rows, route) {
+  rows.push(duplicateTimetableRow(route, rows))
 }
 
 function compareRoutesScheduledFirst(a, b, scheduledRouteIds) {
@@ -551,6 +551,7 @@ export function buildTimetableRows(routes, schedules = [], anchorDate) {
       for (const trip of existingTrips) {
         rows.push(createTimetableRowFromRoute(route, trip))
       }
+      appendAdditionalTripRow(rows, route)
     } else {
       rows.push(createTimetableRowFromRoute(route, null))
     }
@@ -1196,6 +1197,7 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
     for (const trip of proposedForDay) {
       const conflicts = []
       for (const ex of existingForDay) {
+        if (trip.scheduleId && sameAssignedResource(trip.scheduleId, ex._id)) continue
         compareTripOverlap(trip, ex, conflicts, {
           tripDate: dateStr,
           otherLabel: ex.routeId?.routeName || 'existing schedule',
