@@ -4,11 +4,17 @@ import { formatRouteStatus, routeStatusClass } from '../../utils/routeHelpers'
 import { formatServiceType, driverAvailabilityLabel } from '../../utils/fleetHelpers'
 const labelClass = 'text-xs font-semibold uppercase tracking-wide text-on-surface-variant'
 
-function ReadOnlyField({ label, value, className = '' }) {
+function ReadOnlyField({ label, value, className = '', singleLine = false }) {
   return (
     <div className={className}>
       <p className={labelClass}>{label}</p>
-      <p className="mt-1 text-sm font-medium text-neutral-900">{value || '—'}</p>
+      {singleLine ? (
+        <div className="mt-1 overflow-x-auto">
+          <p className="whitespace-nowrap text-sm font-medium text-neutral-900">{value || '—'}</p>
+        </div>
+      ) : (
+        <p className="mt-1 text-sm font-medium text-neutral-900">{value || '—'}</p>
+      )}
     </div>
   )
 }
@@ -62,7 +68,7 @@ function RouteView({
               </div>
             </div>
 
-            <ReadOnlyField label="Route name" value={form.routeName} />
+            <ReadOnlyField label="Route name" value={form.routeName} singleLine />
 
             <div className="grid grid-cols-2 gap-3">
               <ReadOnlyField label="Service type" value={formatServiceType(form.serviceType)} />

@@ -24,13 +24,13 @@ export function sanitizeRouteBody(body) {
   }
   if (data.routeNo !== undefined) data.routeNo = String(data.routeNo).trim()
   if (data.routeName !== undefined) data.routeName = String(data.routeName).trim()
-  if (data.startPoint !== undefined) data.startPoint = String(data.startPoint).trim()
-  if (data.endPoint !== undefined) data.endPoint = String(data.endPoint).trim()
+  if (data.startPoint !== undefined) data.startPoint = compactRouteSegment(data.startPoint)
+  if (data.endPoint !== undefined) data.endPoint = compactRouteSegment(data.endPoint)
   if (data.viaDescription !== undefined) {
     data.viaDescription = String(data.viaDescription).trim() || undefined
   }
   if (Array.isArray(data.stops)) {
-    data.stops = data.stops.map((s) => String(s).trim()).filter(Boolean)
+    data.stops = data.stops.map((s) => compactRouteSegment(s)).filter(Boolean)
   }
   if (data.distance !== undefined) data.distance = Number(data.distance)
   if (data.busId === '') data.busId = null
@@ -38,13 +38,36 @@ export function sanitizeRouteBody(body) {
   return data
 }
 
-export function buildRouteName(startPoint, endPoint) {
-  const start = String(startPoint || '').trim()
-  const end = String(endPoint || '').trim()
-  if (!start && !end) return ''
-  if (!start) return end
-  if (!end) return start
-  return `${start} — ${end}`
+/** Short single-line place label for route names (e.g. "Matale" not "Matale, Sri Lanka"). */
+export function compactRouteSegment(value) {
+  return String(value || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^via\s+/i, '')
+    .split(',')[0]
+    .trim()
+}
+
+export function stopsForRouteName(data = {}) {
+  if (Array.isArray(data.stops) && data.stops.length) {
+    return data.stops
+  }
+  if (data.viaDescription) {
+    const via = compactRouteSegment(data.viaDescription)
+    return via ? [via] : []
+  }
+  return []
+}
+
+export function buildRouteName(startPoint, endPoint, stops = []) {
+  const start = compactRouteSegment(startPoint)
+  const end = compactRouteSegment(endPoint)
+  const viaStops = (Array.isArray(stops) ? stops : [])
+    .map(compactRouteSegment)
+    .filter(Boolean)
+  const segments = [start, ...viaStops, end].filter(Boolean)
+  return segments.join('-')
 }
 
 /** Start/end label used in fleet and schedule views */
@@ -62,9 +85,23 @@ export function deriveViaDescription(stops) {
   return /^via\s/i.test(first) ? first : `via ${first}`
 }
 
+export function resolveRouteDisplayName(route = {}) {
+  if (route.startPoint && route.endPoint) {
+    return buildRouteName(route.startPoint, route.endPoint, stopsForRouteName(route))
+  }
+  return route.routeName || ''
+}
+
+export function applyComputedRouteName(route) {
+  const plain = route?.toObject ? route.toObject() : { ...route }
+  const computed = resolveRouteDisplayName(plain)
+  if (computed) plain.routeName = computed
+  return plain
+}
+
 export function finalizeRouteFields(data) {
   if (data.startPoint && data.endPoint) {
-    data.routeName = buildRouteName(data.startPoint, data.endPoint)
+    data.routeName = buildRouteName(data.startPoint, data.endPoint, stopsForRouteName(data))
   }
   if (Array.isArray(data.stops) && data.stops.length > 0) {
     data.viaDescription = deriveViaDescription(data.stops)

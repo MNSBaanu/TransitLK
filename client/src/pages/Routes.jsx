@@ -19,6 +19,7 @@ import RouteFleetAssignModal from '../components/routes/RouteFleetAssignModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
   buildRouteName,
+  compactRouteSegment,
   getRouteDeleteDisabledReason,
   getRouteStatusChangeBlockedReason,
 } from '../utils/routeHelpers'
@@ -80,15 +81,16 @@ function routeCode(route) {
 }
 
 function routeFromApi(route) {
-  const startPoint = route.startPoint || ''
-  const endPoint = route.endPoint || ''
+  const startPoint = compactRouteSegment(route.startPoint || '')
+  const endPoint = compactRouteSegment(route.endPoint || '')
+  const stops = route.stops?.length ? route.stops.map(compactRouteSegment).filter(Boolean) : []
   return {
     routeNo: route.routeNo || '',
-    routeName: buildRouteName(startPoint, endPoint) || route.routeName || '',
+    routeName: buildRouteName(startPoint, endPoint, stops) || route.routeName || '',
     distance: String(route.distance ?? ''),
     startPoint,
     endPoint,
-    stops: route.stops?.length ? [...route.stops] : [],
+    stops,
     startLocation: route.startLocation || null,
     endLocation: route.endLocation || null,
     stopLocations: route.stopLocations?.length ? [...route.stopLocations] : [],
@@ -379,7 +381,8 @@ function RoutesPage() {
       if (name === 'startPoint' || name === 'endPoint') {
         next.routeName = buildRouteName(
           name === 'startPoint' ? value : prev.startPoint,
-          name === 'endPoint' ? value : prev.endPoint
+          name === 'endPoint' ? value : prev.endPoint,
+          prev.stops
         )
       }
       return next
@@ -393,7 +396,7 @@ function RoutesPage() {
         ...prev,
         startPoint,
         startLocation: place.location,
-        routeName: buildRouteName(startPoint, prev.endPoint),
+        routeName: buildRouteName(startPoint, prev.endPoint, prev.stops),
       }
     })
   }, [])
@@ -405,7 +408,7 @@ function RoutesPage() {
         ...prev,
         endPoint,
         endLocation: place.location,
-        routeName: buildRouteName(prev.startPoint, endPoint),
+        routeName: buildRouteName(prev.startPoint, endPoint, prev.stops),
       }
     })
   }, [])
@@ -414,34 +417,43 @@ function RoutesPage() {
     const name = place.label?.trim()
     if (!name) return
     setForm((prev) => {
-      const next = { ...prev, stops: [...prev.stops, name] }
+      const stops = [...prev.stops, name]
+      const next = { ...prev, stops }
       if (place.location?.lat != null) {
         next.stopLocations = [
           ...(prev.stopLocations || []),
           { name, lat: place.location.lat, lng: place.location.lng },
         ]
       }
+      next.routeName = buildRouteName(prev.startPoint, prev.endPoint, stops)
       return next
     })
     setStopInput('')
   }, [])
 
   const removeStop = (index) => {
-    setForm((prev) => ({
-      ...prev,
-      stops: prev.stops.filter((_, i) => i !== index),
-      stopLocations: (prev.stopLocations || []).filter((_, i) => i !== index),
-    }))
+    setForm((prev) => {
+      const stops = prev.stops.filter((_, i) => i !== index)
+      return {
+        ...prev,
+        stops,
+        stopLocations: (prev.stopLocations || []).filter((_, i) => i !== index),
+        routeName: buildRouteName(prev.startPoint, prev.endPoint, stops),
+      }
+    })
   }
 
   const buildPayload = () => {
+    const startPoint = compactRouteSegment(form.startPoint)
+    const endPoint = compactRouteSegment(form.endPoint)
+    const stops = form.stops.map(compactRouteSegment).filter(Boolean)
     const payload = {
       routeNo: form.routeNo.trim(),
-      routeName: buildRouteName(form.startPoint, form.endPoint),
+      routeName: buildRouteName(startPoint, endPoint, stops),
       distance: Number(form.distance),
-      startPoint: form.startPoint.trim(),
-      endPoint: form.endPoint.trim(),
-      stops: form.stops,
+      startPoint,
+      endPoint,
+      stops,
     }
     if (form.startLocation?.lat != null) payload.startLocation = form.startLocation
     if (form.endLocation?.lat != null) payload.endLocation = form.endLocation

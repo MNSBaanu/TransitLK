@@ -7,6 +7,7 @@ import {
   validateLocation,
   validateStopLocations,
   finalizeRouteFields,
+  applyComputedRouteName,
   isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
 import { scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
@@ -59,7 +60,7 @@ async function attachScheduleCounts(routes) {
 
   return list.map((route) => {
     const activeTrips = countMap.get(String(route._id)) || 0
-    const plain = resolveRouteOperationalStatus(route, activeTrips)
+    const plain = applyComputedRouteName(resolveRouteOperationalStatus(route, activeTrips))
     return { ...plain, scheduleCount: activeTrips }
   })
 }
@@ -297,7 +298,7 @@ export const getRoutes = async (req, res) => {
           'routeNo routeName startPoint endPoint distance serviceType status stops viaDescription busId driverId depotId'
         )
       ).lean()
-      return res.json(routes)
+      return res.json(routes.map(applyComputedRouteName))
     }
 
     if (!wantsPagination) {
