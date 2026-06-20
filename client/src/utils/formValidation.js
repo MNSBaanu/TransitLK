@@ -234,9 +234,10 @@ export function validateAdminForm(form, { isEdit = false } = {}) {
 
 export function validateMaintenanceForm(form) {
   const errors = {}
-  const busId = trim(form.bus_id)
-  if (!busId) errors.bus_id = 'Bus is required'
-  else if (!MONGO_ID_RE.test(busId)) errors.bus_id = 'Enter a valid bus ID'
+
+  if (!trim(form.bus_id)) {
+    errors.bus_id = 'Select a bus'
+  }
 
   const dateErr = dateNotFuture(form.service_date, 'Service date')
   if (dateErr) errors.service_date = dateErr
@@ -268,9 +269,10 @@ export function validateMaintenanceForm(form) {
 
 export function validateFuelForm(form) {
   const errors = {}
-  const busId = trim(form.bus_id)
-  if (!busId) errors.bus_id = 'Bus is required'
-  else if (!MONGO_ID_RE.test(busId)) errors.bus_id = 'Enter a valid bus ID'
+
+  if (!trim(form.bus_id)) {
+    errors.bus_id = 'Select a bus'
+  }
 
   const dateErr = dateNotFuture(form.fuel_date, 'Fuel date')
   if (dateErr) errors.fuel_date = dateErr

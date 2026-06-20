@@ -50,6 +50,14 @@ export function computeMaintenanceDuration(record, now = new Date()) {
   return '< 1 hour'
 }
 
+export function maintenanceLogDate(record) {
+  const dates = [record?.service_date, record?.startedAt, record?.completedAt]
+    .map(parseDateInput)
+    .filter(Boolean)
+  if (!dates.length) return null
+  return dates.reduce((latest, d) => (d > latest ? d : latest), dates[0])
+}
+
 export function maintenanceFormState(record, preSelectedBusId) {
   if (record) {
     return {

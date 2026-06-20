@@ -23,6 +23,7 @@ import {
   computeMaintenanceDuration,
   formatMaintenanceStatus,
   maintenanceFormState,
+  maintenanceLogDate,
   maintenanceStatusClass,
 } from '../utils/maintenanceHelpers'
 
@@ -82,7 +83,7 @@ function serviceStyle(type) {
 }
 
 // ── Maintenance Modal ─────────────────────────────────────────────────────────
-function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
+function MaintenanceModal({ record, onClose, onSave, preSelectedBusId, buses = [] }) {
   const [form, setForm] = useState(() => maintenanceFormState(record, preSelectedBusId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -149,9 +150,20 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Bus ID</label>
-            <input name="bus_id" value={form.bus_id} onChange={handle} required placeholder="Enter bus ID"
-              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`} />
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Bus</label>
+            <select
+              name="bus_id"
+              value={form.bus_id}
+              onChange={handle}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`}
+            >
+              <option value="">Select bus</option>
+              {buses.map((b) => (
+                <option key={b._id} value={b._id}>
+                  {b.regNumber}{b.status ? ` (${b.status})` : ''}
+                </option>
+              ))}
+            </select>
             <FieldError message={fieldErrors.bus_id} />
           </div>
           <div>
@@ -232,7 +244,7 @@ function MaintenanceModal({ record, onClose, onSave, preSelectedBusId }) {
 }
 
 // ── Fuel Modal ────────────────────────────────────────────────────────────────
-function FuelModal({ record, onClose, onSave }) {
+function FuelModal({ record, onClose, onSave, buses = [] }) {
   const [form, setForm] = useState(
     record
       ? { bus_id: record.bus_id?._id || record.bus_id, fuel_date: record.fuel_date?.slice(0, 10), liters: record.liters, amount: record.amount }
@@ -282,9 +294,20 @@ function FuelModal({ record, onClose, onSave }) {
         {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <form onSubmit={submit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-neutral-600">Bus ID (MongoDB _id)</label>
-            <input name="bus_id" value={form.bus_id} onChange={handle} required placeholder="Enter bus _id"
-              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`} />
+            <label className="mb-1 block text-xs font-medium text-neutral-600">Bus</label>
+            <select
+              name="bus_id"
+              value={form.bus_id}
+              onChange={handle}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${fieldBorderClass(fieldErrors.bus_id)}`}
+            >
+              <option value="">Select bus</option>
+              {buses.map((b) => (
+                <option key={b._id} value={b._id}>
+                  {b.regNumber}{b.status ? ` (${b.status})` : ''}
+                </option>
+              ))}
+            </select>
             <FieldError message={fieldErrors.bus_id} />
           </div>
           <div>
@@ -782,6 +805,8 @@ function Maintenance() {
   const preSelectedBusId = searchParams.get('busId')
   
   const stale = getStalePageData('/maintenance')
+  const staleBuses = getStalePageData('/buses')
+  const [buses, setBuses] = useState(() => staleBuses?.buses || [])
   const [tab, setTab] = useState('maintenance')
   const [maintenance, setMaintenance] = useState(() => stale?.maintenance || [])
   const [fuelLogs, setFuelLogs] = useState(() => stale?.fuelLogs || [])
@@ -800,6 +825,13 @@ function Maintenance() {
       setSearchParams({}, { replace: true })
     }
   }, [preSelectedBusId, setSearchParams])
+
+  useEffect(() => {
+    if (buses.length) return
+    api.get('/buses')
+      .then(({ data }) => setBuses(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [buses.length])
 
   const applyData = useCallback((payload) => {
     setMaintenance(payload?.maintenance || [])
@@ -821,7 +853,7 @@ function Maintenance() {
   const activeList = tab === 'maintenance' ? maintenance : fuelLogs
 
   const filtered = useMemo(() => {
-    return activeList.filter((r) => {
+    const list = activeList.filter((r) => {
       const busReg = r.bus_id?.regNumber || ''
       const desc = r.description || ''
       const matchSearch = busReg.toLowerCase().includes(search.toLowerCase()) ||
@@ -832,7 +864,28 @@ function Maintenance() {
         : true
       return matchSearch && matchAmount
     })
+
+    if (tab === 'maintenance') {
+      return [...list].sort(
+        (a, b) => (maintenanceLogDate(b)?.getTime() ?? 0) - (maintenanceLogDate(a)?.getTime() ?? 0)
+      )
+    }
+    if (tab === 'fuel') {
+      return [...list].sort(
+        (a, b) => new Date(b.fuel_date || 0).getTime() - new Date(a.fuel_date || 0).getTime()
+      )
+    }
+    return list
   }, [activeList, search, tab, minAmount])
+
+  const latestMaintenanceDate = useMemo(() => {
+    let latest = null
+    for (const record of maintenance) {
+      const date = maintenanceLogDate(record)
+      if (date && (!latest || date > latest)) latest = date
+    }
+    return latest
+  }, [maintenance])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
@@ -993,12 +1046,19 @@ function Maintenance() {
 
           {/* Maintenance Table */}
           {tab === 'maintenance' && (
+            <>
+            {latestMaintenanceDate && (
+              <p className="mb-3 text-sm text-on-surface-variant">
+                Latest log:{' '}
+                <span className="font-semibold text-neutral-900">{formatDate(latestMaintenanceDate)}</span>
+              </p>
+            )}
             <div className="overflow-x-auto rounded-xl border border-outline-variant">
               <table className="w-full text-sm">
                 <thead className="bg-surface-container text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                   <tr>
                     <th className="w-12 px-4 py-3 text-left">#</th>
-                    <th className="px-4 py-3 text-left">Date</th>
+                    <th className="px-4 py-3 text-left">Latest date</th>
                     <th className="px-4 py-3 text-left">Vehicle ID</th>
                     <th className="px-4 py-3 text-left">Service Type</th>
                     <th className="px-4 py-3 text-left">Status</th>
@@ -1019,7 +1079,7 @@ function Maintenance() {
                         <td className="px-4 py-3 text-neutral-500 tabular-nums">
                           {(page - 1) * ITEMS_PER_PAGE + index + 1}
                         </td>
-                        <td className="px-4 py-3 text-neutral-600">{formatDate(r.service_date)}</td>
+                        <td className="px-4 py-3 text-neutral-600">{formatDate(maintenanceLogDate(r))}</td>
                         <td className="px-4 py-3 font-semibold text-blue-700">{r.bus_id?.regNumber || '—'}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${style.text}`}>
@@ -1062,6 +1122,7 @@ function Maintenance() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
 
           {/* Fuel Table */}
@@ -1168,6 +1229,7 @@ function Maintenance() {
           onClose={() => setMaintenanceModal(null)}
           onSave={() => { setMaintenanceModal(null); refreshMaintenance() }}
           preSelectedBusId={preSelectedBusId}
+          buses={buses}
         />
       )}
       {fuelModal && (
@@ -1175,6 +1237,7 @@ function Maintenance() {
           record={fuelModal === 'new' ? null : fuelModal}
           onClose={() => setFuelModal(null)}
           onSave={() => { setFuelModal(null); refreshMaintenance() }}
+          buses={buses}
         />
       )}
     </div>
