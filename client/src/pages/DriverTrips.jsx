@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import api from '../services/api'
 import Icon from '../components/Icon'
+import DriverTripLocationView from '../components/driver/DriverTripLocationView'
 import { useAuth } from '../context/AuthContext'
 import { useFastPageLoad } from '../hooks/useFastPageLoad'
 import { getStalePageData, invalidatePageData } from '../services/pagePrefetch'
@@ -21,6 +22,11 @@ const cellClass = 'px-3 py-3 align-top text-sm'
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900'
 
+const DISPLAY_VIEWS = [
+  { id: 'list', label: 'List', icon: 'format_list_bulleted' },
+  { id: 'location', label: 'Location', icon: 'map' },
+]
+
 function DriverTrips() {
   const { user, refreshSession } = useAuth()
   const [trips, setTrips] = useState(() => getStalePageData('/my-trips')?.trips || [])
@@ -29,6 +35,8 @@ function DriverTrips() {
   const [savingId, setSavingId] = useState(null)
   const [issueTrip, setIssueTrip] = useState(null)
   const [issueNotes, setIssueNotes] = useState('')
+  const [displayView, setDisplayView] = useState('list')
+  const [locationTripId, setLocationTripId] = useState(null)
 
   const applyData = useCallback((payload) => {
     setTrips(payload?.trips || [])
@@ -38,6 +46,22 @@ function DriverTrips() {
   const { loading, reload } = useFastPageLoad('/my-trips', { applyData })
 
   const upcoming = trips.filter((t) => t.status !== 'cancelled' && t.status !== 'completed')
+
+  useEffect(() => {
+    if (!trips.length) {
+      setLocationTripId(null)
+      return
+    }
+    const stillVisible = trips.some((trip) => String(trip._id) === String(locationTripId))
+    if (!stillVisible) {
+      setLocationTripId(trips[0]._id)
+    }
+  }, [trips, locationTripId])
+
+  const openLocationView = (tripId) => {
+    setLocationTripId(tripId)
+    setDisplayView('location')
+  }
 
   const showToast = (msg) => {
     setToast(msg)
@@ -153,6 +177,37 @@ function DriverTrips() {
           </p>
         ) : (
           <>
+          <div className="flex flex-col gap-3 border-b border-outline-variant bg-surface-container/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              Trip view
+            </p>
+            <div className="pro-segmented w-full bg-white/60 sm:w-auto">
+              {DISPLAY_VIEWS.map(({ id, label, icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setDisplayView(id)}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm transition-colors ${
+                    displayView === id
+                      ? 'border-outline-variant bg-white font-semibold text-fleet-ink shadow-sm'
+                      : 'border-transparent bg-transparent text-fleet-ink-muted hover:text-fleet-ink'
+                  }`}
+                >
+                  <Icon name={icon} size={16} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {displayView === 'location' ? (
+            <DriverTripLocationView
+              trips={trips}
+              selectedTripId={locationTripId}
+              onSelectTrip={setLocationTripId}
+            />
+          ) : (
+          <>
           <div className="space-y-3 p-4 md:hidden">
             {trips.map((trip) => {
               const isSaving = savingId === trip._id
@@ -203,6 +258,14 @@ function DriverTrips() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
+                      onClick={() => openLocationView(trip._id)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-outline-variant bg-white px-3 py-2 text-xs font-bold text-neutral-900 hover:bg-surface-container"
+                    >
+                      <Icon name="map" size={14} />
+                      Location
+                    </button>
+                    <button
+                      type="button"
                       disabled={!canAcknowledge || isSaving}
                       onClick={() => handleAcknowledge(trip._id)}
                       className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -241,6 +304,12 @@ function DriverTrips() {
                   <th className={`${labelClass} ${cellClass}`}>Arrival time</th>
                   <th className={`${labelClass} ${cellClass}`}>Assigned bus</th>
                   <th className={`${labelClass} ${cellClass}`}>Current status</th>
+                  <th className={`${labelClass} ${cellClass}`}>
+                    <span className="inline-flex items-center gap-1">
+                      <Icon name="map" size={14} />
+                      Location
+                    </span>
+                  </th>
                   <th className={`${labelClass} ${cellClass}`}>Start trip</th>
                   <th className={`${labelClass} ${cellClass}`}>
                     <span className="inline-flex items-center gap-1">
@@ -285,6 +354,16 @@ function DriverTrips() {
                       <td className={cellClass}>
                         <button
                           type="button"
+                          onClick={() => openLocationView(trip._id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant bg-white px-3 py-1.5 text-xs font-bold text-neutral-900 hover:bg-surface-container"
+                        >
+                          <Icon name="map" size={14} />
+                          View
+                        </button>
+                      </td>
+                      <td className={cellClass}>
+                        <button
+                          type="button"
                           disabled={!canAcknowledge || isSaving}
                           onClick={() => handleAcknowledge(trip._id)}
                           className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -319,6 +398,8 @@ function DriverTrips() {
               </tbody>
             </table>
           </div>
+          </>
+          )}
           </>
         )}
       </ModuleCard>

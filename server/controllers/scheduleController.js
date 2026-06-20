@@ -43,7 +43,8 @@ import { notifyDriverTripApproved } from '../utils/notifyTripApproved.js'
 
 const routePopulate = {
   path: 'routeId',
-  select: 'routeName startPoint endPoint distance serviceType stops viaDescription',
+  select:
+    'routeName startPoint endPoint distance serviceType stops viaDescription startLocation endLocation stopLocations',
 }
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
 const driverPopulate = {
