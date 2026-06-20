@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMapsScript } from '../../utils/googleMapsLoader'
+import { compactPlaceLabel, compactRouteSegment } from '../../utils/routeHelpers'
 
 /**
  * Text input with Google Places Autocomplete.
@@ -53,12 +54,16 @@ function PlacesAutocompleteInput({
       const loc = place?.geometry?.location
       if (!loc) return
 
-      const label =
+      const fullAddress =
         place.formatted_address || place.name || inputRef.current?.value || ''
+      const label =
+        compactPlaceLabel(place) ||
+        compactRouteSegment(fullAddress) ||
+        fullAddress
       const location = {
         lat: loc.lat(),
         lng: loc.lng(),
-        address: label,
+        address: fullAddress,
       }
 
       onChangeRef.current?.({

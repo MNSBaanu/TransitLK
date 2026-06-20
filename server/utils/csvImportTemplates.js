@@ -92,7 +92,7 @@ export const CSV_TEMPLATES = {
         status: 'active',
       },
     ],
-    hints: 'status: active | inactive | draft. distance in km. Route name is built from start/end.',
+    hints: 'status: active | inactive | draft. distance in km. Route name: StartPoint-Stop-EndPoint.',
   },
   users: {
     label: 'Staff users',

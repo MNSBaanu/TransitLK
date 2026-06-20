@@ -118,13 +118,11 @@ function RouteEditView({
 
             <label className="block">
               <span className={labelClass}>Route name</span>
-              <input
-                name="routeName"
-                value={form.routeName}
-                disabled
-                required
-                className={`${inputClass} cursor-not-allowed bg-surface-container-low text-on-surface-variant`}
-              />
+              <div
+                className={`${inputClass} overflow-x-auto bg-surface-container-low text-on-surface-variant`}
+              >
+                <span className="whitespace-nowrap text-sm">{form.routeName || '—'}</span>
+              </div>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">

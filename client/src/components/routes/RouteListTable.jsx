@@ -132,14 +132,16 @@ function RouteListTable({
                 <td className="px-4 py-3 font-mono text-xs font-semibold tabular-nums text-neutral-700">
                   {routeCode(route)}
                 </td>
-                <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    onClick={() => onView(route)}
-                    className="text-left font-semibold text-neutral-900 hover:underline"
-                  >
-                    {route.routeName}
-                  </button>
+                <td className="max-w-xs px-4 py-3">
+                  <div className="overflow-x-auto">
+                    <button
+                      type="button"
+                      onClick={() => onView(route)}
+                      className="whitespace-nowrap text-left font-semibold text-neutral-900 hover:underline"
+                    >
+                      {route.routeName}
+                    </button>
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-on-surface-variant">{route.startPoint || '—'}</td>
                 <td className="px-4 py-3 text-on-surface-variant">{route.endPoint || '—'}</td>
