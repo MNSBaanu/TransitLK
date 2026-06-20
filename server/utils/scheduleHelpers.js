@@ -248,6 +248,56 @@ export function validateTimeRange(departureTime, arrivalTime) {
   return null
 }
 
+function localTodayKey(now = new Date()) {
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Block trips whose departure is already in the past (calendar day + HH:mm, local time). */
+export function validateTripDepartureNotPast(tripDate, departureTime, now = new Date()) {
+  const dateKey =
+    typeof tripDate === 'string' && DATE_ONLY_RE.test(tripDate.trim())
+      ? tripDate.trim()
+      : tripDateKey({ tripDate })
+  if (!dateKey) return null
+
+  const depMin = timeToMinutes(departureTime)
+  if (depMin == null) return null
+
+  const todayKey = localTodayKey(now)
+  if (dateKey < todayKey) {
+    return `Cannot schedule trips on ${dateKey} — that date has already passed`
+  }
+  if (dateKey > todayKey) return null
+
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  if (depMin < nowMin) {
+    return `Departure time ${departureTime} has already passed today — choose a later time`
+  }
+  return null
+}
+
+export function collectPastDepartureIssues(dates, rows, now = new Date()) {
+  const issues = []
+  const included = (rows || []).filter((r) => r.included !== false)
+  for (const dateStr of dates || []) {
+    for (const row of included) {
+      const err = validateTripDepartureNotPast(dateStr, row.departureTime, now)
+      if (!err) continue
+      const label = row.routeName || 'Route'
+      issues.push({
+        routeId: row.routeId,
+        routeName: label,
+        tripDate: dateStr,
+        message: `${label} on ${dateStr}: ${err}`,
+      })
+    }
+  }
+  return issues
+}
+
 export function getTimetableRowValidationIssues(row) {
   if (row.included === false) return []
   const issues = []
@@ -262,7 +312,7 @@ export function getTimetableRowValidationIssues(row) {
   return issues
 }
 
-export function validateTimetableRows(rows) {
+export function validateTimetableRows(rows, dates = null) {
   const errors = []
   const included = (rows || []).filter((r) => r.included !== false)
   if (included.length === 0) {
@@ -273,6 +323,11 @@ export function validateTimetableRows(rows) {
     for (const issue of getTimetableRowValidationIssues(row)) {
       const detail = issue.charAt(0).toLowerCase() + issue.slice(1)
       errors.push(`${label}: ${detail}`)
+    }
+  }
+  if (Array.isArray(dates) && dates.length) {
+    for (const issue of collectPastDepartureIssues(dates, included)) {
+      errors.push(issue.message)
     }
   }
   return errors
