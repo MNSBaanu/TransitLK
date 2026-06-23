@@ -70,11 +70,12 @@ export const ROLE_ALLOWED_PATHS = {
     '/users',
     '/maintenance',
     '/notifications',
+    '/messages',
     '/reports',
   ],
-  [ROLES.TRANSPORT_SCHEDULER]: ['/routes', '/schedules', '/notifications', '/reports'],
-  [ROLES.FLEET_MANAGER]: ['/buses', '/drivers', '/maintenance', '/notifications'],
-  [ROLES.DEPOT_MANAGER]: ['/dashboard', '/schedules', '/notifications', '/reports'],
+  [ROLES.TRANSPORT_SCHEDULER]: ['/routes', '/schedules', '/notifications', '/messages', '/reports'],
+  [ROLES.FLEET_MANAGER]: ['/buses', '/drivers', '/maintenance', '/notifications', '/messages'],
+  [ROLES.DEPOT_MANAGER]: ['/dashboard', '/schedules', '/notifications', '/messages', '/reports'],
   [ROLES.DRIVER]: ['/my-trips'],
 }
 

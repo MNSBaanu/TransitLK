@@ -7,6 +7,7 @@ import ScheduleApprovals from './pages/ScheduleApprovals'
 import Drivers from './pages/Drivers'
 import Buses from './pages/Buses'
 import Maintenance from './pages/Maintenance'
+import MessagesPage from './pages/Messages'
 import NotificationsPage from './pages/Notifications'
 import Reports from './pages/Reports'
 import Admins from './pages/Admins'
@@ -49,6 +50,7 @@ function App() {
             <Route path="/depots" element={<Depots />} />
             <Route path="/maintenance" element={<Maintenance />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/my-trips" element={<DriverTrips />} />
           </Route>
