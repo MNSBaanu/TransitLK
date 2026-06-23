@@ -60,7 +60,7 @@ export const ROLE_HOME_PATH = {
 
 /** Paths each role may access (URL guard) */
 export const ROLE_ALLOWED_PATHS = {
-  [ROLES.SUPERADMINISTRATOR]: ['/admins', '/depots', '/reports'],
+  [ROLES.SUPERADMINISTRATOR]: ['/admins', '/depots', '/notifications', '/reports'],
   [ROLES.ADMINISTRATOR]: [
     '/dashboard',
     '/routes',
@@ -69,11 +69,12 @@ export const ROLE_ALLOWED_PATHS = {
     '/drivers',
     '/users',
     '/maintenance',
+    '/notifications',
     '/reports',
   ],
-  [ROLES.TRANSPORT_SCHEDULER]: ['/routes', '/schedules', '/reports'],
-  [ROLES.FLEET_MANAGER]: ['/buses', '/drivers', '/maintenance'],
-  [ROLES.DEPOT_MANAGER]: ['/dashboard', '/schedules', '/reports'],
+  [ROLES.TRANSPORT_SCHEDULER]: ['/routes', '/schedules', '/notifications', '/reports'],
+  [ROLES.FLEET_MANAGER]: ['/buses', '/drivers', '/maintenance', '/notifications'],
+  [ROLES.DEPOT_MANAGER]: ['/dashboard', '/schedules', '/notifications', '/reports'],
   [ROLES.DRIVER]: ['/my-trips'],
 }
 
