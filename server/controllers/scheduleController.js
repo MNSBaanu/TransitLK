@@ -31,7 +31,7 @@ import {
 } from '../utils/fleetHelpers.js'
 import { resolveScheduleTimes } from '../utils/timeFormat.js'
 import { syncBusStatusForBusId, syncDriverStatusForDriverId } from '../utils/fleetAssignmentHelpers.js'
-import { syncRouteStatusForRouteId } from '../utils/routeStatusSync.js'
+import { syncRouteStatusForRouteId, syncAllAssignedRouteStatuses } from '../utils/routeStatusSync.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -373,6 +373,7 @@ async function analyzeTimetableConflicts({ dates, rows }) {
 
       const conflicts = []
       for (const ex of existingForDay) {
+        if (trip.scheduleId && sameAssignedResource(trip.scheduleId, ex._id)) continue
         compareTripOverlap(trip, ex, conflicts, {
           tripDate: dateStr,
           otherLabel: ex.routeId?.routeName || 'existing schedule',
@@ -462,6 +463,10 @@ async function validateAssignment({
 
 export const getSchedules = async (req, res) => {
   try {
+    if (!isDriver(req.user)) {
+      await syncAllAssignedRouteStatuses()
+    }
+
     const {
       tripDate,
       fromDate,

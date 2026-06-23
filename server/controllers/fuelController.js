@@ -1,6 +1,11 @@
 import FuelLog from '../models/FuelLog.js'
 import Bus from '../models/Bus.js'
 import {
+  controllerErrorMessage,
+  controllerErrorStatus,
+  resolveBusReference,
+} from '../utils/busLookup.js'
+import {
   isSuperadministrator,
   requireUserDepot,
   assertDepotAccess,
@@ -13,16 +18,13 @@ export const createFuelLog = async (req, res) => {
   const { bus_id, fuel_date, liters, amount } = req.body
 
   try {
-    const bus = await Bus.findById(bus_id)
-    if (!bus) {
-      return res.status(404).json({ message: 'Bus not found' })
-    }
+    const bus = await resolveBusReference(bus_id)
     assertDepotAccess(req.user, bus.depotId, 'Not allowed to log fuel for buses outside your depot')
 
-    const fuelLog = await FuelLog.create({ bus_id, fuel_date, liters, amount })
+    const fuelLog = await FuelLog.create({ bus_id: bus._id, fuel_date, liters, amount })
     res.status(201).json(fuelLog)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(controllerErrorStatus(error)).json({ message: controllerErrorMessage(error) })
   }
 }
 
@@ -88,9 +90,9 @@ export const updateFuelLog = async (req, res) => {
     assertDepotAccess(req.user, log.bus_id?.depotId, 'Not allowed to manage fuel logs outside your depot')
 
     if (req.body.bus_id && String(req.body.bus_id) !== String(log.bus_id?._id)) {
-      const newBus = await Bus.findById(req.body.bus_id)
-      if (!newBus) return res.status(404).json({ message: 'New bus not found' })
+      const newBus = await resolveBusReference(req.body.bus_id)
       assertDepotAccess(req.user, newBus.depotId, 'Not allowed to assign fuel logs to a bus outside your depot')
+      req.body.bus_id = newBus._id
     }
 
     const updated = await FuelLog.findByIdAndUpdate(req.params.id, req.body, {
@@ -99,7 +101,7 @@ export const updateFuelLog = async (req, res) => {
     })
     res.json(updated)
   } catch (error) {
-    res.status(500).json({ message: error.message })
+    res.status(controllerErrorStatus(error)).json({ message: controllerErrorMessage(error) })
   }
 }
 

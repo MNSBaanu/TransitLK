@@ -151,6 +151,7 @@ export function sameAssignedResource(left, right) {
 export function toConflictTrip(trip = {}) {
   return {
     tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
+    scheduleId: normalizeResourceId(trip.scheduleId),
     routeId: normalizeResourceId(trip.routeId),
     routeName: trip.routeName || trip.routeId?.routeName,
     busId: normalizeResourceId(trip.busId),
@@ -225,6 +226,15 @@ export function scheduleFilterBlockingRouteRemoval(extra = {}) {
   return {
     ...extra,
     status: { $nin: SCHEDULE_STATUSES_ALLOWING_ROUTE_REMOVAL },
+  }
+}
+
+/** Trips that keep a route assigned: today or future only (past trips are ignored). */
+export function scheduleFilterBlockingRouteAssignment(extra = {}, now = new Date()) {
+  const todayStart = startOfDay(now)
+  return {
+    ...scheduleFilterBlockingRouteRemoval(extra),
+    tripDate: { $gte: todayStart },
   }
 }
 

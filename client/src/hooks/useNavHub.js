@@ -36,6 +36,7 @@ export function useNavHub({ skipNotifications = false } = {}) {
   const [messages, setMessages] = useState([])
   const [loadingAlerts, setLoadingAlerts] = useState(true)
   const [activeMessageId, setActiveMessageId] = useState(null)
+  const [activeNotificationId, setActiveNotificationId] = useState(null)
 
   useEffect(() => {
     try {
@@ -65,6 +66,8 @@ export function useNavHub({ skipNotifications = false } = {}) {
         const mappedNotifications = (data || []).map((n) => ({
           id: n._id,
           type: mapPriorityToType(n.priority),
+          category: n.type,
+          priority: n.priority,
           title: n.title,
           body: n.message,
           link: n.link,
@@ -125,6 +128,7 @@ export function useNavHub({ skipNotifications = false } = {}) {
 
   const unreadMessageCount = messages.filter((m) => !m.read).length
 
+  const activeNotification = notificationsWithRead.find((n) => n.id === activeNotificationId) || null
   const activeMessage = messagesWithMeta.find((m) => m.id === activeMessageId) || null
 
   const markNotificationRead = useCallback(async (id) => {
@@ -146,6 +150,14 @@ export function useNavHub({ skipNotifications = false } = {}) {
       console.error('Failed to mark all notifications as read:', error)
     }
   }, [])
+
+  const selectNotification = useCallback(
+    (id) => {
+      setActiveNotificationId(id)
+      markNotificationRead(id)
+    },
+    [markNotificationRead]
+  )
 
   const openNotification = useCallback(
     (item) => {
@@ -196,7 +208,9 @@ export function useNavHub({ skipNotifications = false } = {}) {
     unreadNotifCount,
     messages: messagesWithMeta,
     unreadMessageCount,
+    activeNotification,
     activeMessage,
+    selectNotification,
     markNotificationRead,
     markAllNotificationsRead,
     openNotification,
@@ -204,6 +218,7 @@ export function useNavHub({ skipNotifications = false } = {}) {
     markAllMessagesRead,
     selectMessage,
     sendQuickReply,
+    setActiveNotificationId,
     setActiveMessageId,
     formatRelativeTime,
   }

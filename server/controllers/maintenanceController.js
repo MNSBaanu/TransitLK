@@ -1,5 +1,10 @@
 import Maintenance from '../models/Maintenance.js'
 import Bus from '../models/Bus.js'
+import {
+  controllerErrorMessage,
+  controllerErrorStatus,
+  resolveBusReference,
+} from '../utils/busLookup.js'
 import { cancelActiveSchedulesForBus } from '../utils/fleetAssignmentHelpers.js'
 import { syncBusMaintenanceFields } from '../utils/busMaintenanceSync.js'
 import {
@@ -86,25 +91,23 @@ function attachMaintenancePresentation(record) {
 export const createMaintenance = async (req, res) => {
   try {
     const payload = finalizeMaintenanceFields(sanitizeMaintenanceBody(req.body))
-    const { bus_id, description } = payload
+    const { description } = payload
 
-    const bus = await Bus.findById(bus_id)
-    if (!bus) {
-      return res.status(404).json({ message: 'Bus not found' })
-    }
+    const bus = await resolveBusReference(payload.bus_id)
     assertDepotAccess(req.user, bus.depotId, 'Not allowed to schedule maintenance for buses outside your depot')
+    payload.bus_id = bus._id
 
     const record = await Maintenance.create(payload)
 
     if (payload.status === 'scheduled' || payload.status === 'in-progress') {
       await cancelActiveSchedulesForBus(
-        bus_id,
+        bus._id,
         description?.trim() || 'Vehicle logged for maintenance — schedule cancelled'
       )
     }
 
-    await syncBusStatusFromMaintenance(bus_id)
-    await syncBusMaintenanceFields(bus_id)
+    await syncBusStatusFromMaintenance(bus._id)
+    await syncBusMaintenanceFields(bus._id)
 
     const populated = await Maintenance.findById(record._id).populate(
       'bus_id',
@@ -112,8 +115,7 @@ export const createMaintenance = async (req, res) => {
     )
     res.status(201).json(attachMaintenancePresentation(populated))
   } catch (error) {
-    const status = error.statusCode || 500
-    res.status(status).json({ message: error.message })
+    res.status(controllerErrorStatus(error)).json({ message: controllerErrorMessage(error) })
   }
 }
 
@@ -180,17 +182,17 @@ export const updateMaintenance = async (req, res) => {
     }
     assertDepotAccess(req.user, record.bus_id?.depotId, 'Not allowed to manage maintenance records outside your depot')
 
-    if (req.body.bus_id && String(req.body.bus_id) !== String(record.bus_id?._id)) {
-      const newBus = await Bus.findById(req.body.bus_id)
-      if (!newBus) return res.status(404).json({ message: 'New bus not found' })
-      assertDepotAccess(req.user, newBus.depotId, 'Not allowed to assign maintenance to a bus outside your depot')
-    }
-
     const previousBusId = record.bus_id
     const payload = finalizeMaintenanceFields(
       sanitizeMaintenanceBody(req.body, { isUpdate: true }),
       record
     )
+
+    if (payload.bus_id && String(payload.bus_id) !== String(record.bus_id?._id)) {
+      const newBus = await resolveBusReference(payload.bus_id)
+      assertDepotAccess(req.user, newBus.depotId, 'Not allowed to assign maintenance to a bus outside your depot')
+      payload.bus_id = newBus._id
+    }
 
     const updated = await Maintenance.findByIdAndUpdate(req.params.id, payload, {
       new: true,
@@ -213,8 +215,7 @@ export const updateMaintenance = async (req, res) => {
     )
     res.json(attachMaintenancePresentation(populated))
   } catch (error) {
-    const status = error.statusCode || 500
-    res.status(status).json({ message: error.message })
+    res.status(controllerErrorStatus(error)).json({ message: controllerErrorMessage(error) })
   }
 }
 

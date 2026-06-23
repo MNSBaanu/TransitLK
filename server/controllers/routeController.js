@@ -10,10 +10,11 @@ import {
   applyComputedRouteName,
   isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
-import { scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
+import { scheduleFilterBlockingRouteAssignment, scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
 import {
   getRouteIdsWithActiveTrips,
   resolveRouteOperationalStatus,
+  syncAllAssignedRouteStatuses,
   syncRouteStatusForRouteId,
 } from '../utils/routeStatusSync.js'
 import {
@@ -53,7 +54,7 @@ async function attachScheduleCounts(routes) {
 
   const ids = list.map((route) => route._id)
   const counts = await Schedule.aggregate([
-    { $match: scheduleFilterBlockingRouteRemoval({ routeId: { $in: ids } }) },
+    { $match: scheduleFilterBlockingRouteAssignment({ routeId: { $in: ids } }) },
     { $group: { _id: '$routeId', count: { $sum: 1 } } },
   ])
   const countMap = new Map(counts.map((entry) => [String(entry._id), entry.count]))
@@ -276,6 +277,8 @@ function applyFleetRouteStatus(data, existing, nextBusId, nextDriverId) {
 // @route   GET /api/routes
 export const getRoutes = async (req, res) => {
   try {
+    await syncAllAssignedRouteStatuses()
+
     const rawSearch = typeof req.query.search === 'string' ? req.query.search : ''
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : ''
     const serviceType =

@@ -30,7 +30,6 @@ import {
   detectTimetableConflicts,
   formatPeriodLabel,
   formatTripDate,
-  applySharedTripTimes,
   buildRouteTimetableRows,
   buildTimetableRowsForPeriod,
   defaultTripTimes,
@@ -309,7 +308,7 @@ function SchedulesPage() {
   const applyTimetableSource = useCallback(
     (period, anchor, sourceSchedules) => {
       const built = buildTimetableRowsForPeriod(routes, sourceSchedules, period, anchor)
-      setTimetableRows(applySharedTripTimes(built, defaultTripTimes()))
+      setTimetableRows(built)
     },
     [routes]
   )
@@ -674,7 +673,7 @@ function SchedulesPage() {
     setTimetableAnchor(anchor)
     setTimetableRangeSchedules(instant)
     const built = buildTimetableRowsForPeriod(routes, instant, period, anchor)
-    setTimetableRows(applySharedTripTimes(built, defaultTripTimes()))
+    setTimetableRows(built)
     setError('')
     setShowTimetable(true)
   }
@@ -686,21 +685,11 @@ function SchedulesPage() {
       const minTime = minimumDepartureTimeForDates(dates)
       nextValue = clampDepartureTime(value, minTime)
     }
-    setTimetableRows((rows) => {
-      const next = rows.map((r) =>
+    setTimetableRows((rows) =>
+      rows.map((r) =>
         String(r.tripRowId) === String(tripRowId) ? { ...r, [field]: nextValue } : r
       )
-      if (field === 'departureTime' || field === 'arrivalTime') {
-        const source = next.find((r) => String(r.tripRowId) === String(tripRowId))
-        if (source) {
-          return applySharedTripTimes(next, {
-            departureTime: source.departureTime,
-            arrivalTime: source.arrivalTime,
-          })
-        }
-      }
-      return next
-    })
+    )
   }
 
   const handleTimetableToggleAll = (checked) => {
