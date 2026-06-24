@@ -6,6 +6,24 @@ const notifStyles = {
   info: { icon: 'info', bg: 'bg-depot-navy/10', text: 'text-depot-navy' },
 }
 
+const NOTIFICATION_CATEGORIES = {
+  maintenance_due:        { label: 'Maintenance Due',        icon: 'build',         description: 'Scheduled bus maintenance approaching' },
+  overdue_maintenance:    { label: 'Overdue Maintenance',    icon: 'report',        description: 'Bus maintenance past its due date' },
+  schedule_conflict:      { label: 'Schedule Conflict',      icon: 'swap_horiz',    description: 'Overlapping or conflicting trips detected' },
+  delayed_trip:           { label: 'Delayed Trip',           icon: 'schedule',      description: 'A trip has been marked as delayed' },
+  driver_issue:           { label: 'Driver Issue',           icon: 'warning',       description: 'Driver reported a problem during a trip' },
+  trip_approved:          { label: 'Trip Approved',          icon: 'check_circle',  description: 'A pending trip has been approved' },
+  bus_status_change:      { label: 'Bus Status Change',      icon: 'directions_bus', description: 'Bus status has been updated' },
+  license_expiry_warning: { label: 'License Expiry Warning', icon: 'person',        description: 'Driver license is expiring or expired' },
+}
+
+const priorityStyles = {
+  critical: { label: 'Critical', bg: 'bg-red-100 text-red-700' },
+  high:     { label: 'High',     bg: 'bg-amber-100 text-amber-700' },
+  medium:   { label: 'Medium',   bg: 'bg-blue-100 text-blue-700' },
+  low:      { label: 'Low',      bg: 'bg-slate-100 text-slate-600' },
+}
+
 function initials(name) {
   return (name || '?')
     .split(' ')
@@ -16,6 +34,79 @@ function initials(name) {
 }
 
 export function NavNotificationsPanel({ hub, onClose }) {
+  if (hub.activeNotification) {
+    const notif = hub.activeNotification
+    const cat = NOTIFICATION_CATEGORIES[notif.category] || { label: notif.category || 'Alert', icon: 'info', description: '' }
+    const pStyle = priorityStyles[notif.priority] || priorityStyles.medium
+
+    return (
+      <div className="flex flex-col">
+        <div className="border-b border-white/40 p-3">
+          <button
+            type="button"
+            onClick={() => hub.setActiveNotificationId(null)}
+            className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-depot-navy hover:text-depot-blue-light"
+          >
+            <Icon name="arrow_back" size={16} />
+            Back to notifications
+          </button>
+          <div className="flex items-start gap-3">
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${notifStyles[notif.type]?.bg || 'bg-depot-navy/10'}`}>
+              <Icon name={cat.icon} size={20} className={notifStyles[notif.type]?.text || 'text-depot-navy'} />
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold text-fleet-ink">{notif.title}</p>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${pStyle.bg}`}>
+                  {pStyle.label}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-fleet-ink-muted">
+                <span className="font-medium text-depot-navy">{cat.label}</span>
+                {' \u00B7 '}
+                {hub.formatRelativeTime(notif.time)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-h-60 space-y-3 overflow-y-auto p-3">
+          <div className="glass-subtle rounded-2xl px-4 py-3 text-sm text-fleet-ink leading-relaxed">
+            {notif.body}
+          </div>
+
+          {notif.data && Object.keys(notif.data).length > 0 && (
+            <div className="rounded-xl border border-white/40 bg-white/20 px-4 py-3">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-fleet-ink-muted">Details</p>
+              <dl className="space-y-1">
+                {Object.entries(notif.data).map(([key, val]) => (
+                  <div key={key} className="flex justify-between gap-2 text-xs">
+                    <dt className="font-medium text-fleet-ink-muted capitalize">{key.replace(/_/g, ' ')}</dt>
+                    <dd className="font-semibold text-fleet-ink text-right">{String(val)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {notif.link && notif.link !== '/dashboard' && (
+            <button
+              type="button"
+              onClick={() => {
+                hub.openNotification(notif)
+                onClose()
+              }}
+              className="btn-primary w-full justify-center py-2.5 text-sm"
+            >
+              <Icon name="arrow_forward" size={16} />
+              Go to {cat.label}
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-3">
       <div className="glass-subtle mb-3 flex items-center justify-between rounded-xl px-3 py-2.5">
@@ -44,15 +135,13 @@ export function NavNotificationsPanel({ hub, onClose }) {
         <ul className="space-y-2">
           {hub.notifications.map((n) => {
             const style = notifStyles[n.type] || notifStyles.info
+            const cat = NOTIFICATION_CATEGORIES[n.category]
             const isUnread = !n.read && n.id !== 'all-clear'
             return (
               <li key={n.id}>
                 <button
                   type="button"
-                  onClick={() => {
-                    hub.openNotification(n)
-                    onClose()
-                  }}
+                  onClick={() => hub.selectNotification(n.id)}
                   className={`flex w-full gap-3 rounded-xl border p-3 text-left transition-all hover:shadow-md ${
                     isUnread
                       ? 'glass-subtle border-depot-blue-light/30 ring-1 ring-depot-blue-light/25'
@@ -71,6 +160,11 @@ export function NavNotificationsPanel({ hub, onClose }) {
                         <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-depot-blue-light" />
                       )}
                     </span>
+                    {cat && (
+                      <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wide text-depot-navy/70">
+                        {cat.label}
+                      </span>
+                    )}
                     <span className="mt-0.5 block text-xs leading-snug text-fleet-ink-muted">{n.body}</span>
                     <span className="mt-1.5 block text-[10px] font-medium text-fleet-ink-muted/80">
                       {n.timeLabel}

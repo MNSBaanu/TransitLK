@@ -5,13 +5,36 @@ const STATUS_LABELS = {
   assigned: 'Assigned',
 }
 
-export function buildRouteName(startPoint, endPoint) {
-  const start = String(startPoint || '').trim()
-  const end = String(endPoint || '').trim()
-  if (!start && !end) return ''
-  if (!start) return end
-  if (!end) return start
-  return `${start} — ${end}`
+/** Short single-line place label for route names (e.g. "Matale" not "Matale, Sri Lanka"). */
+export function compactRouteSegment(value) {
+  return String(value || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^via\s+/i, '')
+    .split(',')[0]
+    .trim()
+}
+
+export function compactPlaceLabel(placeOrText) {
+  if (placeOrText && typeof placeOrText === 'object') {
+    const name = placeOrText.name?.trim()
+    const formatted = placeOrText.formatted_address?.trim()
+    if (name) return compactRouteSegment(name)
+    if (formatted) return compactRouteSegment(formatted)
+    return ''
+  }
+  return compactRouteSegment(placeOrText)
+}
+
+export function buildRouteName(startPoint, endPoint, stops = []) {
+  const start = compactRouteSegment(startPoint)
+  const end = compactRouteSegment(endPoint)
+  const viaStops = (Array.isArray(stops) ? stops : [])
+    .map(compactRouteSegment)
+    .filter(Boolean)
+  const segments = [start, ...viaStops, end].filter(Boolean)
+  return segments.join('-')
 }
 
 export function isSchedulableRoute(route) {

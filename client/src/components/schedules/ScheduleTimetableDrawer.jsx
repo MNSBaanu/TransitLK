@@ -10,6 +10,7 @@ import {
   getTimetableDates,
   getTimetableRowStatus,
   isResourceFreeForTrip,
+  minimumDepartureTimeForDates,
   validateTimeRange,
 } from '../../utils/scheduleHelpers'
 import {
@@ -18,6 +19,7 @@ import {
   isDriverStatusAvailable,
   defaultMinCapacityForService,
 } from '../../utils/fleetHelpers'
+import ScheduleTimeInput from './ScheduleTimeInput'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-100'
@@ -176,9 +178,25 @@ function ScheduleTimetableDrawer({
     if (error) setFeedbackOpen(true)
   }, [error])
 
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    if (!open) return undefined
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [open])
+
+  const timetableDates = useMemo(
+    () => (open ? getTimetableDates(period, anchorDate) : []),
+    [open, period, anchorDate]
+  )
+  const minDepartureTime = useMemo(
+    () => minimumDepartureTimeForDates(timetableDates, new Date(nowTick)),
+    [timetableDates, nowTick]
+  )
+
   if (!open) return null
 
-  const dates = getTimetableDates(period, anchorDate)
+  const dates = timetableDates
   const dateFieldLabel =
     period === 'daily' ? 'Trip date' : period === 'weekly' ? 'Week of' : 'Month'
   const { conflictCards, validationCards } = buildTimetableFeedbackCards(
@@ -658,16 +676,19 @@ function ScheduleTimetableDrawer({
                           ) : null}
                         </td>
                         <td className="py-3 pr-2 align-top">
-                          <input
-                            type="time"
+                          <ScheduleTimeInput
                             value={row.departureTime}
-                            onChange={(e) =>
-                              onRowChange(row.tripRowId, 'departureTime', e.target.value)
+                            onChange={(next) =>
+                              onRowChange(row.tripRowId, 'departureTime', next)
                             }
+                            minTime={minDepartureTime}
                             disabled={!row.included}
                             required={row.included}
+                            name="departureTime"
                             data-field="departure"
-                            {...(isPrimaryFocus && focusField === 'departure' ? { 'data-focus-priority': true } : {})}
+                            {...(isPrimaryFocus && focusField === 'departure'
+                              ? { 'data-focus-priority': true }
+                              : {})}
                             className={`${inputClass} time-field${timeErr ? ' border-red-400' : ''}`}
                           />
                           {timeErr ? (
@@ -675,14 +696,14 @@ function ScheduleTimetableDrawer({
                           ) : null}
                         </td>
                         <td className="py-3 pr-2 align-top">
-                          <input
-                            type="time"
+                          <ScheduleTimeInput
                             value={row.arrivalTime}
-                            onChange={(e) =>
-                              onRowChange(row.tripRowId, 'arrivalTime', e.target.value)
+                            onChange={(next) =>
+                              onRowChange(row.tripRowId, 'arrivalTime', next)
                             }
                             disabled={!row.included}
                             required={row.included}
+                            name="arrivalTime"
                             className={`${inputClass} time-field${timeErr ? ' border-red-400' : ''}`}
                           />
                         </td>

@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import Icon from './Icon'
 import PrefetchNavLink from './PrefetchNavLink'
 import { useLayout } from '../context/LayoutContext'
 import { useNavHub } from '../hooks/useNavHub'
 import NavDropdownPanel from './nav/NavDropdownPanel'
-import {
-  NavMessagesPanel,
-  NavNotificationsPanel,
-  NavProfilePanel,
-} from './nav/NavHubPanels'
+import { NavProfilePanel } from './nav/NavHubPanels'
 import { useAuth } from '../context/AuthContext'
 import { NAV_ITEMS, ROLE_LABELS, ROLES, homePathForRole } from '../config/roles'
 import TransitLKBrand, { getUserDepotCode } from './TransitLKBrand'
@@ -34,6 +30,7 @@ function NavBadge({ count }) {
 
 function Navbar() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { routeSearch, setRouteSearch, scheduleSearch, setScheduleSearch } = useLayout()
 
@@ -46,9 +43,6 @@ function Navbar() {
 
   const [openPanel, setOpenPanel] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [replyText, setReplyText] = useState('')
-  const notifAnchorRef = useRef(null)
-  const messagesAnchorRef = useRef(null)
   const profileAnchorRef = useRef(null)
   const searchAnchorRef = useRef(null)
   const searchInputRef = useRef(null)
@@ -72,22 +66,14 @@ function Navbar() {
   const togglePanel = (panel) => {
     setSearchOpen(false)
     setOpenPanel((prev) => (prev === panel ? null : panel))
-    if (panel !== 'messages') {
-      hub.setActiveMessageId(null)
-      setReplyText('')
-    }
   }
 
   const closePanel = () => {
     setOpenPanel(null)
-    hub.setActiveMessageId(null)
-    setReplyText('')
   }
 
   const toggleSearch = () => {
     setOpenPanel(null)
-    hub.setActiveMessageId(null)
-    setReplyText('')
     setSearchOpen((prev) => !prev)
   }
 
@@ -179,83 +165,26 @@ function Navbar() {
           </div>
 
           {!isDriver && (
-          <div className="relative" ref={notifAnchorRef}>
             <button
               type="button"
-              onClick={() => togglePanel('notifications')}
-              className={`relative rounded-full p-2 transition-colors ${
-                openPanel === 'notifications'
-                  ? 'bg-white/20 text-white'
-                  : 'text-white/85 hover:bg-white/10'
-              }`}
+              onClick={() => navigate('/notifications')}
+              className="relative rounded-full p-2 text-white/85 transition-colors hover:bg-white/10"
               aria-label="Notifications"
-              aria-expanded={openPanel === 'notifications'}
             >
               <Icon name="notifications" size={22} />
               <NavBadge count={hub.unreadNotifCount} />
             </button>
-            <NavDropdownPanel
-              open={openPanel === 'notifications'}
-              onClose={closePanel}
-              anchorRef={notifAnchorRef}
-              title="Notifications"
-              subtitle="Depot alerts & conflicts"
-              width="w-[min(360px,calc(100vw-2rem))]"
-              footer={
-                <button
-                  type="button"
-                  onClick={hub.markAllNotificationsRead}
-                  className="btn-outlined w-full py-2 text-xs"
-                >
-                  Mark all as read
-                </button>
-              }
-            >
-              <NavNotificationsPanel hub={hub} onClose={closePanel} />
-            </NavDropdownPanel>
-          </div>
           )}
 
-          <div className="relative" ref={messagesAnchorRef}>
-            <button
-              type="button"
-              onClick={() => togglePanel('messages')}
-              className={`relative rounded-full p-2 transition-colors ${
-                openPanel === 'messages' ? 'bg-white/20 text-white' : 'text-white/85 hover:bg-white/10'
-              }`}
-              aria-label="Messages"
-              aria-expanded={openPanel === 'messages'}
-            >
-              <Icon name="chat_bubble" size={22} />
-              <NavBadge count={hub.unreadMessageCount} />
-            </button>
-            <NavDropdownPanel
-              open={openPanel === 'messages'}
-              onClose={closePanel}
-              anchorRef={messagesAnchorRef}
-              title={hub.activeMessage ? 'Conversation' : 'Messages'}
-              subtitle={hub.activeMessage ? hub.activeMessage.subject : 'Depot team inbox'}
-              width="w-[min(380px,calc(100vw-2rem))]"
-              footer={
-                !hub.activeMessage ? (
-                  <button
-                    type="button"
-                    onClick={hub.markAllMessagesRead}
-                    className="btn-outlined w-full py-2 text-xs"
-                  >
-                    Mark all as read
-                  </button>
-                ) : null
-              }
-            >
-              <NavMessagesPanel
-                hub={hub}
-                replyText={replyText}
-                setReplyText={setReplyText}
-                onClose={closePanel}
-              />
-            </NavDropdownPanel>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/messages')}
+            className="relative rounded-full p-2 text-white/85 transition-colors hover:bg-white/10"
+            aria-label="Messages"
+          >
+            <Icon name="chat_bubble" size={22} />
+            <NavBadge count={0} />
+          </button>
 
           <div className="relative" ref={profileAnchorRef}>
             <button

@@ -20,7 +20,10 @@ import {
   scheduleCode,
   tripDateKey,
   validateTimeRange,
+  validateTripDepartureNotPast,
+  minimumDepartureTimeForDate,
 } from '../../utils/scheduleHelpers'
+import ScheduleTimeInput from './ScheduleTimeInput'
 
 const inputClass =
   'w-full rounded-lg border border-outline-variant bg-white px-3 py-2.5 text-sm outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-50'
@@ -65,10 +68,14 @@ function ScheduleQuickAdjust({
 }) {
   const form = adjustForm || defaultAdjust
   const timeErr = selected ? validateTimeRange(form.departureTime, form.arrivalTime) : null
+  const pastErr = selected
+    ? validateTripDepartureNotPast(tripDateKey(selected), form.departureTime)
+    : null
   const derivedStatus = reasonToStatus(form.reason, form.status)
   const [activePicker, setActivePicker] = useState(null)
   const tripDepartureTime = form.departureTime || selected?.departureTime
   const tripLicenseDate = selected ? tripDateKey(selected) : undefined
+  const minDepartureTime = selected ? minimumDepartureTimeForDate(tripDateKey(selected)) : null
   const busPool = allBuses.length ? allBuses : buses
   const currentDriverId = String(form.driverId || selected?.driverId?._id || selected?.driverId || '')
   const currentBusId = String(form.busId || selected?.busId?._id || selected?.busId || '')
@@ -250,22 +257,29 @@ function ScheduleQuickAdjust({
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className={labelClass}>Departure</span>
-                <input
+                <ScheduleTimeInput
                   name="departureTime"
-                  type="time"
                   value={form.departureTime}
-                  onChange={onAdjustChange}
+                  onChange={(next) =>
+                    onAdjustChange({
+                      target: { name: 'departureTime', value: next },
+                    })
+                  }
+                  minTime={minDepartureTime}
                   disabled={!selected}
                   className={`${inputClass} time-field mt-1`}
                 />
               </label>
               <label className="block">
                 <span className={labelClass}>Arrival</span>
-                <input
+                <ScheduleTimeInput
                   name="arrivalTime"
-                  type="time"
                   value={form.arrivalTime}
-                  onChange={onAdjustChange}
+                  onChange={(next) =>
+                    onAdjustChange({
+                      target: { name: 'arrivalTime', value: next },
+                    })
+                  }
                   disabled={!selected}
                   className={`${inputClass} time-field mt-1`}
                 />
@@ -275,6 +289,8 @@ function ScheduleQuickAdjust({
               <p className="mt-2 text-xs text-on-surface-variant">
                 {timeErr ? (
                   <span className="font-medium text-red-600">{timeErr}</span>
+                ) : pastErr ? (
+                  <span className="font-medium text-red-600">{pastErr}</span>
                 ) : (
                   <>
                     New window:{' '}
@@ -508,6 +524,7 @@ function ScheduleQuickAdjust({
               saving ||
               !selected ||
               Boolean(timeErr) ||
+              Boolean(pastErr) ||
               adjustConflict?.hasConflict ||
               (requiresAdjustmentNotes(form.reason) && !form.notes?.trim())
             }

@@ -14,24 +14,58 @@ export const GANTT_TIMELINE_WIDTH_PX = GANTT_HOURS.length * GANTT_HOUR_COLUMN_MI
 export const GANTT_MIN_WIDTH_PX = GANTT_TIMELINE_WIDTH_PX
 const GANTT_TRIP_MIN_WIDTH_PX = 40
 
-/** Default departure/arrival for all routes in a new timetable */
+/** Default trip duration when auto-filling arrival from current departure */
+export const DEFAULT_TRIP_DURATION_MINUTES = 4 * 60
+
+/** @deprecated Use defaultTripTimes() for live clock-based defaults */
 export const DEFAULT_TRIP_DEPARTURE_TIME = '08:00'
 export const DEFAULT_TRIP_ARRIVAL_TIME = '12:00'
 
-export function defaultTripTimes() {
+export function currentTimeHHmm(now = new Date()) {
+  return minutesToTime(now.getHours() * 60 + now.getMinutes())
+}
+
+export function defaultTripTimes(now = new Date()) {
+  const departureMin = now.getHours() * 60 + now.getMinutes()
+  const arrivalMin = Math.min(departureMin + DEFAULT_TRIP_DURATION_MINUTES, 24 * 60 - 1)
   return {
-    departureTime: DEFAULT_TRIP_DEPARTURE_TIME,
-    arrivalTime: DEFAULT_TRIP_ARRIVAL_TIME,
+    departureTime: minutesToTime(departureMin),
+    arrivalTime: minutesToTime(arrivalMin),
   }
 }
 
-/** Apply the same departure/arrival window to every timetable row */
-export function applySharedTripTimes(rows, { departureTime, arrivalTime }) {
-  return (rows || []).map((row) => ({
-    ...row,
-    ...(departureTime != null ? { departureTime } : {}),
-    ...(arrivalTime != null ? { arrivalTime } : {}),
-  }))
+export function localTodayKey(now = new Date()) {
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Earliest selectable departure (HH:mm) when trip date is today; otherwise null. */
+export function minimumDepartureTimeForDate(tripDate, now = new Date()) {
+  const dateKey =
+    typeof tripDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(tripDate.trim())
+      ? tripDate.trim()
+      : tripDateKey({ tripDate })
+  if (!dateKey || dateKey !== localTodayKey(now)) return null
+  return currentTimeHHmm(now)
+}
+
+/** Earliest departure when any timetable day is today (shared row times). */
+export function minimumDepartureTimeForDates(dates, now = new Date()) {
+  const todayKey = localTodayKey(now)
+  if (!Array.isArray(dates) || !dates.some((d) => toDateInputValue(d) === todayKey)) {
+    return null
+  }
+  return currentTimeHHmm(now)
+}
+
+export function clampDepartureTime(departureTime, minDepartureTime) {
+  if (!minDepartureTime || !departureTime) return departureTime
+  const dep = timeToMinutes(departureTime)
+  const min = timeToMinutes(minDepartureTime)
+  if (dep == null || min == null) return departureTime
+  return dep < min ? minDepartureTime : departureTime
 }
 
 function approvalRecencyTime(trip, kind) {
@@ -146,6 +180,7 @@ export function sameAssignedResource(left, right) {
 export function toConflictTrip(trip = {}) {
   return {
     tripRowId: trip.tripRowId || (trip._id ? String(trip._id) : ''),
+    scheduleId: normalizeResourceId(trip.scheduleId),
     routeId: normalizeResourceId(trip.routeId),
     routeName: trip.routeName || trip.routeId?.routeName,
     busId: normalizeResourceId(trip.busId),
@@ -387,6 +422,10 @@ export function newTimetableId() {
 
 export function createTimetableRowFromRoute(route, existing = null) {
   const tripRowId = existing?._id ? `sched-${existing._id}` : newTripRowId()
+  const times =
+    existing?.departureTime && existing?.arrivalTime
+      ? { departureTime: existing.departureTime, arrivalTime: existing.arrivalTime }
+      : defaultTripTimes()
   return {
     tripRowId,
     scheduleId: existing?._id || null,
@@ -399,7 +438,7 @@ export function createTimetableRowFromRoute(route, existing = null) {
     stops: route.stops?.length ? [...route.stops] : [],
     viaDescription: route.viaDescription || '',
     included: false,
-    ...defaultTripTimes(),
+    ...times,
     busId: String(
       existing?.busId?._id || existing?.busId || route.busId?._id || route.busId || ''
     ),
@@ -443,11 +482,15 @@ export function duplicateTimetableRow(route, siblingRows = []) {
     ...createTimetableRowFromRoute(route, null),
     departureTime,
     arrivalTime,
-    included: true,
+    included: false,
     busId: '',
     driverId: '',
     remarks: '',
   }
+}
+
+function appendAdditionalTripRow(rows, route) {
+  rows.push(duplicateTimetableRow(route, rows))
 }
 
 function compareRoutesScheduledFirst(a, b, scheduledRouteIds) {
@@ -508,6 +551,7 @@ export function buildTimetableRows(routes, schedules = [], anchorDate) {
       for (const trip of existingTrips) {
         rows.push(createTimetableRowFromRoute(route, trip))
       }
+      appendAdditionalTripRow(rows, route)
     } else {
       rows.push(createTimetableRowFromRoute(route, null))
     }
@@ -736,7 +780,7 @@ export function getTimetableRowValidationIssues(row) {
   return issues
 }
 
-export function validateTimetableRows(rows) {
+export function validateTimetableRows(rows, dates = null) {
   const errors = []
   const included = rows.filter((r) => r.included !== false)
   if (included.length === 0) {
@@ -749,11 +793,16 @@ export function validateTimetableRows(rows) {
       errors.push(`${label}: ${detail}`)
     }
   }
+  if (Array.isArray(dates) && dates.length) {
+    for (const issue of collectPastDepartureIssues(dates, included)) {
+      errors.push(issue.message)
+    }
+  }
   return errors
 }
 
-export function isTimetableReady(rows) {
-  return validateTimetableRows(rows).length === 0
+export function isTimetableReady(rows, dates = null) {
+  return validateTimetableRows(rows, dates).length === 0
 }
 
 /** included row: excluded | incomplete (missing fields) | conflict (overlap) | clear */
@@ -863,6 +912,49 @@ export function validateTimeRange(departureTime, arrivalTime) {
   if (dep == null || arr == null) return 'Enter valid departure and arrival times (HH:mm)'
   if (arr <= dep) return 'Arrival must be after departure'
   return null
+}
+
+/** Block trips whose departure is already in the past (calendar day + HH:mm, local time). */
+export function validateTripDepartureNotPast(tripDate, departureTime, now = new Date()) {
+  const dateKey =
+    typeof tripDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(tripDate.trim())
+      ? tripDate.trim()
+      : tripDateKey({ tripDate })
+  if (!dateKey) return null
+
+  const depMin = timeToMinutes(departureTime)
+  if (depMin == null) return null
+
+  const todayKey = localTodayKey(now)
+  if (dateKey < todayKey) {
+    return `Cannot schedule trips on ${dateKey} — that date has already passed`
+  }
+  if (dateKey > todayKey) return null
+
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  if (depMin < nowMin) {
+    return `Departure time ${departureTime} has already passed today — choose a later time`
+  }
+  return null
+}
+
+export function collectPastDepartureIssues(dates, rows, now = new Date()) {
+  const issues = []
+  const included = (rows || []).filter((r) => r.included !== false)
+  for (const dateStr of dates || []) {
+    for (const row of included) {
+      const err = validateTripDepartureNotPast(dateStr, row.departureTime, now)
+      if (!err) continue
+      const label = row.routeName || 'Route'
+      issues.push({
+        routeId: row.routeId,
+        routeName: label,
+        tripDate: dateStr,
+        message: `${label} on ${dateStr}: ${err}`,
+      })
+    }
+  }
+  return issues
 }
 
 /** Conflicts across multiple days (e.g. weekly/monthly load) */
@@ -1073,6 +1165,19 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
   for (const dateStr of dates) {
     const proposedForDay = included.map((r) => toConflictTrip(r))
 
+    for (const trip of proposedForDay) {
+      const pastErr = validateTripDepartureNotPast(dateStr, trip.departureTime)
+      if (pastErr) {
+        mergeTimetableIssue(issues, trip, dateStr, [
+          {
+            type: 'past',
+            message: pastErr,
+            _dedupeKey: `past|${dateStr}|${trip.routeId}|${trip.departureTime}`,
+          },
+        ])
+      }
+    }
+
     const existingForDay = activeExisting.filter((s) => tripDateKey(s) === dateStr)
 
     for (let i = 0; i < proposedForDay.length; i++) {
@@ -1092,6 +1197,7 @@ export function detectTimetableConflicts(dates, rows, existingSchedules = []) {
     for (const trip of proposedForDay) {
       const conflicts = []
       for (const ex of existingForDay) {
+        if (trip.scheduleId && sameAssignedResource(trip.scheduleId, ex._id)) continue
         compareTripOverlap(trip, ex, conflicts, {
           tripDate: dateStr,
           otherLabel: ex.routeId?.routeName || 'existing schedule',

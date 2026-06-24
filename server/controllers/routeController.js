@@ -7,12 +7,14 @@ import {
   validateLocation,
   validateStopLocations,
   finalizeRouteFields,
+  applyComputedRouteName,
   isWithinWorkingHours,
 } from '../utils/routeHelpers.js'
-import { scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
+import { scheduleFilterBlockingRouteAssignment, scheduleFilterBlockingRouteRemoval } from '../utils/scheduleHelpers.js'
 import {
   getRouteIdsWithActiveTrips,
   resolveRouteOperationalStatus,
+  syncAllAssignedRouteStatuses,
   syncRouteStatusForRouteId,
 } from '../utils/routeStatusSync.js'
 import {
@@ -52,14 +54,14 @@ async function attachScheduleCounts(routes) {
 
   const ids = list.map((route) => route._id)
   const counts = await Schedule.aggregate([
-    { $match: scheduleFilterBlockingRouteRemoval({ routeId: { $in: ids } }) },
+    { $match: scheduleFilterBlockingRouteAssignment({ routeId: { $in: ids } }) },
     { $group: { _id: '$routeId', count: { $sum: 1 } } },
   ])
   const countMap = new Map(counts.map((entry) => [String(entry._id), entry.count]))
 
   return list.map((route) => {
     const activeTrips = countMap.get(String(route._id)) || 0
-    const plain = resolveRouteOperationalStatus(route, activeTrips)
+    const plain = applyComputedRouteName(resolveRouteOperationalStatus(route, activeTrips))
     return { ...plain, scheduleCount: activeTrips }
   })
 }
@@ -275,6 +277,8 @@ function applyFleetRouteStatus(data, existing, nextBusId, nextDriverId) {
 // @route   GET /api/routes
 export const getRoutes = async (req, res) => {
   try {
+    await syncAllAssignedRouteStatuses()
+
     const rawSearch = typeof req.query.search === 'string' ? req.query.search : ''
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : ''
     const serviceType =
@@ -297,7 +301,7 @@ export const getRoutes = async (req, res) => {
           'routeNo routeName startPoint endPoint distance serviceType status stops viaDescription busId driverId depotId'
         )
       ).lean()
-      return res.json(routes)
+      return res.json(routes.map(applyComputedRouteName))
     }
 
     if (!wantsPagination) {

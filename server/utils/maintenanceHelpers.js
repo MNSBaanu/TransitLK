@@ -37,7 +37,15 @@ export function sanitizeMaintenanceBody(body = {}, { isUpdate = false } = {}) {
   if (body.bus_id !== undefined) data.bus_id = body.bus_id
   if (body.service_date !== undefined) data.service_date = body.service_date
   if (body.description !== undefined) data.description = body.description
-  if (body.cost !== undefined) data.cost = body.cost
+  if (body.cost !== undefined) {
+    const cost = Number(body.cost)
+    if (!Number.isFinite(cost) || cost < 0) {
+      const error = new Error('Cost must be a non-negative number')
+      error.statusCode = 400
+      throw error
+    }
+    data.cost = cost
+  }
 
   if (body.status !== undefined) {
     if (!MAINTENANCE_STATUSES.includes(body.status)) {

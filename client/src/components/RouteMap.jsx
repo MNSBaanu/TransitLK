@@ -41,11 +41,14 @@ function RouteMap({
   startLocation,
   endLocation,
   stopLocations = [],
+  liveLocation = null,
+  liveLocationLabel = 'Driver',
   onRouteComputed,
 }) {
   const mapRef = useRef(null)
   const mapInstance = useRef(null)
   const directionsRenderer = useRef(null)
+  const liveMarkerRef = useRef(null)
   const [mapError, setMapError] = useState('')
   const [scriptReady, setScriptReady] = useState(Boolean(window.google?.maps))
   const [computing, setComputing] = useState(false)
@@ -190,6 +193,36 @@ function RouteMap({
     stopLocations.length,
   ])
 
+  useEffect(() => {
+    if (!mapInstance.current || !window.google?.maps || !scriptReady) return
+
+    if (liveLocation?.lat == null || liveLocation?.lng == null) {
+      liveMarkerRef.current?.setMap(null)
+      liveMarkerRef.current = null
+      return
+    }
+
+    const position = { lat: Number(liveLocation.lat), lng: Number(liveLocation.lng) }
+    if (!liveMarkerRef.current) {
+      liveMarkerRef.current = new window.google.maps.Marker({
+        map: mapInstance.current,
+        position,
+        title: liveLocationLabel,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#15803d',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
+      })
+    } else {
+      liveMarkerRef.current.setPosition(position)
+      liveMarkerRef.current.setTitle(liveLocationLabel)
+    }
+  }, [scriptReady, liveLocation?.lat, liveLocation?.lng, liveLocation?.updatedAt, liveLocationLabel])
+
   const handleZoom = (delta) => {
     if (!mapInstance.current) return
     const z = mapInstance.current.getZoom()
@@ -244,6 +277,12 @@ function RouteMap({
       {computing && (
         <div className="absolute right-4 top-4 z-10 rounded-full border border-fleet-line bg-fleet-surface px-3 py-1.5 text-[10px] font-bold uppercase shadow-sm">
           Calculating route…
+        </div>
+      )}
+
+      {liveLocation?.lat != null && liveLocation?.lng != null && (
+        <div className="absolute bottom-4 left-4 z-10 rounded-lg border border-green-300 bg-green-50/95 px-3 py-1.5 text-[10px] font-bold uppercase text-green-900 shadow-sm">
+          Live · {liveLocationLabel}
         </div>
       )}
     </div>

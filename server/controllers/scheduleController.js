@@ -17,6 +17,7 @@ import {
   parseTimetableMeta,
   validateTimeRange,
   validateTimetableRows,
+  validateTripDepartureNotPast,
   requiresAdjustmentNotes,
   reasonToStatus,
   DRIVER_VISIBLE_STATUSES,
@@ -30,7 +31,7 @@ import {
 } from '../utils/fleetHelpers.js'
 import { resolveScheduleTimes } from '../utils/timeFormat.js'
 import { syncBusStatusForBusId, syncDriverStatusForDriverId } from '../utils/fleetAssignmentHelpers.js'
-import { syncRouteStatusForRouteId } from '../utils/routeStatusSync.js'
+import { syncRouteStatusForRouteId, syncAllAssignedRouteStatuses } from '../utils/routeStatusSync.js'
 import {
   assertDepotAccess,
   isDriver,
@@ -42,7 +43,8 @@ import { notifyDriverTripApproved } from '../utils/notifyTripApproved.js'
 
 const routePopulate = {
   path: 'routeId',
-  select: 'routeName startPoint endPoint distance serviceType stops viaDescription',
+  select:
+    'routeName startPoint endPoint distance serviceType stops viaDescription startLocation endLocation stopLocations',
 }
 const busPopulate = { path: 'busId', select: 'regNumber capacity status serviceType' }
 const driverPopulate = {
@@ -327,6 +329,19 @@ async function analyzeTimetableConflicts({ dates, rows }) {
   for (const dateStr of dates) {
     const proposedForDay = included.map((r) => toConflictTrip(r))
 
+    for (const trip of proposedForDay) {
+      const pastErr = validateTripDepartureNotPast(dateStr, trip.departureTime)
+      if (pastErr) {
+        mergeTimetableIssue(issues, trip, dateStr, [
+          {
+            type: 'past',
+            message: pastErr,
+            _dedupeKey: `past|${dateStr}|${trip.routeId}|${trip.departureTime}`,
+          },
+        ])
+      }
+    }
+
     const existingForDay = existing.filter((e) => isSameCalendarDay(e.tripDate, dateStr))
 
     for (let i = 0; i < proposedForDay.length; i++) {
@@ -358,6 +373,7 @@ async function analyzeTimetableConflicts({ dates, rows }) {
 
       const conflicts = []
       for (const ex of existingForDay) {
+        if (trip.scheduleId && sameAssignedResource(trip.scheduleId, ex._id)) continue
         compareTripOverlap(trip, ex, conflicts, {
           tripDate: dateStr,
           otherLabel: ex.routeId?.routeName || 'existing schedule',
@@ -447,6 +463,10 @@ async function validateAssignment({
 
 export const getSchedules = async (req, res) => {
   try {
+    if (!isDriver(req.user)) {
+      await syncAllAssignedRouteStatuses()
+    }
+
     const {
       tripDate,
       fromDate,
@@ -575,6 +595,11 @@ export const createSchedule = async (req, res) => {
 
     const normalizedTripDate = normalizeTripDate(tripDate)
 
+    const pastErr = validateTripDepartureNotPast(normalizedTripDate, normalizedDepartureTime)
+    if (pastErr) {
+      return res.status(400).json({ message: pastErr })
+    }
+
     await validateAssignment({
       busId,
       driverId,
@@ -683,6 +708,11 @@ export const updateSchedule = async (req, res) => {
       : scopedRoute
 
     if (!isTerminalUpdate) {
+      const pastErr = validateTripDepartureNotPast(normalizedTripDate, normalizedDepartureTime)
+      if (pastErr) {
+        return res.status(400).json({ message: pastErr })
+      }
+
       await validateAssignment({
         busId,
         driverId,
@@ -873,6 +903,17 @@ export const rejectSchedule = async (req, res) => {
 
 const DRIVER_TRIP_STATUS_TARGETS = new Set(['on-duty', 'on-time', 'delayed', 'completed'])
 const DRIVER_TRIP_STATUS_SOURCES = new Set(['approved', 'scheduled', 'on-duty', 'on-time', 'delayed'])
+const LIVE_TRACKING_STATUSES = ['on-duty', 'on-time', 'delayed']
+const LIVE_LOCATION_STALE_MS = 5 * 60 * 1000
+
+function clearLiveLocation(schedule) {
+  schedule.liveLocationSharing = false
+  schedule.liveLocation = undefined
+}
+
+function isLiveTrackingStatus(status) {
+  return LIVE_TRACKING_STATUSES.includes(status)
+}
 
 export const updateDriverTripStatus = async (req, res) => {
   try {
@@ -912,6 +953,7 @@ export const updateDriverTripStatus = async (req, res) => {
     } else if (status === 'completed') {
       schedule.driverIssueReportedAt = null
       schedule.driverIssueNotes = ''
+      clearLiveLocation(schedule)
     } else if (status === 'on-duty') {
       notes = notes || 'Driver started trip — on duty'
     } else if (status === 'on-time') {
@@ -973,6 +1015,82 @@ export const updateDriverTripStatus = async (req, res) => {
   }
 }
 
+export const updateDriverLiveLocation = async (req, res) => {
+  try {
+    if (!isDriver(req.user)) {
+      return res.status(403).json({ message: 'Only drivers can share live location' })
+    }
+
+    const schedule = await Schedule.findById(req.params.id)
+    if (!schedule) return res.status(404).json({ message: 'Schedule not found' })
+    await assertScheduleAccess(req.user, schedule)
+
+    if (!isLiveTrackingStatus(schedule.status)) {
+      return res.status(400).json({
+        message: 'Live location is only available after the trip has started',
+      })
+    }
+
+    const { sharing, lat, lng, accuracy, heading, speed } = req.body
+
+    if (sharing !== undefined) {
+      schedule.liveLocationSharing = Boolean(sharing)
+      if (!schedule.liveLocationSharing) {
+        schedule.liveLocation = undefined
+      }
+    }
+
+    if (lat != null && lng != null) {
+      if (!schedule.liveLocationSharing) {
+        return res.status(400).json({ message: 'Enable live location sharing first' })
+      }
+      const parsedLat = Number(lat)
+      const parsedLng = Number(lng)
+      if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+        return res.status(400).json({ message: 'Valid lat and lng are required' })
+      }
+      schedule.liveLocation = {
+        lat: parsedLat,
+        lng: parsedLng,
+        accuracy: accuracy != null ? Number(accuracy) : undefined,
+        heading: heading != null ? Number(heading) : undefined,
+        speed: speed != null ? Number(speed) : undefined,
+        updatedAt: new Date(),
+      }
+    } else if (sharing === undefined) {
+      return res.status(400).json({ message: 'Provide sharing toggle or location coordinates' })
+    }
+
+    await schedule.save()
+    const populated = await populateSchedule(Schedule.findById(schedule._id))
+    res.json(populated)
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).json({ message: error.message })
+  }
+}
+
+export const getLiveTripLocations = async (req, res) => {
+  try {
+    const scopedRouteIds = await getScopedRouteIds(req.user)
+    const staleBefore = new Date(Date.now() - LIVE_LOCATION_STALE_MS)
+    const filter = {
+      liveLocationSharing: true,
+      status: { $in: LIVE_TRACKING_STATUSES },
+      'liveLocation.updatedAt': { $gte: staleBefore },
+    }
+    if (scopedRouteIds) filter.routeId = { $in: scopedRouteIds }
+
+    const schedules = await populateSchedule(
+      Schedule.find(filter).sort({ 'liveLocation.updatedAt': -1 })
+    )
+    res.json(schedules)
+  } catch (error) {
+    const statusCode = error.statusCode || 500
+    res.status(statusCode).json({ message: error.message })
+  }
+}
+
 export const checkScheduleConflicts = async (req, res) => {
   try {
     const { tripDate, routeId, busId, driverId, departureTime, arrivalTime, excludeId } =
@@ -986,6 +1104,14 @@ export const checkScheduleConflicts = async (req, res) => {
       departureTime: normalizedDepartureTime,
       arrivalTime: normalizedArrivalTime,
     } = resolveScheduleTimes(departureTime, arrivalTime, validateTimeRange)
+    const normalizedTripDate = normalizeTripDate(tripDate)
+    const pastErr = validateTripDepartureNotPast(normalizedTripDate, normalizedDepartureTime)
+    if (pastErr) {
+      return res.json({
+        hasConflict: true,
+        conflicts: [{ type: 'past', message: pastErr }],
+      })
+    }
     const route = routeId ? await getAccessibleRoute(req.user, routeId) : null
     const availabilityIssues = []
     try {
@@ -996,7 +1122,7 @@ export const checkScheduleConflicts = async (req, res) => {
         arrivalTime: normalizedArrivalTime,
         routeId,
         routeDepotId: route?.depotId,
-        tripDate: normalizeTripDate(tripDate),
+        tripDate: normalizedTripDate,
         scheduleId: excludeId || undefined,
       })
     } catch (err) {
@@ -1023,8 +1149,8 @@ export const checkScheduleConflicts = async (req, res) => {
   }
 }
 
-function timetableValidationResult(rows) {
-  const validationErrors = validateTimetableRows(rows)
+function timetableValidationResult(rows, dates = null) {
+  const validationErrors = validateTimetableRows(rows, dates)
   if (!validationErrors.length) return null
   return {
     hasConflict: true,
@@ -1046,7 +1172,7 @@ export const checkTimetableConflicts = async (req, res) => {
     if (!Array.isArray(dates) || !Array.isArray(rows)) {
       return res.status(400).json({ message: 'dates and rows arrays are required' })
     }
-    const validationBlock = timetableValidationResult(rows)
+    const validationBlock = timetableValidationResult(rows, dates)
     if (validationBlock) {
       return res.json(validationBlock)
     }
