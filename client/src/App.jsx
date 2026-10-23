@@ -14,6 +14,7 @@ import Admins from './pages/Admins'
 import Users from './pages/Users'
 import Depots from './pages/Depots'
 import Login from './pages/Login'
+import Landing from './pages/Landing'
 import DriverTrips from './pages/DriverTrips'
 import AppLayout from './components/AppLayout'
 import { RequireAuth, RoleGuard, PublicOnly } from './components/ProtectedRoute'
@@ -26,7 +27,7 @@ function RootRedirect() {
   if (isAuthenticated && user) {
     return <Navigate to={homePathForRole(user.role)} replace />
   }
-  return <Navigate to="/login" replace />
+  return <Landing />
 }
 
 function App() {
@@ -58,7 +59,7 @@ function App() {
       </Route>
 
       <Route path="/" element={<RootRedirect />} />
-      <Route path="*" element={<RootRedirect />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </>
   )
